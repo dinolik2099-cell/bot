@@ -12,11 +12,8 @@ import numpy as np
 import pandas as pd
 
 ROOT=Path(__file__).resolve().parents[1]
-BASE=ROOT/'scripts'/'run_phase2_4_b_shared_capital_backtest.py'
-spec_name='p24b_v13_base'
-import importlib.util
-spec=importlib.util.spec_from_file_location(spec_name,BASE)
-P=importlib.util.module_from_spec(spec); sys.modules[spec_name]=P; spec.loader.exec_module(P)
+if str(ROOT) not in sys.path: sys.path.insert(0, str(ROOT))
+from quantbot.portfolio import shared_capital as P
 
 MODELS=list(P.MODELS)
 SYMBOLS=list(P.SYMBOLS)

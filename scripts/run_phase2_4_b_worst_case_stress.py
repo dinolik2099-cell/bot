@@ -9,23 +9,15 @@
 2) VALIDATION 交易序列蒙特卡洛重排，专门观察最坏路径风险。
 """
 from __future__ import annotations
-import argparse, importlib.util, json, math, multiprocessing as mp, random, sys
+import argparse, json, math, multiprocessing as mp, random, sys
 from pathlib import Path
 from collections import defaultdict
 import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-P24B = ROOT / "scripts/run_phase2_4_b_shared_capital_backtest.py"
-
-def load_p24b():
-    spec = importlib.util.spec_from_file_location("p24b_stress_base", P24B)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-P = load_p24b()
+if str(ROOT) not in sys.path: sys.path.insert(0, str(ROOT))
+from quantbot.portfolio import shared_capital as P
 
 SCENARIOS = [
     ("基准成本", 0.0004, 2.0),

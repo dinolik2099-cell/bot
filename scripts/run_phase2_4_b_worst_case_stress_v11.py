@@ -13,20 +13,15 @@
 6. 组合回测结果审计：风险上限、单币重叠、字段完整性、NaN/Inf。
 """
 from __future__ import annotations
-import argparse, importlib.util, json, math, multiprocessing as mp, sys
+import argparse, json, math, multiprocessing as mp, sys
 from collections import defaultdict
 from pathlib import Path
 import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
-P24B = ROOT / "scripts" / "run_phase2_4_b_shared_capital_backtest.py"
-
-def load_p24b():
-    spec=importlib.util.spec_from_file_location("p24b_v11_base", P24B)
-    mod=importlib.util.module_from_spec(spec); sys.modules[spec.name]=mod
-    spec.loader.exec_module(mod); return mod
-P=load_p24b()
+if str(ROOT) not in sys.path: sys.path.insert(0, str(ROOT))
+from quantbot.portfolio import shared_capital as P
 
 SCENARIOS=[
     ("基准成本",0.0004,2.0),
