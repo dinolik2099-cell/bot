@@ -150,7 +150,7 @@ def _worker(symbol: str, model_name: str, lock_path: str, raw_root: str, parquet
         if not validation_results:
             continue
         selected = validation_results[0]
-        stability = _stability(train_results, top[0], item.spec) if top else {}
+        stability = _stability(train_results, selected, item.spec) if top else {}
         vm = selected["metrics"]
         viable = float(vm["total_return"]) > 0.0 and float(vm["profit_factor"]) >= 1.0
         status = "FROZEN" if viable else "HOLD"

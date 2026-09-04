@@ -29,6 +29,11 @@ def main():
     s=_stability(results,results[0],spec)
     assert len(results)>=TOP_K_TRAIN and s["neighbor_count"]>0
     assert isinstance(_score({"total_return":1.2,"max_drawdown":0.3}),float)
+    # Frozen stability diagnostics must describe the VALIDATION-selected candidate, not TRAIN rank #1.
+    runner_source=(ROOT/"scripts/run_phase2_3_5_d1_parameter_research.py").read_text(encoding="utf-8")
+    assert "selected = validation_results[0]" in runner_source
+    assert "stability = _stability(train_results, selected, item.spec) if top else {}" in runner_source
+    assert "stability = _stability(train_results, top[0], item.spec) if top else {}" not in runner_source
     # Every candidate grid tuple is unique.
     assert len({_key['params'].__repr__() for _key in results})==len(results)
     # C report provenance exists and contains exactly the locked 12.
