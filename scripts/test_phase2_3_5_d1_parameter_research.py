@@ -40,6 +40,10 @@ def main():
     assert "from quantbot.research.evaluation import evaluate_strategy" in runner_source
     assert "gap_indices={symbol: _gap_indices(dataset, symbol)}" in runner_source
     assert "_fast_backtest(" not in runner_source
+    assert '"--allow-subset"' in runner_source
+    assert "and not args.allow_subset" in runner_source
+    assert "if not symbols:" in runner_source
+    assert "issubset(set(SYMBOLS))" in runner_source
     # Every candidate grid tuple is unique.
     assert len({_key['params'].__repr__() for _key in results})==len(results)
     # C report provenance exists and contains exactly the locked 12.

@@ -237,7 +237,11 @@ def run(args) -> dict[str, Any]:
     if set(models) != expected_models:
         raise RuntimeError(f"C阶段shortlist与D-1锁定模型集合不一致: {models}")
     symbols = tuple(s.upper() for s in args.symbols)
-    if set(symbols) != set(SYMBOLS):
+    if not symbols:
+        raise RuntimeError("D-1研究币种集合不能为空")
+    if not set(symbols).issubset(set(SYMBOLS)):
+        raise RuntimeError(f"D-1仅允许Universe内币种: {symbols}")
+    if set(symbols) != set(SYMBOLS) and not args.allow_subset:
         raise RuntimeError("D-1默认研究必须覆盖全部6个Universe币种；如需子集测试请使用 --allow-subset")
 
     t0 = time.perf_counter()
@@ -363,6 +367,11 @@ def main() -> int:
     p.add_argument("--parquet-root", default=str(ROOT / "data/parquet"))
     p.add_argument("--shortlist-report", default=str(SHORTLIST_REPORT))
     p.add_argument("--symbols", nargs="+", default=list(SYMBOLS))
+    p.add_argument(
+        "--allow-subset",
+        action="store_true",
+        help="显式允许仅运行 --symbols 指定的Universe子集；默认仍要求完整6币种",
+    )
     p.add_argument("--workers", type=int, default=6)
     p.add_argument("--single-symbol", default=None)
     p.add_argument("--single-model", default=None)
