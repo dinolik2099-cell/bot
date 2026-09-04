@@ -35,13 +35,11 @@ python scripts/download_binance.py --symbols BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRP
 
 如果服务器到 `data.binance.vision` 网络较慢，可以把数据下载到服务器后直接放入 `data/raw/`，脚本支持重复运行并跳过已存在文件。
 
-## 第二步：运行第一轮并行研究
+## 第二步：使用当前 Boundary-aware 研究入口
 
-```bash
-python scripts/run_research.py --config config/research.yaml
-```
+`scripts/run_research.py` 已退役，因为它会绕过 Boundary Lock 和当前 Canonical Backtest Engine 研究链路。
 
-它会并行运行多个策略、多个风险档位和多个交易品种，并输出 CSV/JSON 结果。
+当前研究必须使用各阶段明确的 Boundary-aware 脚本，并保持 TRAIN / VALIDATION / OOS 隔离纪律；不要直接运行已退役的 `scripts/run_research.py`。
 
 ## 当前 V1 候选模型
 
