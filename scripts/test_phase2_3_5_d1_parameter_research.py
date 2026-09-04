@@ -34,6 +34,12 @@ def main():
     assert "selected = validation_results[0]" in runner_source
     assert "stability = _stability(train_results, selected, item.spec) if top else {}" in runner_source
     assert "stability = _stability(train_results, top[0], item.spec) if top else {}" not in runner_source
+    # D-1 formal research must use the canonical engine path and Boundary Lock gaps.
+    assert "from quantbot.backtest.engine_v2 import BacktestEngine" in runner_source
+    assert "from quantbot.backtest.costs import CostModel" in runner_source
+    assert "from quantbot.research.evaluation import evaluate_strategy" in runner_source
+    assert "gap_indices={symbol: _gap_indices(dataset, symbol)}" in runner_source
+    assert "_fast_backtest(" not in runner_source
     # Every candidate grid tuple is unique.
     assert len({_key['params'].__repr__() for _key in results})==len(results)
     # C report provenance exists and contains exactly the locked 12.

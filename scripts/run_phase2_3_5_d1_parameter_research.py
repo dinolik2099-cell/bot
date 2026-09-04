@@ -24,7 +24,10 @@ from quantbot.research.integration import find_gap_ranges
 from quantbot.research.model_registry import get_model, register_existing_models, list_models, validate_registry
 from quantbot.research.runner import build_research_dataset, load_research_frames, split_frame
 from quantbot.strategies.model_pool import register_model_pool
-from scripts.run_phase2_3_5_model_discovery_baseline import _fast_backtest, _metrics_extra
+from quantbot.backtest.costs import CostModel
+from quantbot.backtest.engine_v2 import BacktestEngine
+from quantbot.research.evaluation import evaluate_strategy
+from scripts.run_phase2_3_5_model_discovery_baseline import _metrics_extra
 
 SYMBOLS = ("BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT")
 WINDOWS = ("TRAIN", "VALIDATION")
@@ -93,8 +96,33 @@ def _stability(train_results: list[dict[str, Any]], candidate: dict[str, Any], g
 
 
 def _evaluate(frame, strategy, params, symbol, dataset, window, tag):
-    fast_metrics, trades = _fast_backtest(frame, strategy, params, symbol, dataset, window, tag)
-    return _metrics_extra(fast_metrics, trades)
+    engine = BacktestEngine(
+        initial_equity=INITIAL_EQUITY,
+        cost_model=CostModel(
+            fee_rate=0.0004,
+            slippage_bps=2.0,
+            funding_rate_per_8h=0.0,
+        ),
+        max_position_fraction=POSITION_FRACTION,
+        max_risk_fraction=MAX_RISK_FRACTION,
+        max_positions=MAX_POSITIONS,
+        gap_indices={symbol: _gap_indices(dataset, symbol)},
+    )
+    evaluation = evaluate_strategy(
+        symbol=symbol,
+        window=window,
+        frame=frame,
+        strategy=strategy,
+        engine=engine,
+        params=params,
+        risk_fraction=RISK_FRACTION,
+        position_fraction=POSITION_FRACTION,
+        tag=tag,
+    )
+    return _metrics_extra(
+        evaluation.backtest.metrics(),
+        evaluation.backtest.trades,
+    )
 
 
 def _worker(symbol: str, model_name: str, lock_path: str, raw_root: str, parquet_root: str) -> dict[str, Any]:
