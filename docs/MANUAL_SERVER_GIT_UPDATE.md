@@ -25,13 +25,24 @@ git ls-tree -r --name-only origin/main | sed -n '1,80p'
 ```
 
 If the server directory is confirmed to contain the same code snapshot and only
-the intended server-only files differ, create a backup outside the project and
-then attempt the safe initial checkout. Do not use `git reset --hard`.
+the intended server-only files differ, first preserve every tracked server-side
+difference as a Git binary patch. Then attach the branch and materialize the
+remote tracked files. Do not use `git reset --hard`.
 
 ```bash
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+git diff --binary > "/www/wwwroot/QuantBot_server_before_git_attach_${STAMP}.patch"
+git diff --name-status > "/www/wwwroot/QuantBot_server_before_git_attach_${STAMP}.files"
+
+git read-tree origin/main
 git switch --track -c main origin/main
+git restore --source=origin/main --staged --worktree -- .
+git branch --set-upstream-to=origin/main main
+git diff --quiet && echo "TRACKED_WORKTREE_MATCHES_ORIGIN"
 ```
 
+The patch records any previous tracked server-side version before `git restore`
+materializes the GitHub version. Untracked server-only items are not changed.
 If `git switch` reports that an untracked file would be overwritten, it stops
 without replacing that file. Compare or relocate that individual file before
 trying again. Preserve `.env`, `data/`, `reports/`, `logs/`, and `venv/` outside
