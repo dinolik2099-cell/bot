@@ -1,0 +1,165 @@
+from __future__ import annotations
+
+import pandas as pd
+
+from quantbot.backtest.engine_v2 import BacktestEngine
+from quantbot.research.evaluation import (
+    evaluate_strategy,
+    evaluation_to_dict,
+    make_strategy_adapter,
+)
+
+
+def make_frame(n=16):
+    idx = pd.date_range("2025-01-01", periods=n, freq="h", tz="UTC")
+    x = pd.Series(range(100, 100 + n), index=idx, dtype=float)
+    return pd.DataFrame({
+        "open": x,
+        "high": x + 2,
+        "low": x - 2,
+        "close": x + 1,
+    }, index=idx)
+
+
+def test_strategy_is_precomputed_once():
+    df = make_frame()
+    calls = {"n": 0}
+
+    def strategy(x, **kwargs):
+        calls["n"] += 1
+        out = x.copy()
+        out["signal"] = 0
+        out["stop"] = float("nan")
+        out["target"] = float("nan")
+        out.iloc[2, out.columns.get_loc("signal")] = 1
+        out.iloc[2, out.columns.get_loc("stop")] = 100.0
+        out.iloc[2, out.columns.get_loc("target")] = 110.0
+        return out
+
+    adapter = make_strategy_adapter(
+        strategy, full_frame=df, risk_fraction=0.01,
+        position_fraction=0.30, tag="test",
+    )
+
+    for i in range(1, len(df)):
+        adapter(df.iloc[:i].copy(), i)
+
+    assert calls["n"] == 1
+
+
+def test_t_minus_one_maps_to_t():
+    df = make_frame()
+
+    def strategy(x, **kwargs):
+        out = x.copy()
+        out["signal"] = 0
+        out["stop"] = float("nan")
+        out["target"] = float("nan")
+        out.iloc[2, out.columns.get_loc("signal")] = 1
+        out.iloc[2, out.columns.get_loc("stop")] = 100.0
+        out.iloc[2, out.columns.get_loc("target")] = 110.0
+        return out
+
+    adapter = make_strategy_adapter(
+        strategy, full_frame=df, risk_fraction=0.01,
+        position_fraction=0.30, tag="test",
+    )
+    signal = adapter(df.iloc[:3].copy(), 3)
+
+    assert signal is not None
+    assert signal.timestamp == df.index[3]
+    assert signal.side == "buy"
+
+
+def test_lookahead_is_rejected():
+    df = make_frame()
+
+    def strategy(x, **kwargs):
+        out = x.copy()
+        out["signal"] = 0
+        out["stop"] = float("nan")
+        out["target"] = float("nan")
+        return out
+
+    adapter = make_strategy_adapter(
+        strategy, full_frame=df, risk_fraction=0.01,
+        position_fraction=0.30, tag="test",
+    )
+
+    try:
+        adapter(df.iloc[:4].copy(), 3)
+    except ValueError as exc:
+        assert "lookahead violation" in str(exc)
+    else:
+        raise AssertionError("lookahead violation was not rejected")
+
+
+def test_real_engine_callback():
+    df = make_frame()
+
+    def strategy(x, **kwargs):
+        out = x.copy()
+        out["signal"] = 0
+        out["stop"] = float("nan")
+        out["target"] = float("nan")
+        out.iloc[5, out.columns.get_loc("signal")] = 1
+        out.iloc[5, out.columns.get_loc("stop")] = 100.0
+        out.iloc[5, out.columns.get_loc("target")] = 110.0
+        return out
+
+    adapter = make_strategy_adapter(
+        strategy, full_frame=df, risk_fraction=0.01,
+        position_fraction=0.30, tag="engine-test",
+    )
+    engine = BacktestEngine(
+        initial_equity=10000.0,
+        max_position_fraction=0.30,
+        max_risk_fraction=0.01,
+    )
+    result = engine.run({"BTCUSDT": df}, {"BTCUSDT": adapter})
+
+    assert result.initial_equity == 10000.0
+    assert result.equity_curve.index.is_monotonic_increasing
+
+
+def test_evaluation_serialization():
+    df = make_frame()
+
+    def strategy(x, **kwargs):
+        out = x.copy()
+        out["signal"] = 0
+        out["stop"] = float("nan")
+        out["target"] = float("nan")
+        return out
+
+    engine = BacktestEngine(
+        initial_equity=10000.0,
+        max_position_fraction=0.30,
+        max_risk_fraction=0.01,
+    )
+    result = evaluate_strategy(
+        symbol="BTCUSDT",
+        window="TRAIN",
+        frame=df,
+        strategy=strategy,
+        params={},
+        engine=engine,
+        risk_fraction=0.01,
+        position_fraction=0.30,
+    )
+    obj = evaluation_to_dict(result)
+    assert obj["symbol"] == "BTCUSDT"
+    assert obj["window"] == "TRAIN"
+
+
+def main():
+    test_strategy_is_precomputed_once()
+    test_t_minus_one_maps_to_t()
+    test_lookahead_is_rejected()
+    test_real_engine_callback()
+    test_evaluation_serialization()
+    print("PHASE2_2_2_V1_0_4_STRATEGY_EVALUATION_CORE_TEST_OK")
+
+
+if __name__ == "__main__":
+    main()

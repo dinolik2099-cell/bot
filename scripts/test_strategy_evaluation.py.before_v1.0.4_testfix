@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from quantbot.backtest.engine_v2 import BacktestEngine
+from quantbot.research.evaluation import make_strategy_adapter
+
+
+def make_frame():
+    idx = pd.date_range(
+        "2025-01-01 00:00:00+00:00",
+        periods=8,
+        freq="1h",
+    )
+    return pd.DataFrame(
+        {
+            "open": [100, 101, 102, 103, 104, 105, 106, 107],
+            "high": [101, 102, 103, 104, 105, 106, 107, 108],
+            "low": [99, 100, 101, 102, 103, 104, 105, 106],
+            "close": [100, 101, 102, 103, 104, 105, 106, 107],
+            "volume": [10] * 8,
+        },
+        index=idx,
+    )
+
+
+def synthetic_strategy(df):
+    x = df.copy()
+    x["signal"] = 0
+    x["stop"] = float("nan")
+    x["target"] = float("nan")
+
+    if len(x) >= 2:
+        x.iloc[-1, x.columns.get_loc("signal")] = 1
+        x.iloc[-1, x.columns.get_loc("stop")] = x.iloc[-1]["close"] - 1
+        x.iloc[-1, x.columns.get_loc("target")] = x.iloc[-1]["close"] + 3
+
+    return x
+
+
+def test_adapter_uses_strict_pre_t_history():
+    frame = make_frame()
+    adapter = make_strategy_adapter(
+        synthetic_strategy,
+        full_frame=frame,
+        risk_fraction=0.01,
+        position_fraction=1.0,
+        tag="lookahead_test",
+    )
+
+    # At T=2025-01-01 03:00, strategy receives only T-1 and earlier.
+    signal = adapter(frame, 3)
+
+    assert signal is not None
+    assert signal.timestamp == frame.index[3]
+    assert signal.side == "buy"
+
+    # Stop/target must come from the last pre-T candle, not T.
+    assert signal.stop_price == frame.iloc[2]["close"] - 1
+    assert signal.take_profit == frame.iloc[2]["close"] + 3
+
+
+def test_no_history_means_no_signal():
+    frame = make_frame()
+    adapter = make_strategy_adapter(
+        synthetic_strategy,
+        full_frame=frame,
+        risk_fraction=0.01,
+        position_fraction=1.0,
+        tag="empty_history",
+    )
+    assert adapter(frame, 0) is None
+
+
+def test_zero_signal_means_no_signal():
+    def no_signal(df):
+        x = df.copy()
+        x["signal"] = 0
+        x["stop"] = float("nan")
+        x["target"] = float("nan")
+        return x
+
+    frame = make_frame()
+    adapter = make_strategy_adapter(
+        no_signal,
+        full_frame=frame,
+        risk_fraction=0.01,
+        position_fraction=1.0,
+        tag="zero",
+    )
+    assert adapter(frame, 4) is None
+
+
+def main():
+    test_adapter_uses_strict_pre_t_history()
+    test_no_history_means_no_signal()
+    test_zero_signal_means_no_signal()
+    print("PHASE2_2_2_V1_0_2_STRATEGY_ADAPTER_TEST_OK")
+
+
+if __name__ == "__main__":
+    main()
