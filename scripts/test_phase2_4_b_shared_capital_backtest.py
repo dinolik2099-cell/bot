@@ -54,20 +54,50 @@ def test_shared_capital_never_exceeds_total_risk():
     assert result["entry_count"] == 4
     assert len(result["trades"]) >= 4
 
-def test_gap_first_actual_is_nontradable():
-    boundary={"gaps":[{"symbol":"SOLUSDT","end":"2022-02-28T23:00:00+00:00"}]}
-    assert pd.Timestamp("2022-03-01T00:00:00+00:00") in mod.gap_first_actual(boundary,"SOLUSDT")
+def test_first_actual_bar_after_gap_is_tradable():
+    previous = pd.Timestamp("2022-02-25T23:00:00+00:00")
+    first_actual = pd.Timestamp("2022-03-01T00:00:00+00:00")
+    after = pd.Timestamp("2022-03-01T01:00:00+00:00")
 
-def test_gap_normalization_handles_none_and_multiple_gaps():
-    class IntegrationDataset:
-        gaps = None
-    assert mod.gap_first_actual(IntegrationDataset(), "BTCUSDT") == set()
-    assert mod.gap_first_actual({"gaps": None}, "BTCUSDT") == set()
-    boundary={"gaps":[None, {"symbol":"SOLUSDT","end":"2022-02-28 23:00:00"},
-                       {"symbol":"SOLUSDT","end":"2022-04-02 23:00:00"},
-                       {"symbol":"XRPUSDT","end":"2022-04-02 23:00:00"}]}
-    got=mod.gap_first_actual(boundary,"SOLUSDT")
-    assert got == {pd.Timestamp("2022-03-01 00:00:00",tz="UTC"), pd.Timestamp("2022-04-03 00:00:00",tz="UTC")}
+    frame = pd.DataFrame({
+        "open": [100.0, 100.0, 100.0],
+        "high": [100.5, 100.5, 100.5],
+        "low": [99.5, 99.5, 99.5],
+        "close": [100.0, 100.0, 100.0],
+    }, index=[previous, first_actual, after])
+
+    sigs = {
+        ("m", "SOLUSDT"): {
+            first_actual: {
+                "timestamp": first_actual,
+                "side": "buy",
+                "stop_price": 95.0,
+                "take_profit": 110.0,
+                "tag": "canonical-gap",
+            }
+        }
+    }
+
+    # Canonical locked gap is previous < ts < next.
+    # The `next` timestamp itself is the first real candle and is tradable.
+    boundary = {
+        "gaps": [{
+            "symbol": "SOLUSDT",
+            "previous": previous.isoformat(),
+            "next": first_actual.isoformat(),
+            "missing_bars": 72,
+        }]
+    }
+
+    result = mod.shared_backtest(
+        {"SOLUSDT": frame},
+        sigs,
+        [("m", "SOLUSDT")],
+        boundary,
+    )
+    assert result["entry_count"] == 1
+    assert result["skipped_gap_entries"] == 0
+
 
 def test_no_oos_literals_in_runtime_inputs():
     text=path.read_text(encoding="utf-8")
@@ -75,22 +105,6 @@ def test_no_oos_literals_in_runtime_inputs():
     assert "phase2_3_5_d2_oos_validation.json" not in text
     assert "phase2_3_5_d3_oos_analysis.json" not in text
     assert '"OOS"' not in text
-
-def test_gap_first_actual_accepts_integration_dataset():
-    class Gap:
-        symbol = "SOLUSDT"
-        end = "2022-02-28 23:00:00"
-    class IntegrationDataset:
-        gaps = [Gap()]
-    assert mod.gap_first_actual(IntegrationDataset(), "SOLUSDT") == {pd.Timestamp("2022-03-01 00:00:00",tz="UTC")}
-    assert mod.gap_first_actual({"gaps":[{"symbol":"XRPUSDT","end":"2022-04-02 23:00:00"}]}, "XRPUSDT") == {pd.Timestamp("2022-04-03 00:00:00",tz="UTC")}
-
-def test_gap_first_actual_handles_metadata_and_symbol_map():
-    class IntegrationDataset:
-        gaps = None
-        metadata = {"gaps": {"SOLUSDT": [{"end": "2022-02-28 23:00:00"}]}}
-    got = mod.gap_first_actual(IntegrationDataset(), "SOLUSDT")
-    assert got == {pd.Timestamp("2022-03-01 00:00:00", tz="UTC")}
 
 def test_shared_capital_caps_same_direction_risk():
     idx = pd.date_range("2026-01-01", periods=4, freq="h", tz="UTC")
@@ -139,11 +153,8 @@ def main():
         test_risk_policy_constants,
         test_causal_signal_shift,
         test_shared_capital_never_exceeds_total_risk,
-        test_gap_first_actual_is_nontradable,
-        test_gap_normalization_handles_none_and_multiple_gaps,
+        test_first_actual_bar_after_gap_is_tradable,
         test_no_oos_literals_in_runtime_inputs,
-        test_gap_first_actual_accepts_integration_dataset,
-        test_gap_first_actual_handles_metadata_and_symbol_map,
         test_shared_capital_caps_same_direction_risk,
         test_shared_capital_max_positions_rejects_fifth_entry,
         test_metrics_expose_trade_count,
@@ -153,7 +164,7 @@ def main():
     print("共享资金风险政策锁定：通过")
     print("因果信号T-1→T OPEN：通过")
     print("组合总风险上限：通过")
-    print("Gap首根实际K线不可交易：通过")
+    print("Canonical Gap语义（首根实际K线可交易）：通过")
     print("OOS/D-2/D-3输入隔离：通过")
     print("PHASE2_4_B_SHARED_CAPITAL_BACKTEST_TEST_OK")
 

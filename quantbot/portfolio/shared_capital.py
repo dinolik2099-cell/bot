@@ -11,7 +11,7 @@ Research contract:
 - Entries execute at the current actual candle OPEN.
 - New entry cannot hit its own SL/TP on the entry candle.
 - Later OHLC: STOP wins if both stop and target are touched.
-- Missing candles are never synthesized; the first actual candle after a gap is non-tradable.
+- Missing candles are never synthesized; only timestamps strictly inside locked gaps are non-tradable.
 - End-of-data positions close at the final actual close.
 
 This stage compares fixed portfolio recipes under a fixed shared-capital risk policy.
@@ -110,50 +110,6 @@ def register_all_models():
         register_existing_models()
         from quantbot.strategies.model_pool import register_model_pool
         register_model_pool()
-
-def gap_first_actual(boundary, symbol):
-    """Return a set of first-actual timestamps after every locked gap for symbol.
-
-    Boundary representations may expose ``gaps`` directly, via ``metadata``,
-    or as None. Individual gap records may also have None values. Returning a
-    set makes membership checks safe for both zero-gap and multi-gap symbols.
-    """
-    if isinstance(boundary, dict):
-        gaps = boundary.get("gaps")
-        if gaps is None:
-            metadata = boundary.get("metadata")
-            gaps = metadata.get("gaps") if isinstance(metadata, dict) else []
-    else:
-        gaps = getattr(boundary, "gaps", None)
-        if gaps is None:
-            metadata = getattr(boundary, "metadata", None)
-            gaps = metadata.get("gaps", []) if isinstance(metadata, dict) else []
-    if gaps is None:
-        return set()
-    symbol_mapped = False
-    if isinstance(gaps, dict) and symbol in gaps:
-        gaps = gaps.get(symbol, []) or []
-        symbol_mapped = True
-    elif isinstance(gaps, dict):
-        gaps = [gaps]
-    result = set()
-    for g in gaps:
-        if g is None:
-            continue
-        if isinstance(g, dict):
-            gs = symbol if symbol_mapped else g.get("symbol")
-            end = g.get("end") or g.get("gap_end")
-            if end is None and gs is None and symbol in g:
-                value = g.get(symbol)
-                if isinstance(value, dict):
-                    end = value.get("end") or value.get("gap_end")
-                    gs = symbol
-        else:
-            gs = getattr(g, "symbol", None)
-            end = getattr(g, "end", None) or getattr(g, "gap_end", None)
-        if gs == symbol and end is not None:
-            result.add(utc(end) + pd.Timedelta(hours=1))
-    return result
 
 def validate_freeze(freeze, dataset_id):
     if freeze.get("phase") != "2.3.5-D-1":
@@ -277,13 +233,13 @@ def shared_backtest(frames, signal_maps, recipe_keys, boundary, initial=INITIAL_
     timeline = sorted(set().union(*(set(df.index) for df in frames.values())))
     if not timeline:
         raise ValueError("empty portfolio timeline")
-    gaps = {s: gap_first_actual(boundary, s) for s in frames}
     # Deterministic recipe order; no hidden score sorting inside B.
     recipe_keys = [tuple(k) for k in recipe_keys]
     positions = {}
     equity = float(initial)
     trades = []
     rejected = 0
+    # Compatibility metric: canonical missing-gap timestamps are absent from loaded frames.
     skipped_gap = 0
     curve = []
     entry_count = 0
@@ -319,9 +275,6 @@ def shared_backtest(frames, signal_maps, recipe_keys, boundary, initial=INITIAL_
             if ts not in frames[symbol].index:
                 continue
             if symbol in positions:
-                continue
-            if ts in gaps.get(symbol,set()):
-                skipped_gap += 1
                 continue
             sig = signal_maps[(model,symbol)].get(ts)
             if sig is None:
@@ -412,11 +365,13 @@ def worker(payload):
         sys.path.insert(0,str(ROOT))
     symbol, freeze_records, lock_path, raw_root, parquet_root, recipe_keys = payload
     from quantbot.research.model_registry import get_model
+    from quantbot.research.runner import assert_gap_policy
     register_all_models()
     boundary, dataset, full, source = load_symbol_frame(symbol, lock_path, raw_root, parquet_root)
     local = {}
     for window in ("TRAIN","VALIDATION"):
         frame = split_by_window(dataset, full, window)
+        assert_gap_policy(dataset, symbol, frame)
         local[window] = {"frame": frame, "source": source, "signals": {}}
         by_model = {r["model"]:r for r in freeze_records}
         for model in sorted({m for m,s in recipe_keys if s==symbol}):
@@ -527,7 +482,7 @@ def main():
             "parameters_modified":False,"d1_freeze_modified":False,
             "recipe_source":"Phase 2.4-A Validation recipes; this stage compares them under shared capital.",
             "execution":"entries at current OPEN; entry candle cannot trigger new SL/TP; STOP wins tie; EOD close",
-            "gap_policy":"no synthetic candles; first actual bar after configured gap is non-tradable"
+            "gap_policy":"no synthetic candles; only timestamps strictly inside configured gaps are non-tradable"
         },
         "risk_policy":{
             "initial_equity":INITIAL_EQUITY,"risk_per_entry":RISK_PER_ENTRY,
