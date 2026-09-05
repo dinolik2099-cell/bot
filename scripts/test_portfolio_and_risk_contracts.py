@@ -25,6 +25,23 @@ def main() -> None:
     assert not family_blocked.accepted and family_blocked.reason == "max_same_family_risk"
     invalid = approve_candidate(candidates[0], reference_price=100.0, equity=10_000.0, positions=(PositionExposure("ETHUSDT", "buy", -1.0, 1000.0),))
     assert not invalid.accepted and invalid.reason == "invalid_position_exposure"
+
+    nan_risk = approve_candidate(
+        candidates[0],
+        reference_price=100.0,
+        equity=10_000.0,
+        positions=(PositionExposure("ETHUSDT", "buy", float("nan"), 1000.0),),
+    )
+    assert not nan_risk.accepted and nan_risk.reason == "invalid_position_exposure"
+
+    inf_notional = approve_candidate(
+        candidates[0],
+        reference_price=100.0,
+        equity=10_000.0,
+        positions=(PositionExposure("ETHUSDT", "buy", 50.0, float("inf")),),
+    )
+    assert not inf_notional.accepted and inf_notional.reason == "invalid_position_exposure"
+
     print("PORTFOLIO_AND_RISK_CONTRACTS_SYNTHETIC_TEST_OK")
 
 

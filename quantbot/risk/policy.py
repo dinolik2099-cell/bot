@@ -45,7 +45,13 @@ def approve_candidate(candidate: PortfolioCandidate, *, reference_price: float, 
     symbols = [position.symbol for position in open_positions]
     if len(symbols) != len(set(symbols)):
         return RiskDecision(False, "invalid_duplicate_position_state")
-    if any(position.risk_amount < 0 or position.notional < 0 for position in open_positions):
+    if any(
+        not math.isfinite(position.risk_amount)
+        or not math.isfinite(position.notional)
+        or position.risk_amount < 0
+        or position.notional < 0
+        for position in open_positions
+    ):
         return RiskDecision(False, "invalid_position_exposure")
     intent = candidate.intent
     if len(open_positions) >= policy.max_positions:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Mapping
+from types import MappingProxyType
 import hashlib
 
 
@@ -14,12 +15,29 @@ _ALLOWED = {
 }
 
 
+def _freeze_payload(value: Any) -> Any:
+    """Return an immutable recursive copy suitable for audit evidence."""
+    if isinstance(value, Mapping):
+        return MappingProxyType({
+            key: _freeze_payload(item)
+            for key, item in value.items()
+        })
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_payload(item) for item in value)
+    if isinstance(value, (set, frozenset)):
+        return frozenset(_freeze_payload(item) for item in value)
+    return value
+
+
 @dataclass(frozen=True)
 class AuditEvent:
     sequence: int
     event_type: str
     correlation_id: str
     payload: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "payload", _freeze_payload(self.payload))
 
 
 class DecisionAuditTrail:

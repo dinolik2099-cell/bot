@@ -20,8 +20,13 @@ def main() -> None:
     order = build_paper_order(plan)
     assert order.mode == "paper_only" and order.client_order_id.startswith("paper-") and order.model_family == "trend"
     assert plan.expected_execution_price > plan.reference_price and plan.estimated_entry_fee > 0
+    assert plan.notional <= decision.notional + 1e-9
+    assert plan.quantity <= decision.quantity + 1e-12
+    assert plan.risk_amount <= decision.risk_amount + 1e-9
+    assert plan.quantity < decision.quantity
     exposure=exposure_from_plan(plan)
     assert exposure.model_family == "trend" and exposure.risk_amount == plan.risk_amount
+    assert exposure.notional == plan.notional
     try:
         size_approved_candidate(candidate, decision.__class__(False, "blocked"), reference_price=100.0, cost_model=CostModel())
     except ValueError:

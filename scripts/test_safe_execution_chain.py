@@ -5,7 +5,7 @@ import pandas as pd
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from quantbot.execution.paper_runtime import run_once
 from quantbot.execution import RuntimeConfig
-from quantbot.risk import PositionExposure, RiskSnapshot
+from quantbot.risk import PositionExposure, RiskPolicy, RiskSnapshot
 from quantbot.signals import SignalIntent
 from quantbot.research.provenance import RunProvenance
 
@@ -28,6 +28,31 @@ def main():
  assert result.audit.events[0].payload["provenance"]["source_window"]=="VALIDATION"
  blocked=run_once((accepted,),{"BTCUSDT":100},10_000,provenance,snapshot,positions=(PositionExposure("BTCUSDT","buy",50,1000),))
  assert blocked.rejected[0][1]=="symbol_already_exposed"
+ # Regression: approvals in one run must consume risk capacity immediately.
+ same_run_a=intent("BTCUSDT","trend_same_run","trend",.8)
+ same_run_b=intent("ETHUSDT","break_same_run","breakout",.7)
+ tight_policy=RiskPolicy(
+     risk_per_entry=.01,
+     max_total_risk=.015,
+     max_same_direction_risk=1.0,
+     max_same_family_risk=1.0,
+     max_positions=4,
+     max_position_fraction=1.0,
+     max_total_capital_fraction=1.0,
+ )
+ accumulated=run_once(
+     (same_run_a,same_run_b),
+     {"BTCUSDT":100,"ETHUSDT":100},
+     10_000,
+     provenance,
+     snapshot,
+     policy=tight_policy,
+ )
+ assert len(accumulated.requested_order_ids)==1
+ assert len(accumulated.new_exposures)==1
+ assert len(accumulated.rejected)==1
+ assert accumulated.rejected[0][1]=="max_total_risk"
+
  halted=run_once((accepted,),{"BTCUSDT":100},10_000,provenance,RiskSnapshot(9_600,10_000,10_000,10_000))
  assert not halted.requested_order_ids and not halted.ledger.orders
  assert halted.rejected[0][1]=="max_daily_loss"

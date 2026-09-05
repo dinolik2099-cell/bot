@@ -36,12 +36,18 @@ def size_approved_candidate(candidate: PortfolioCandidate, decision: RiskDecisio
         raise ValueError("approved decision has invalid sizing")
     intent = candidate.intent
     expected = cost_model.execution_price(reference_price, intent.side)
-    notional = decision.quantity * expected
+    if not math.isfinite(expected) or expected <= 0:
+        raise ValueError("invalid expected execution price")
+
+    quantity = min(decision.quantity, decision.notional / expected)
+    notional = quantity * expected
+    risk_amount = decision.risk_amount * (quantity / decision.quantity)
+
     return PositionPlan(
         symbol=intent.symbol, side=intent.side, model=intent.model, model_family=intent.model_family,
         decision_timestamp=intent.timestamp.isoformat(), reference_price=float(reference_price),
-        expected_execution_price=expected, quantity=decision.quantity, notional=notional,
-        risk_amount=decision.risk_amount, estimated_entry_fee=cost_model.trading_cost(notional),
+        expected_execution_price=expected, quantity=quantity, notional=notional,
+        risk_amount=risk_amount, estimated_entry_fee=cost_model.trading_cost(notional),
         stop=intent.stop, take_profit=intent.take_profit,
         tag=f"{intent.model}:{intent.symbol}:{intent.timestamp.isoformat()}",
     )
