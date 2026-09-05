@@ -352,7 +352,7 @@ def shared_backtest(frames, signal_maps, recipe_keys, boundary, initial=INITIAL_
     return {
         "initial": initial, "final_equity": float(equity),
         "total_return": float(equity/initial-1.0),
-        "max_drawdown": float(dd), "trades": len(trades),
+        "max_drawdown": float(dd),
         "win_rate": len(wins)/len(net) if net else 0.0,
         "profit_factor": float(pf), "rejected_entries": rejected,
         "skipped_gap_entries": skipped_gap, "entry_count": entry_count,
