@@ -8,7 +8,7 @@ from quantbot.execution.paper import build_paper_order
 from quantbot.execution.paper_ledger import PaperLedger
 from quantbot.execution.runtime_config import RuntimeConfig, validate_runtime_config
 from quantbot.portfolio import select_candidates
-from quantbot.risk import PositionExposure, RiskPolicy, RiskSnapshot, evaluate_circuit_breaker, approve_candidate, size_approved_candidate
+from quantbot.risk import PositionExposure, RiskPolicy, RiskSnapshot, emergency_stop_from_breaker, evaluate_circuit_breaker, approve_candidate, size_approved_candidate
 from quantbot.signals import SignalIntent
 from quantbot.research.provenance import RunProvenance, validate_non_oos_provenance
 
@@ -33,10 +33,11 @@ def run_once(intents: Iterable[SignalIntent], prices: Mapping[str, float], equit
     }
     breaker = evaluate_circuit_breaker(risk_snapshot)
     if not breaker.allowed:
+        stop = emergency_stop_from_breaker(breaker, risk_snapshot)
         key = correlation_id("runtime", provenance.dataset_id, provenance.research_version)
         trail.append("signal_created", key, {"provenance": provenance_payload})
         trail.append("portfolio_selected", key, {"runtime_control": True})
-        trail.append("risk_rejected", key, {"reason": breaker.reason, "circuit_breaker": True})
+        trail.append("risk_rejected", key, {"reason": breaker.reason, "circuit_breaker": True, "emergency_stop": stop.active, "equity": stop.equity})
         return PaperRuntimeResult((), ((key, breaker.reason),), trail, ledger)
     candidates=select_candidates(intents,max_candidates=policy.max_positions)
     for candidate in candidates:
