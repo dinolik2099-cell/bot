@@ -26,6 +26,10 @@ def main():
  assert result.audit.events[0].payload["provenance"]["source_window"]=="VALIDATION"
  blocked=run_once((accepted,),{"BTCUSDT":100},10_000,provenance,snapshot,positions=(PositionExposure("BTCUSDT","buy",50,1000),))
  assert blocked.rejected[0][1]=="symbol_already_exposed"
+ halted=run_once((accepted,),{"BTCUSDT":100},10_000,provenance,RiskSnapshot(9_600,10_000,10_000,10_000))
+ assert not halted.requested_order_ids and not halted.ledger.orders
+ assert halted.rejected[0][1]=="max_daily_loss"
+ assert halted.audit.events[-1].payload["emergency_stop"] is True
  try: run_once((accepted,),{"BTCUSDT":100},10_000,provenance,snapshot,runtime_config=RuntimeConfig(live_enabled=True))
  except PermissionError: pass
  else: raise AssertionError("live mode escaped fail-closed protection")
