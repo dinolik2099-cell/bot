@@ -13,6 +13,7 @@ class RiskPolicy:
     risk_per_entry: float = 0.01
     max_total_risk: float = 0.04
     max_same_direction_risk: float = 0.03
+    max_same_family_risk: float = 0.02
     max_positions: int = 4
     max_position_fraction: float = 0.25
     max_total_capital_fraction: float = 0.80
@@ -24,6 +25,7 @@ class PositionExposure:
     side: str
     risk_amount: float
     notional: float
+    model_family: str = "unknown"
 
 
 @dataclass(frozen=True)
@@ -51,10 +53,13 @@ def approve_candidate(candidate: PortfolioCandidate, *, reference_price: float, 
     proposed_risk = equity * policy.risk_per_entry
     used_risk = sum(position.risk_amount for position in open_positions)
     direction_risk = sum(position.risk_amount for position in open_positions if position.side == intent.side)
+    family_risk = sum(position.risk_amount for position in open_positions if position.model_family == intent.model_family)
     if used_risk + proposed_risk > equity * policy.max_total_risk + 1e-12:
         return RiskDecision(False, "max_total_risk")
     if direction_risk + proposed_risk > equity * policy.max_same_direction_risk + 1e-12:
         return RiskDecision(False, "max_same_direction_risk")
+    if family_risk + proposed_risk > equity * policy.max_same_family_risk + 1e-12:
+        return RiskDecision(False, "max_same_family_risk")
     quantity = min(proposed_risk / risk_per_unit, equity * policy.max_position_fraction / reference_price)
     notional = quantity * reference_price
     used_notional = sum(position.notional for position in open_positions)
