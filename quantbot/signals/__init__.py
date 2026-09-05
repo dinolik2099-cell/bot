@@ -5,5 +5,6 @@ Creating a signal never places an order or changes portfolio state.
 """
 
 from .contracts import SignalIntent, normalize_strategy_output
+from .model_adapter import generate_model_intents
 
-__all__ = ["SignalIntent", "normalize_strategy_output"]
+__all__ = ["SignalIntent", "generate_model_intents", "normalize_strategy_output"]
