@@ -253,4 +253,17 @@ _SPECS = [
 def register_model_pool() -> None:
     common = ("open", "high", "low", "close", "volume")
     for name, category, fn, grid in _SPECS:
-        register_model(ModelSpec(name, category, "经典量化/技术分析候选", "第一批基础候选；必须重新经过统一 TRAIN→VALIDATION→OOS。", common, grid, ("多种市场环境",)), fn)
+        family = category.split("/", 1)[0]
+        register_model(ModelSpec(
+            name, category, "经典量化/技术分析候选",
+            "第一批基础候选；必须重新经过统一 TRAIN→VALIDATION→OOS。",
+            common, grid, ("多种市场环境",),
+            family=family,
+            description=f"{family} 家族的 {name} 候选模型；仅提供因果 signal/stop/target 输出。",
+            future_data_risk="none_declared",
+            train_status="not_run",
+            validation_status="not_run",
+            oos_status="sealed",
+            cost_sensitivity="unassessed",
+            research_version="model-pool-v1",
+        ), fn)

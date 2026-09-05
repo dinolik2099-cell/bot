@@ -33,6 +33,8 @@ def setup():
     register_existing_models()
     register_model_pool()
     validate_registry()
+    assert all(item.spec.family != "unclassified" for item in list_models())
+    assert all(item.spec.oos_status == "sealed" for item in list_models())
 
 
 def test_count_and_unique_names():

@@ -135,4 +135,10 @@ def register_existing_models() -> None:
         "mean_reversion": {"lookback": (20, 40, 60), "z_entry": (2.0, 2.5, 3.0), "z_exit": (0.5, 0.75, 1.0), "stop_atr": (1.5, 2.0, 2.5)},
     }
     for name, category, fn, rationale in existing:
-        register_model(ModelSpec(name, category, "QuantBot现有模型", rationale, common, grids[name], ("多种市场环境",)), fn)
+        family = category.split("/", 1)[0]
+        register_model(ModelSpec(
+            name, category, "QuantBot现有模型", rationale, common, grids[name], ("多种市场环境",),
+            family=family, description=rationale, future_data_risk="none_declared",
+            train_status="not_run", validation_status="not_run", oos_status="sealed",
+            cost_sensitivity="unassessed", research_version="existing-models-v1",
+        ), fn)
