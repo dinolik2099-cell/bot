@@ -6,6 +6,7 @@ from quantbot.analytics import DecisionAuditTrail, correlation_id
 from quantbot.backtest import CostModel
 from quantbot.execution.paper import build_paper_order
 from quantbot.execution.paper_ledger import PaperLedger
+from quantbot.execution.runtime_config import RuntimeConfig, validate_runtime_config
 from quantbot.portfolio import select_candidates
 from quantbot.risk import PositionExposure, RiskPolicy, approve_candidate, size_approved_candidate
 from quantbot.signals import SignalIntent
@@ -17,8 +18,9 @@ class PaperRuntimeResult:
     audit: DecisionAuditTrail
     ledger: PaperLedger
 
-def run_once(intents: Iterable[SignalIntent], prices: Mapping[str, float], equity: float, positions: Iterable[PositionExposure] = (), policy: RiskPolicy = RiskPolicy(), cost_model: CostModel = CostModel()) -> PaperRuntimeResult:
+def run_once(intents: Iterable[SignalIntent], prices: Mapping[str, float], equity: float, positions: Iterable[PositionExposure] = (), policy: RiskPolicy = RiskPolicy(), cost_model: CostModel = CostModel(), runtime_config: RuntimeConfig = RuntimeConfig()) -> PaperRuntimeResult:
     """Explicit inputs only; returns in-memory objects and has no side effects."""
+    validate_runtime_config(runtime_config)
     trail=DecisionAuditTrail(); ledger=PaperLedger(); rejected=[]; requested=[]
     candidates=select_candidates(intents,max_candidates=policy.max_positions)
     for candidate in candidates:
