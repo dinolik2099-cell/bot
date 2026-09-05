@@ -3,6 +3,7 @@ import sys,pandas as pd
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from quantbot.execution.paper_runtime import run_once
 from quantbot.execution import RuntimeConfig
+from quantbot.research.provenance import RunProvenance
 from quantbot.signals import SignalIntent
 def main():
  i=SignalIntent("BTCUSDT",pd.Timestamp("2025-01-01T00:00:00Z"),"buy","m","trend",.5,.5,98,104,"requires_risk_approval")
@@ -11,5 +12,8 @@ def main():
  try: run_once((i,),{"BTCUSDT":100},10000,runtime_config=RuntimeConfig(mode="live"))
  except PermissionError: pass
  else: raise AssertionError("runtime must reject live configuration")
+ try: run_once((i,),{"BTCUSDT":100},10000,provenance=RunProvenance("locked","v1","OOS"))
+ except PermissionError: pass
+ else: raise AssertionError("runtime must reject OOS provenance")
  print("PAPER_RUNTIME_SYNTHETIC_TEST_OK")
 if __name__=="__main__":main()
