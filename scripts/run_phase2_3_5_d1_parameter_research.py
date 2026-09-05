@@ -66,10 +66,25 @@ def _param_key(params: dict[str, Any]) -> tuple:
 
 
 def _stability(train_results: list[dict[str, Any]], candidate: dict[str, Any], grid_spec) -> dict[str, Any]:
-    best_score = float(candidate["score"])
     keys = list(grid_spec.parameter_grid)
     value_sets = {k: set(v) for k, v in grid_spec.parameter_grid.items()}
     lookup = {_param_key(r["params"]): r for r in train_results}
+    train_candidate = lookup.get(_param_key(candidate["params"]))
+    if train_candidate is None:
+        return {
+            "reference_window": "TRAIN",
+            "reference_found": False,
+            "boundary_parameters": [],
+            "is_boundary_optimum": False,
+            "neighbor_count": 0,
+            "neighbor_median_score": None,
+            "neighbor_min_score": None,
+            "neighbor_max_score": None,
+            "best_minus_neighbor_median": None,
+            "top5_score_spread": None,
+            "note": "稳定性诊断未找到验证期所选参数对应的TRAIN记录；不改变参数选择。",
+        }
+    best_score = float(train_candidate["score"])
     neighbors = []
     for key in keys:
         for value in value_sets[key]:
@@ -83,6 +98,9 @@ def _stability(train_results: list[dict[str, Any]], candidate: dict[str, Any], g
     boundary = [k for k in keys if candidate["params"][k] in {min(value_sets[k]), max(value_sets[k])}]
     top_scores = [float(r["score"]) for r in train_results[:TOP_K_TRAIN]]
     return {
+        "reference_window": "TRAIN",
+        "reference_found": True,
+        "reference_score": best_score,
         "boundary_parameters": boundary,
         "is_boundary_optimum": bool(boundary),
         "neighbor_count": len(neighbors),
@@ -355,7 +373,9 @@ def run(args) -> dict[str, Any]:
         "validation_records": validation,
         "freeze_manifest": frozen,
         "runtime_seconds": round(time.perf_counter() - t0, 3),
-        "workers": len(tasks),
+        "requested_workers": args.workers,
+        "max_concurrent_workers": min(args.workers, len(tasks)),
+        "task_count": len(tasks),
     }
     return report
 

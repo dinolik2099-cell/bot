@@ -28,12 +28,22 @@ def main():
     results.sort(key=lambda x:x["score"],reverse=True)
     s=_stability(results,results[0],spec)
     assert len(results)>=TOP_K_TRAIN and s["neighbor_count"]>0
+    assert s["reference_window"] == "TRAIN" and s["reference_found"] is True
+    assert s["reference_score"] == results[0]["score"]
+    validation_only={"params":results[0]["params"],"score":999.0}
+    validation_stability=_stability(results,validation_only,spec)
+    assert validation_stability["reference_score"] == results[0]["score"]
     assert isinstance(_score({"total_return":1.2,"max_drawdown":0.3}),float)
-    # Frozen stability diagnostics must describe the VALIDATION-selected candidate, not TRAIN rank #1.
+    # Frozen stability diagnostics use the VALIDATION-selected parameters, but
+    # compare only TRAIN-window scores with other TRAIN-window scores.
     runner_source=(ROOT/"scripts/run_phase2_3_5_d1_parameter_research.py").read_text(encoding="utf-8")
     assert "selected = validation_results[0]" in runner_source
     assert "stability = _stability(train_results, selected, item.spec) if top else {}" in runner_source
     assert "stability = _stability(train_results, top[0], item.spec) if top else {}" not in runner_source
+    assert 'train_candidate = lookup.get(_param_key(candidate["params"]))' in runner_source
+    assert '"requested_workers": args.workers' in runner_source
+    assert '"max_concurrent_workers": min(args.workers, len(tasks))' in runner_source
+    assert '"task_count": len(tasks)' in runner_source
     # D-1 formal research must use the canonical engine path and Boundary Lock gaps.
     assert "from quantbot.backtest.engine_v2 import BacktestEngine" in runner_source
     assert "from quantbot.backtest.costs import CostModel" in runner_source
@@ -47,7 +57,7 @@ def main():
     # Every candidate grid tuple is unique.
     assert len({_key['params'].__repr__() for _key in results})==len(results)
     # C report provenance exists and contains exactly the locked 12.
-    c=json.loads((ROOT/"data/reports/phase2_3_5_model_discovery_baseline.json").read_text())
+    c=json.loads((ROOT/"data/reports/phase2_3_5_model_discovery_baseline.json").read_text(encoding="utf-8"))
     assert c["status"]=="PASS" and [x["model"] for x in c["shortlist"]]==["price_ema_momentum","rsi_momentum","roc_momentum","higher_high_lower_low","volume_trend","bollinger_breakout","ema_slope","donchian_breakout","volume_breakout","volatility_regime_trend","trend_breakout","macd_trend"]
     print("12模型与786参数组合计数：通过")
     print("Top-K与参数稳定性诊断：通过")
