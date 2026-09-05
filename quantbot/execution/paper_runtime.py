@@ -6,11 +6,12 @@ from quantbot.analytics import DecisionAuditTrail, correlation_id
 from quantbot.backtest import CostModel
 from quantbot.execution.paper import build_paper_order
 from quantbot.execution.paper_ledger import PaperLedger
-from quantbot.execution.runtime_config import RuntimeConfig, validate_runtime_config
+from quantbot.execution.runtime_config import RuntimeConfig
+from quantbot.execution.preflight import preflight
 from quantbot.portfolio import select_candidates
 from quantbot.risk import PositionExposure, RiskPolicy, RiskSnapshot, emergency_stop_from_breaker, evaluate_circuit_breaker, approve_candidate, size_approved_candidate
 from quantbot.signals import SignalIntent
-from quantbot.research.provenance import RunProvenance, validate_non_oos_provenance
+from quantbot.research.provenance import RunProvenance
 
 @dataclass(frozen=True)
 class PaperRuntimeResult:
@@ -21,8 +22,9 @@ class PaperRuntimeResult:
 
 def run_once(intents: Iterable[SignalIntent], prices: Mapping[str, float], equity: float, provenance: RunProvenance, risk_snapshot: RiskSnapshot, positions: Iterable[PositionExposure] = (), policy: RiskPolicy = RiskPolicy(), cost_model: CostModel = CostModel(), runtime_config: RuntimeConfig = RuntimeConfig()) -> PaperRuntimeResult:
     """Explicit inputs only; returns in-memory objects and has no side effects."""
-    validate_runtime_config(runtime_config)
-    validate_non_oos_provenance(provenance)
+    readiness = preflight(runtime_config, provenance, risk_snapshot)
+    if not readiness.allowed and readiness.reason not in {"invalid_equity_snapshot", "max_daily_loss", "max_rolling_loss", "max_drawdown", "max_consecutive_losses"}:
+        raise PermissionError(readiness.reason)
     trail=DecisionAuditTrail(); ledger=PaperLedger(); rejected=[]; requested=[]
     provenance_payload = {
         "dataset_id": provenance.dataset_id,
