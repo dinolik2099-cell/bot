@@ -21,6 +21,15 @@ class ModelSpec:
     market_regimes: tuple[str, ...]
     lookahead_policy: str = "strictly_causal"
     status: str = "candidate"
+    family: str = "unclassified"
+    description: str = ""
+    future_data_risk: str = "unknown"
+    train_status: str = "not_run"
+    validation_status: str = "not_run"
+    oos_status: str = "sealed"
+    cost_sensitivity: str = "unassessed"
+    max_drawdown: float | None = None
+    research_version: str = "unversioned"
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -71,6 +80,16 @@ def validate_registry() -> None:
             raise ValueError(f"model {spec.name} does not declare strictly_causal")
         if spec.status not in {"candidate", "testing", "validated", "oos_retained", "deferred", "retired"}:
             raise ValueError(f"invalid status for {spec.name}: {spec.status}")
+        if not spec.family:
+            raise ValueError(f"model {spec.name} has no family")
+        if spec.future_data_risk not in {"unknown", "none_declared", "review_required", "blocked"}:
+            raise ValueError(f"invalid future-data risk for {spec.name}: {spec.future_data_risk}")
+        lifecycle = {"not_run", "in_progress", "passed", "failed", "locked", "sealed", "not_authorized"}
+        for field in ("train_status", "validation_status", "oos_status"):
+            if getattr(spec, field) not in lifecycle:
+                raise ValueError(f"invalid {field} for {spec.name}: {getattr(spec, field)}")
+        if not spec.research_version:
+            raise ValueError(f"model {spec.name} has no research version")
         if not callable(item.strategy):
             raise TypeError(f"strategy is not callable: {spec.name}")
 
