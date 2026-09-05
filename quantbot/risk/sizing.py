@@ -14,6 +14,7 @@ class PositionPlan:
     symbol: str
     side: str
     model: str
+    model_family: str
     decision_timestamp: str
     reference_price: float
     expected_execution_price: float
@@ -36,7 +37,7 @@ def size_approved_candidate(candidate: PortfolioCandidate, decision: RiskDecisio
     expected = cost_model.execution_price(reference_price, intent.side)
     notional = decision.quantity * expected
     return PositionPlan(
-        symbol=intent.symbol, side=intent.side, model=intent.model,
+        symbol=intent.symbol, side=intent.side, model=intent.model, model_family=intent.model_family,
         decision_timestamp=intent.timestamp.isoformat(), reference_price=float(reference_price),
         expected_execution_price=expected, quantity=decision.quantity, notional=notional,
         risk_amount=decision.risk_amount, estimated_entry_fee=cost_model.trading_cost(notional),
