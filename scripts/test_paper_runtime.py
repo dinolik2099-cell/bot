@@ -12,6 +12,7 @@ def main():
  s=RiskSnapshot(10_000,10_000,10_000,10_000)
  r=run_once((i,),{"BTCUSDT":100},10000,p,s)
  assert len(r.requested_order_ids)==1 and r.ledger.orders[0].status=="requested"
+ assert len(r.new_exposures)==1 and r.new_exposures[0].model_family=="trend"
  try: run_once((i,),{"BTCUSDT":100},10000,p,s,runtime_config=RuntimeConfig(mode="live"))
  except PermissionError: pass
  else: raise AssertionError("runtime must reject live configuration")
