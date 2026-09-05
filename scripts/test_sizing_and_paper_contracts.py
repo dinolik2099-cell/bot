@@ -8,7 +8,7 @@ sys.path.insert(0, str(ROOT))
 from quantbot.backtest import CostModel
 from quantbot.execution import build_paper_order
 from quantbot.portfolio import select_candidates
-from quantbot.risk import approve_candidate, size_approved_candidate
+from quantbot.risk import approve_candidate, exposure_from_plan, size_approved_candidate
 from quantbot.signals import SignalIntent
 
 
@@ -20,6 +20,8 @@ def main() -> None:
     order = build_paper_order(plan)
     assert order.mode == "paper_only" and order.client_order_id.startswith("paper-") and order.model_family == "trend"
     assert plan.expected_execution_price > plan.reference_price and plan.estimated_entry_fee > 0
+    exposure=exposure_from_plan(plan)
+    assert exposure.model_family == "trend" and exposure.risk_amount == plan.risk_amount
     try:
         size_approved_candidate(candidate, decision.__class__(False, "blocked"), reference_price=100.0, cost_model=CostModel())
     except ValueError:

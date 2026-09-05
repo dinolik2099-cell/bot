@@ -7,6 +7,7 @@ import math
 from quantbot.backtest import CostModel
 from quantbot.portfolio import PortfolioCandidate
 from .policy import RiskDecision
+from .policy import PositionExposure
 
 
 @dataclass(frozen=True)
@@ -44,3 +45,7 @@ def size_approved_candidate(candidate: PortfolioCandidate, decision: RiskDecisio
         stop=intent.stop, take_profit=intent.take_profit,
         tag=f"{intent.model}:{intent.symbol}:{intent.timestamp.isoformat()}",
     )
+
+def exposure_from_plan(plan: PositionPlan) -> PositionExposure:
+    """Carry approved plan risk back into the next pure Risk evaluation."""
+    return PositionExposure(plan.symbol, plan.side, plan.risk_amount, plan.notional, plan.model_family)
