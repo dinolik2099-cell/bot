@@ -23,6 +23,8 @@ def main() -> None:
     assert not blocked.accepted and blocked.reason == "symbol_already_exposed"
     family_blocked = approve_candidate(candidates[0], reference_price=100.0, equity=10_000.0, positions=(PositionExposure("ETHUSDT", "buy", 150.0, 1000.0, "breakout"),))
     assert not family_blocked.accepted and family_blocked.reason == "max_same_family_risk"
+    invalid = approve_candidate(candidates[0], reference_price=100.0, equity=10_000.0, positions=(PositionExposure("ETHUSDT", "buy", -1.0, 1000.0),))
+    assert not invalid.accepted and invalid.reason == "invalid_position_exposure"
     print("PORTFOLIO_AND_RISK_CONTRACTS_SYNTHETIC_TEST_OK")
 
 
