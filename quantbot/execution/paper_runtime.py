@@ -19,11 +19,10 @@ class PaperRuntimeResult:
     audit: DecisionAuditTrail
     ledger: PaperLedger
 
-def run_once(intents: Iterable[SignalIntent], prices: Mapping[str, float], equity: float, positions: Iterable[PositionExposure] = (), policy: RiskPolicy = RiskPolicy(), cost_model: CostModel = CostModel(), runtime_config: RuntimeConfig = RuntimeConfig(), provenance: RunProvenance | None = None) -> PaperRuntimeResult:
+def run_once(intents: Iterable[SignalIntent], prices: Mapping[str, float], equity: float, provenance: RunProvenance, positions: Iterable[PositionExposure] = (), policy: RiskPolicy = RiskPolicy(), cost_model: CostModel = CostModel(), runtime_config: RuntimeConfig = RuntimeConfig()) -> PaperRuntimeResult:
     """Explicit inputs only; returns in-memory objects and has no side effects."""
     validate_runtime_config(runtime_config)
-    if provenance is not None:
-        validate_non_oos_provenance(provenance)
+    validate_non_oos_provenance(provenance)
     trail=DecisionAuditTrail(); ledger=PaperLedger(); rejected=[]; requested=[]
     candidates=select_candidates(intents,max_candidates=policy.max_positions)
     for candidate in candidates:

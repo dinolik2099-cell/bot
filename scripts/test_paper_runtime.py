@@ -7,12 +7,13 @@ from quantbot.research.provenance import RunProvenance
 from quantbot.signals import SignalIntent
 def main():
  i=SignalIntent("BTCUSDT",pd.Timestamp("2025-01-01T00:00:00Z"),"buy","m","trend",.5,.5,98,104,"requires_risk_approval")
- r=run_once((i,),{"BTCUSDT":100},10000)
+ p=RunProvenance("synthetic","test-v1","VALIDATION")
+ r=run_once((i,),{"BTCUSDT":100},10000,p)
  assert len(r.requested_order_ids)==1 and r.ledger.orders[0].status=="requested"
- try: run_once((i,),{"BTCUSDT":100},10000,runtime_config=RuntimeConfig(mode="live"))
+ try: run_once((i,),{"BTCUSDT":100},10000,p,runtime_config=RuntimeConfig(mode="live"))
  except PermissionError: pass
  else: raise AssertionError("runtime must reject live configuration")
- try: run_once((i,),{"BTCUSDT":100},10000,provenance=RunProvenance("locked","v1","OOS"))
+ try: run_once((i,),{"BTCUSDT":100},10000,RunProvenance("locked","v1","OOS"))
  except PermissionError: pass
  else: raise AssertionError("runtime must reject OOS provenance")
  print("PAPER_RUNTIME_SYNTHETIC_TEST_OK")
