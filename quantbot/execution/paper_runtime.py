@@ -8,7 +8,7 @@ from quantbot.execution.paper import build_paper_order
 from quantbot.execution.paper_ledger import PaperLedger
 from quantbot.execution.runtime_config import RuntimeConfig, validate_runtime_config
 from quantbot.portfolio import select_candidates
-from quantbot.risk import PositionExposure, RiskPolicy, approve_candidate, size_approved_candidate
+from quantbot.risk import PositionExposure, RiskPolicy, RiskSnapshot, evaluate_circuit_breaker, approve_candidate, size_approved_candidate
 from quantbot.signals import SignalIntent
 from quantbot.research.provenance import RunProvenance, validate_non_oos_provenance
 
@@ -19,7 +19,7 @@ class PaperRuntimeResult:
     audit: DecisionAuditTrail
     ledger: PaperLedger
 
-def run_once(intents: Iterable[SignalIntent], prices: Mapping[str, float], equity: float, provenance: RunProvenance, positions: Iterable[PositionExposure] = (), policy: RiskPolicy = RiskPolicy(), cost_model: CostModel = CostModel(), runtime_config: RuntimeConfig = RuntimeConfig()) -> PaperRuntimeResult:
+def run_once(intents: Iterable[SignalIntent], prices: Mapping[str, float], equity: float, provenance: RunProvenance, risk_snapshot: RiskSnapshot, positions: Iterable[PositionExposure] = (), policy: RiskPolicy = RiskPolicy(), cost_model: CostModel = CostModel(), runtime_config: RuntimeConfig = RuntimeConfig()) -> PaperRuntimeResult:
     """Explicit inputs only; returns in-memory objects and has no side effects."""
     validate_runtime_config(runtime_config)
     validate_non_oos_provenance(provenance)
@@ -31,6 +31,13 @@ def run_once(intents: Iterable[SignalIntent], prices: Mapping[str, float], equit
         "engine_version": provenance.engine_version,
         "oos_read": provenance.oos_read,
     }
+    breaker = evaluate_circuit_breaker(risk_snapshot)
+    if not breaker.allowed:
+        key = correlation_id("runtime", provenance.dataset_id, provenance.research_version)
+        trail.append("signal_created", key, {"provenance": provenance_payload})
+        trail.append("portfolio_selected", key, {"runtime_control": True})
+        trail.append("risk_rejected", key, {"reason": breaker.reason, "circuit_breaker": True})
+        return PaperRuntimeResult((), ((key, breaker.reason),), trail, ledger)
     candidates=select_candidates(intents,max_candidates=policy.max_positions)
     for candidate in candidates:
         key=correlation_id(candidate.intent.symbol,candidate.intent.model,candidate.intent.timestamp.isoformat())

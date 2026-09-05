@@ -5,7 +5,7 @@ import pandas as pd
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from quantbot.execution.paper_runtime import run_once
 from quantbot.execution import RuntimeConfig
-from quantbot.risk import PositionExposure
+from quantbot.risk import PositionExposure, RiskSnapshot
 from quantbot.signals import SignalIntent
 from quantbot.research.provenance import RunProvenance
 
@@ -16,16 +16,17 @@ def main():
  accepted=intent("BTCUSDT","trend_a","trend",.7)
  missing_price=intent("ETHUSDT","break_a","breakout",.6)
  provenance=RunProvenance("synthetic","test-v1","VALIDATION")
- result=run_once((accepted,missing_price),{"BTCUSDT":100},10_000,provenance)
+ snapshot=RiskSnapshot(10_000,10_000,10_000,10_000)
+ result=run_once((accepted,missing_price),{"BTCUSDT":100},10_000,provenance,snapshot)
  assert len(result.requested_order_ids)==1
  assert result.ledger.orders[0].status=="requested"
  assert len(result.rejected)==1 and result.rejected[0][1]=="missing_reference_price"
  events=[e.event_type for e in result.audit.events]
  assert events==["signal_created","portfolio_selected","risk_approved","paper_requested","signal_created","portfolio_selected","risk_rejected"]
  assert result.audit.events[0].payload["provenance"]["source_window"]=="VALIDATION"
- blocked=run_once((accepted,),{"BTCUSDT":100},10_000,provenance,positions=(PositionExposure("BTCUSDT","buy",50,1000),))
+ blocked=run_once((accepted,),{"BTCUSDT":100},10_000,provenance,snapshot,positions=(PositionExposure("BTCUSDT","buy",50,1000),))
  assert blocked.rejected[0][1]=="symbol_already_exposed"
- try: run_once((accepted,),{"BTCUSDT":100},10_000,provenance,runtime_config=RuntimeConfig(live_enabled=True))
+ try: run_once((accepted,),{"BTCUSDT":100},10_000,provenance,snapshot,runtime_config=RuntimeConfig(live_enabled=True))
  except PermissionError: pass
  else: raise AssertionError("live mode escaped fail-closed protection")
  print("SAFE_EXECUTION_CHAIN_SYNTHETIC_TEST_OK")
