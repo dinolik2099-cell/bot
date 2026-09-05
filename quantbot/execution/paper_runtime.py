@@ -24,10 +24,17 @@ def run_once(intents: Iterable[SignalIntent], prices: Mapping[str, float], equit
     validate_runtime_config(runtime_config)
     validate_non_oos_provenance(provenance)
     trail=DecisionAuditTrail(); ledger=PaperLedger(); rejected=[]; requested=[]
+    provenance_payload = {
+        "dataset_id": provenance.dataset_id,
+        "research_version": provenance.research_version,
+        "source_window": provenance.source_window,
+        "engine_version": provenance.engine_version,
+        "oos_read": provenance.oos_read,
+    }
     candidates=select_candidates(intents,max_candidates=policy.max_positions)
     for candidate in candidates:
         key=correlation_id(candidate.intent.symbol,candidate.intent.model,candidate.intent.timestamp.isoformat())
-        trail.append("signal_created",key); trail.append("portfolio_selected",key)
+        trail.append("signal_created",key,{"provenance": provenance_payload}); trail.append("portfolio_selected",key)
         price=prices.get(candidate.intent.symbol)
         if price is None:
             trail.append("risk_rejected",key,{"reason":"missing_reference_price"}); rejected.append((key,"missing_reference_price")); continue

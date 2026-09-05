@@ -22,6 +22,7 @@ def main():
  assert len(result.rejected)==1 and result.rejected[0][1]=="missing_reference_price"
  events=[e.event_type for e in result.audit.events]
  assert events==["signal_created","portfolio_selected","risk_approved","paper_requested","signal_created","portfolio_selected","risk_rejected"]
+ assert result.audit.events[0].payload["provenance"]["source_window"]=="VALIDATION"
  blocked=run_once((accepted,),{"BTCUSDT":100},10_000,provenance,positions=(PositionExposure("BTCUSDT","buy",50,1000),))
  assert blocked.rejected[0][1]=="symbol_already_exposed"
  try: run_once((accepted,),{"BTCUSDT":100},10_000,provenance,runtime_config=RuntimeConfig(live_enabled=True))
