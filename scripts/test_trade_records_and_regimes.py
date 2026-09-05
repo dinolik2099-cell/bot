@@ -24,6 +24,7 @@ def main() -> None:
     summary = summarize_failures(records)
     assert summary["loss_count"] == 1 and summary["losses_by_exit_reason"] == {"stop": 1}
     assert summary["by_model_family"]["trend"]["trades"] == 2.0
+    assert summary["by_model_family_regime"]["trend::low_volatility_uptrend"]["losses"] == 1.0
     assert records[0].to_dict()["model"] == "m1"
     print("TRADE_RECORDS_AND_REGIMES_SYNTHETIC_TEST_OK")
 
