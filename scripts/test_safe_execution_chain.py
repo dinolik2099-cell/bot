@@ -20,6 +20,8 @@ def main():
  result=run_once((accepted,missing_price),{"BTCUSDT":100},10_000,provenance,snapshot)
  assert len(result.requested_order_ids)==1
  assert result.ledger.orders[0].status=="requested"
+ second=run_once((accepted,),{"BTCUSDT":100},10_000,provenance,snapshot,positions=result.new_exposures)
+ assert second.rejected[0][1]=="symbol_already_exposed"
  assert len(result.rejected)==1 and result.rejected[0][1]=="missing_reference_price"
  events=[e.event_type for e in result.audit.events]
  assert events==["signal_created","portfolio_selected","risk_approved","paper_requested","signal_created","portfolio_selected","risk_rejected"]
