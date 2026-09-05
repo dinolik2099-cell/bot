@@ -474,7 +474,7 @@ def main():
     for o in outputs:
         summary.setdefault(o["recipe"],{})[o["window"]]=o["metrics"]
     out={
-        "phase":"2.4-B","version":"1.0.3-audit","status":"PASS","dataset_id":dataset_id,
+        "phase":"2.4-B","version":"1.0.4-gap-fix","status":"PASS","dataset_id":dataset_id,
         "purpose":"冻结Sleeve组合的真实共享资金多仓/风险引擎回测；仅TRAIN/VALIDATION。",
         "inputs":{"freeze_manifest":args.freeze,"phase2_4_a_recipe_report":args.recipe,"boundary_lock":args.lock},
         "research_contract":{
