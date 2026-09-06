@@ -1,7 +1,7 @@
 from pathlib import Path
 import sys,json,tempfile
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
-from quantbot.research.plan_executor import authorize_window,rank_train,PlanExecutionError,execute_synthetic_cell,load_verified_plan
+from quantbot.research.plan_executor import authorize_window,rank_train,PlanExecutionError,execute_synthetic_cell,load_verified_plan,load_task_frame
 from quantbot.research.model_registry import ModelSpec,RegisteredModel
 def main():
  try:authorize_window({},'OOS')
@@ -20,5 +20,13 @@ def main():
   try:load_verified_plan(p,ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json',lock)
   except Exception:pass
   else:raise AssertionError('tampered plan must fail before data')
+ plan=json.loads((ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json').read_text());calls=[]
+ def loader(**kwargs):calls.append(kwargs);return 'synthetic-frame'
+ task=plan['tasks'][0];assert load_task_frame(plan,task['task_identity'],'TRAIN',loader)=='synthetic-frame' and len(calls)==1
+ for identity,window in (('bad','TRAIN'),(task['task_identity'],'OOS')):
+  try:load_task_frame(plan,identity,window,loader)
+  except PlanExecutionError:pass
+  else:raise AssertionError('pre-read guard')
+ assert len(calls)==1
  print('PLAN_EXECUTOR_SYNTHETIC_TEST_OK')
 if __name__=='__main__':main()

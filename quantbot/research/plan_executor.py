@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from itertools import product
-from .research_plan import validate_plan
+from .research_plan import validate_plan, task_id
 from .authorization_gate import validate_pre_research_freeze
 from .candidate_universe import CURRENT_PROTOCOL_SCOPE, build_candidate_universe
 from .model_registry import register_existing_models
@@ -24,6 +24,18 @@ def load_verified_plan(plan_path, freeze_path, boundary_lock):
 def authorize_window(plan, window):
     if window not in {'TRAIN','VALIDATION'}: raise PlanExecutionError('window_not_authorized')
     return window
+
+def load_task_frame(plan, task_identity, window, data_loader):
+    """Only call the injected loader after plan/task/window authorization."""
+    authorize_window(plan, window)
+    matches=[task for task in plan.get('tasks',[]) if task.get('task_identity')==task_identity]
+    if len(matches)!=1: raise PlanExecutionError('unknown_or_duplicate_task')
+    task=matches[0]
+    model=next((row for row in plan.get('models',[]) if row.get('model_id')==task['model_id']),None)
+    if model is None: raise PlanExecutionError('task_model_missing')
+    expected=task_id(plan['research_freeze_identity'],task['model_id'],task['symbol'],model['parameter_grid_hash'],plan['protocol_scope_hash'])
+    if task_identity!=expected: raise PlanExecutionError('task_identity_mismatch')
+    return data_loader(symbol=task['symbol'], window=window, task=task)
 
 def rank_train(rows):
     return sorted(rows,key=lambda r:(-(r['total_return']-r['max_drawdown']),-r['profit_factor'],r['max_drawdown'],-r['trades'],json.dumps(r['params'],sort_keys=True)))
