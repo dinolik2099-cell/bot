@@ -122,11 +122,7 @@ def curve_return_series(curve):
     return {ts[i+1]:float(r[i]) for i in range(len(r)) if np.isfinite(r[i])},ts[1:]
 
 
-def main():
-    ap=argparse.ArgumentParser(description="Phase 2.3.5-D-3 OOS深度分析")
-    ap.add_argument("--d1",default=str(DEFAULT_D1)); ap.add_argument("--d2",default=str(DEFAULT_D2)); ap.add_argument("--curves",default=str(DEFAULT_CURVES));
-    ap.add_argument("--output",default=str(ROOT/"data/reports/phase2_3_5_d3_oos_analysis.json"))
-    args=ap.parse_args()
+def run(args):
     require_oos_authorized(ROOT / "docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json", json.loads((ROOT / "data/reports/research_boundary_lock.json").read_text(encoding="utf-8")))
     d1=load_json(args.d1); d2=load_json(args.d2); validate_inputs(d1,d2); curves=load_curves(args.curves)
     if set(curves) != {(m,s) for m in EXPECTED_MODELS for s in EXPECTED_SYMBOLS}: raise ValueError("OOS equity curve缺少72个单元")
@@ -171,5 +167,11 @@ def main():
     lines += ["", "## 研究纪律", "- 本阶段只读取D-1冻结清单与D-2 OOS结果。", "- 不读取TRAIN/VALIDATION市场数据，不重新运行策略。", "- 不修改D-1参数，不因OOS结果重新调参。", "- 相关性仅用于后续组合研究诊断，不直接决定单模型参数。"]
     md.write_text("\n".join(lines)+"\n",encoding="utf-8")
     print("="*72); print("Phase 2.3.5-D-3 OOS深度分析"); print("="*72); print("状态：通过"); print(f"72-cell：{len(rows)}/72"); print(f"A强稳定：{out['counts']['a_strong']}"); print(f"B保留：{out['counts']['b_retain']}"); print(f"C观察：{out['counts']['c_observe']}"); print(f"D淘汰候选：{out['counts']['d_retire']}"); print(f"报告：{outp}"); print(f"总结：{md}"); print("PHASE2_3_5_D3_OOS_ANALYSIS_OK")
+
+def main():
+    ap=argparse.ArgumentParser(description="Phase 2.3.5-D-3 OOS深度分析")
+    ap.add_argument("--d1",default=str(DEFAULT_D1)); ap.add_argument("--d2",default=str(DEFAULT_D2)); ap.add_argument("--curves",default=str(DEFAULT_CURVES));
+    ap.add_argument("--output",default=str(ROOT/"data/reports/phase2_3_5_d3_oos_analysis.json"))
+    run(ap.parse_args())
 
 if __name__=="__main__": main()

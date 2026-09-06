@@ -2,6 +2,8 @@
 from pathlib import Path
 from dataclasses import replace
 import json, sys, tempfile
+from types import SimpleNamespace
+from unittest.mock import Mock
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from quantbot.research.authorization_gate import FreezeAuthorizationError, require_oos_authorized, validate_pre_research_freeze
 from quantbot.research.candidate_universe import CURRENT_PROTOCOL_SCOPE, build_candidate_universe
@@ -22,5 +24,15 @@ def main():
   changed=list(models);changed.pop();fail(lambda:validate_pre_research_freeze(p,LOCK,changed),"model_count_mismatch")
   fail(lambda:validate_pre_research_freeze(Path(td)/"none",LOCK,models),"missing_freeze_manifest")
   bad=dict(m);bad["schema_version"]="bad";p.write_text(json.dumps(bad));fail(lambda:validate_pre_research_freeze(p,LOCK,models),"unsupported_freeze_schema")
+  # Actual D2 guarded run: every pre-research reader must remain untouched.
+  import scripts.run_phase2_3_5_d2_oos_validation as d2
+  d2.build_research_dataset=Mock(); d2._load_freeze=Mock(); d2.load_research_frames=Mock()
+  fail(lambda:d2.run(SimpleNamespace(lock=str(ROOT/"data/reports/research_boundary_lock.json"),freeze_manifest="x",raw_root="x",parquet_root="x",workers=1)),"oos_not_authorized")
+  assert d2.build_research_dataset.call_count==d2._load_freeze.call_count==d2.load_research_frames.call_count==0
+  # Actual D3 guarded run: no D1/D2/curve reader can run after the gate rejects.
+  import scripts.run_phase2_3_5_d3_oos_analysis as d3
+  d3.load_json=Mock(); d3.load_curves=Mock()
+  fail(lambda:d3.run(SimpleNamespace(d1="x",d2="x",curves="x",output="x")),"oos_not_authorized")
+  assert d3.load_json.call_count==d3.load_curves.call_count==0
  print("RESEARCH_AUTHORIZATION_GATE_SYNTHETIC_TEST_OK")
 if __name__=="__main__":main()
