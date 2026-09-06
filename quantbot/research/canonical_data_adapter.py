@@ -14,7 +14,8 @@ import pandas as pd
 
 from .formal_runner import N7Context, N7ExecutionError, authorize_n7_window
 from .freeze_manifest import _hash
-from .integration import load_boundary_lock, timestamp_in_non_tradable_gap
+from .integration import load_boundary_lock, timestamp_in_non_tradable_gap, load_boundary_aware_symbol
+from .formal_runner import run_n7_plan
 
 
 class N8DataError(RuntimeError):
@@ -55,7 +56,7 @@ def _window(dataset, name: str):
 
 def _validate_frame(context: N8DataContext, frame: pd.DataFrame, symbol: str, window_name: str) -> pd.DataFrame:
     if not isinstance(frame,pd.DataFrame) or frame.empty: raise N8DataError('empty_frame')
-    if not isinstance(frame.index,pd.DatetimeIndex) or frame.index.tz is None: raise N8DataError('utc_index_required')
+    if not isinstance(frame.index,pd.DatetimeIndex) or frame.index.tz is None or str(frame.index.tz)!='UTC': raise N8DataError('utc_index_required')
     if not frame.index.is_monotonic_increasing: raise N8DataError('timestamps_not_monotonic')
     if frame.index.has_duplicates: raise N8DataError('duplicate_timestamps')
     required={'open','high','low','close','volume'}
@@ -64,13 +65,24 @@ def _validate_frame(context: N8DataContext, frame: pd.DataFrame, symbol: str, wi
         raise N8DataError('synthetic_rows_not_allowed')
     window=_window(context.dataset,window_name)
     start,end=window.start,window.end
-    index=frame.index.tz_convert('UTC')
-    if index[0]<start or index[-1]>end: raise N8DataError('frame_outside_requested_window')
-    if any(timestamp_in_non_tradable_gap(context.dataset,symbol,ts) for ts in index): raise N8DataError('frame_contains_non_tradable_gap')
+    index=frame.index
+    expected=pd.date_range(start,end,freq=context.dataset.interval,tz='UTC')
+    expected=expected[[not timestamp_in_non_tradable_gap(context.dataset,symbol,ts) for ts in expected]]
+    if not index.equals(expected): raise N8DataError('frame_window_completeness_mismatch')
     return frame
 
 
-def make_n8_window_loader(context: N8DataContext, canonical_window_source: Callable[..., tuple[pd.DataFrame,str]]):
+def _resolve_frozen_task(context: N8DataContext, task: Mapping[str, Any], symbol: str) -> Mapping[str, Any]:
+    identity=task.get('task_identity')
+    matches=[item for item in context.n7.plan['tasks'] if item['task_identity']==identity]
+    if len(matches)!=1: raise N8DataError('task_identity_not_frozen')
+    frozen=matches[0]
+    if task.get('model_id')!=frozen['model_id'] or task.get('symbol')!=frozen['symbol'] or symbol!=frozen['symbol']:
+        raise N8DataError('task_identity_payload_mismatch')
+    return frozen
+
+
+def _make_n8_window_loader_for_test(context: N8DataContext, canonical_window_source: Callable[..., tuple[pd.DataFrame,str]]):
     """Return the only N8 data-loader entrypoint used by formal execution.
 
     ``canonical_window_source`` receives a fully checked exact range.  It may
@@ -80,8 +92,7 @@ def make_n8_window_loader(context: N8DataContext, canonical_window_source: Calla
         request=_window(context.dataset,window)
         if symbol not in context.n7.plan['symbols'] or symbol not in context.n7.freeze['protocol_scope']['symbols']:
             raise N8DataError('symbol_not_frozen')
-        if task.get('symbol')!=symbol or task.get('model_id') not in {x['model_id'] for x in context.n7.plan['models']}:
-            raise N8DataError('task_not_frozen')
+        _resolve_frozen_task(context,task,symbol)
         if boundary!=context.n7.plan['boundary'] or boundary.get('dataset_id')!=context.dataset.dataset_id:
             raise N8DataError('boundary_request_mismatch')
         frame,source=canonical_window_source(symbol=symbol,market=context.dataset.market,interval=context.dataset.interval,
@@ -89,3 +100,21 @@ def make_n8_window_loader(context: N8DataContext, canonical_window_source: Calla
         if source!='canonical_raw': raise N8DataError('noncanonical_or_fallback_source')
         return _validate_frame(context,frame,symbol,window)
     return loader
+
+
+def make_n8_canonical_window_loader(context: N8DataContext, raw_root):
+    """Formal N8 loader, structurally bound to QuantBot's canonical raw reader.
+
+    No caller-supplied source, label, fallback, parquet reader, or synthetic
+    provider can enter this path.  The canonical reader is invoked only after
+    all guards in the private shared loader have passed.
+    """
+    def source(*, symbol, market, interval, window, start, end, dataset_id):
+        frame=load_boundary_aware_symbol(raw_root,symbol,interval,market=market)
+        return frame.loc[(frame.index>=start)&(frame.index<=end)].copy(),'canonical_raw'
+    return _make_n8_window_loader_for_test(context,source)
+
+
+def run_n8_plan(context: N8DataContext, raw_root, strategy_resolver, engine_factory):
+    """Formal N8 wiring; never invoked by N8 preflight or engineering tests."""
+    return run_n7_plan(context.n7,make_n8_canonical_window_loader(context,raw_root),strategy_resolver,engine_factory)
