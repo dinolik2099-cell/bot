@@ -37,6 +37,7 @@ class CandidateUniverseEntry:
     model_id: str
     name: str
     family: str
+    secondary_traits: tuple[str, ...]
     version: str
     implementation_module: str
     lifecycle_status: str
@@ -58,6 +59,7 @@ class CandidateUniverseEntry:
     def canonical_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["required_features"] = list(self.required_features)
+        data["secondary_traits"] = list(self.secondary_traits)
         data["eligibility_reasons"] = list(self.eligibility_reasons)
         data["parameter_grid"] = {key: list(value) for key, value in sorted(self.parameter_grid.items())}
         return data
@@ -118,7 +120,7 @@ def candidate_entry(model: RegisteredModel) -> CandidateUniverseEntry:
     if spec.warmup_bars is None:
         limitations += " Warmup is unverified and requires explicit model metadata."
     return CandidateUniverseEntry(
-        model_id=spec.model_id, name=spec.name, family=spec.family, version=spec.research_version,
+        model_id=spec.model_id, name=spec.name, family=spec.family, secondary_traits=spec.secondary_traits, version=spec.research_version,
         implementation_module=model.strategy.__module__, lifecycle_status=spec.status,
         causal_timing=spec.causal_timing, required_features=spec.required_columns,
         parameter_grid={key: tuple(value) for key, value in spec.parameter_grid.items()},

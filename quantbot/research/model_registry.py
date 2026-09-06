@@ -81,6 +81,9 @@ def model_inventory() -> list[dict[str, Any]]:
 def validate_registry() -> None:
     if not _REGISTRY:
         raise ValueError("model registry is empty")
+    model_ids = [item.spec.model_id for item in list_models()]
+    if len(model_ids) != len(set(model_ids)):
+        raise ValueError("duplicate model_id in registry")
     for item in list_models():
         spec = item.spec
         if not spec.name or not spec.category or not spec.source:
@@ -106,6 +109,8 @@ def validate_registry() -> None:
             raise ValueError(f"invalid causal timing for {spec.name}: {spec.causal_timing}")
         if spec.warmup_bars is not None and (not isinstance(spec.warmup_bars, int) or isinstance(spec.warmup_bars, bool) or spec.warmup_bars < 0):
             raise ValueError(f"invalid warmup_bars for {spec.name}: {spec.warmup_bars}")
+        if spec.long_short_capable is not None and type(spec.long_short_capable) is not bool:
+            raise ValueError(f"invalid long_short_capable for {spec.name}")
         if not spec.required_columns or len(spec.required_columns) != len(set(spec.required_columns)):
             raise ValueError(f"invalid required_columns for {spec.name}")
         if not callable(item.strategy):
@@ -126,6 +131,8 @@ def validate_registry() -> None:
                     f"model {spec.name} parameter grid has unknown keys: "
                     f"{sorted(unknown)}"
                 )
+        if not spec.parameter_grid:
+            raise ValueError(f"model {spec.name} has empty parameter_grid")
         for key, values in spec.parameter_grid.items():
             if not values:
                 raise ValueError(f"model {spec.name} has empty grid: {key}")

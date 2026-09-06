@@ -49,6 +49,8 @@ def main():
     assert "implementation_module_hash" in entry.canonical_dict()
     mutated = candidate_entry(replace(base, spec=replace(base.spec, parameter_grid={"period": (2, 4)})))
     assert candidate_universe_hash((entry,)) != candidate_universe_hash((mutated,))
+    retagged = candidate_entry(replace(base, spec=replace(base.spec, secondary_traits=("ema",))))
+    assert candidate_universe_hash((entry,)) != candidate_universe_hash((retagged,))
 
     unsafe = candidate_entry(synthetic_model(future_data_risk="blocked"))
     unknown = candidate_entry(synthetic_model(future_data_risk="unknown", warmup_bars=None))

@@ -49,6 +49,9 @@ def main():
     assert candidate_entry(model(warmup_bars=None)).eligibility_state == "review_required"
     assert candidate_entry(model(warmup_bars=-1)).eligibility_state == "ineligible"
     must_fail(lambda: validate_registry_with_bad_warmup())
+    must_fail(lambda: validate_registry_with_bad_long_short())
+    must_fail(lambda: validate_registry_with_empty_grid())
+    must_fail(validate_registry_with_duplicate_model_id)
     print("MODEL_TAXONOMY_METADATA_SYNTHETIC_TEST_OK")
 
 
@@ -58,6 +61,38 @@ def validate_registry_with_bad_warmup():
     original = dict(_REGISTRY)
     try:
         _REGISTRY.clear(); _REGISTRY["synthetic"] = model(warmup_bars=-1)
+        validate_registry()
+    finally:
+        _REGISTRY.clear(); _REGISTRY.update(original)
+
+
+def validate_registry_with_bad_long_short():
+    from quantbot.research.model_registry import _REGISTRY
+    original = dict(_REGISTRY)
+    try:
+        _REGISTRY.clear(); _REGISTRY["synthetic"] = model(long_short_capable="yes")
+        validate_registry()
+    finally:
+        _REGISTRY.clear(); _REGISTRY.update(original)
+
+
+def validate_registry_with_empty_grid():
+    from quantbot.research.model_registry import _REGISTRY
+    original = dict(_REGISTRY)
+    try:
+        _REGISTRY.clear(); _REGISTRY["synthetic"] = model(parameter_grid={})
+        validate_registry()
+    finally:
+        _REGISTRY.clear(); _REGISTRY.update(original)
+
+
+def validate_registry_with_duplicate_model_id():
+    from quantbot.research.model_registry import _REGISTRY
+    original = dict(_REGISTRY)
+    try:
+        _REGISTRY.clear()
+        _REGISTRY["one"] = model(name="one")
+        _REGISTRY["two"] = model(name="two")
         validate_registry()
     finally:
         _REGISTRY.clear(); _REGISTRY.update(original)
