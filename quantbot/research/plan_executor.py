@@ -96,3 +96,12 @@ def execution_audit(plan, outputs):
             'tasks_completed':completed,'tasks_failed':len(outputs)-completed,
             'train_evaluations':sum(len(row.get('train',[])) for row in outputs),
             'validation_evaluations':sum(len(row.get('validation',[])) for row in outputs)}
+
+def validate_execution_outputs(plan, outputs):
+    expected={task['task_identity']:task for task in plan['tasks']}
+    for row in outputs:
+        task=expected.get(row.get('task_identity'))
+        if task is None or row.get('model_id')!=task['model_id'] or row.get('symbol')!=task['symbol']: raise PlanExecutionError('output_task_provenance_mismatch')
+        if row.get('research_plan_identity')!=plan['research_plan_identity'] or row.get('research_freeze_identity')!=plan['research_freeze_identity']: raise PlanExecutionError('output_freeze_provenance_mismatch')
+        if row.get('status')=='COMPLETED' and any(item.get('oos_authorized') is not False for item in row.get('validation',[])): raise PlanExecutionError('output_oos_authorization_violation')
+    return True
