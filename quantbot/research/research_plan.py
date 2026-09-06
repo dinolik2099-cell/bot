@@ -19,9 +19,15 @@ def build_plan(entries,scope,lock,freeze):
  protocol_hash=_hash(protocol_scope_dict(scope));tasks=[{"model_id":e.model_id,"symbol":s,"task_identity":task_id(freeze,e.model_id,s,e.parameter_grid_hash,protocol_hash)} for e in models for s in symbols]
  core={"schema_version":SCHEMA_VERSION,"research_freeze_identity":freeze,"candidate_universe_hash":_hash([e.canonical_dict() for e in models]),"protocol_scope":protocol_scope_dict(scope),"protocol_scope_hash":protocol_hash,"boundary":boundary,"boundary_identity_hash":_hash(boundary),"models":rows,"symbols":symbols,"ranking":RANKING,"top_k_train":TOP_K_TRAIN,"viability":VIABILITY,"oos_status":"SEALED","oos_authorization":"NOT_AUTHORIZED","tasks":tasks,"counts":{"models":len(models),"symbols":len(symbols),"model_symbol_cells":len(tasks),"train_evaluations":sum(x["grid_combinations"] for x in rows)*len(symbols),"validation_evaluations_max":len(tasks)*TOP_K_TRAIN}}
  core["research_plan_identity"]=_hash(identity_payload(core));return core
-def validate_plan(plan, expected_entries=None):
+def validate_plan(plan, expected_entries=None, accepted_freeze_manifest=None):
  if plan.get("schema_version")!=SCHEMA_VERSION: raise ValueError("unsupported_plan_schema")
  if plan.get("oos_status")!="SEALED" or plan.get("oos_authorization")!="NOT_AUTHORIZED": raise ValueError("oos_not_authorized")
+ if accepted_freeze_manifest is not None:
+  frozen=accepted_freeze_manifest
+  for key in ("research_freeze_identity","candidate_universe_hash","protocol_scope_hash","boundary_identity_hash"):
+   if plan.get(key)!=frozen.get(key): raise ValueError("accepted_freeze_chain_mismatch")
+  if plan.get("protocol_scope")!=frozen.get("protocol_scope"): raise ValueError("accepted_protocol_scope_mismatch")
+  if plan.get("boundary")!=frozen.get("research_boundary"): raise ValueError("accepted_boundary_mismatch")
  if plan.get("protocol_scope_hash")!=_hash(plan.get("protocol_scope")): raise ValueError("protocol_scope_hash_mismatch")
  if plan.get("boundary_identity_hash")!=_hash(plan.get("boundary")): raise ValueError("boundary_identity_hash_mismatch")
  counts=plan.get("counts",{});models=plan.get("models",[]);tasks=plan.get("tasks",[])
