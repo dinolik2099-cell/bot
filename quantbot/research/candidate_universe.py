@@ -102,6 +102,8 @@ def _eligibility(model: RegisteredModel) -> tuple[bool, str, tuple[str, ...]]:
         review.append("long_short_capability_unverified")
     if spec.warmup_bars is None:
         review.append("warmup_bars_unverified")
+    elif not isinstance(spec.warmup_bars, int) or isinstance(spec.warmup_bars, bool) or spec.warmup_bars < 0:
+        blocked.append("warmup_bars_invalid")
     if blocked:
         return False, "ineligible", tuple(blocked + review)
     if review:

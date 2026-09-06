@@ -249,11 +249,36 @@ _SPECS = [
     ("bollinger_squeeze_breakout", "波动率/突破", bollinger_squeeze_breakout, {"period":(20,40),"width":(1.5,2.0),"squeeze_window":(30,50),"squeeze_ratio":(0.7,0.8,0.9),"stop_atr":(1.5,2.0,2.5),"reward_r":(2.0,3.0)}),
 ]
 
+# Explicit conservative warmup boundaries, audited from the actual indicator
+# dependency chains at the largest registered parameter values.  They are not
+# inferred from parameter names at runtime.
+_METADATA = {
+    "ema_trend": ("trend", ("ema",), 80), "ema_cross": ("trend", ("ema",), 120),
+    "price_ema_momentum": ("trend", ("momentum", "ema"), 80), "roc_momentum": ("momentum", (), 40),
+    "multi_period_momentum": ("momentum", (), 60), "donchian_breakout": ("breakout", (), 60),
+    "donchian_retest": ("breakout", ("retest",), 46), "atr_expansion": ("volatility", ("expansion",), 114),
+    "atr_compression_breakout": ("volatility", ("breakout", "compression"), 114),
+    "bollinger_breakout": ("breakout", (), 40), "bollinger_reversion": ("mean_reversion", ("reversal",), 40),
+    "rsi_momentum": ("momentum", (), 21), "rsi_reversal": ("mean_reversion", ("reversal",), 21),
+    "zscore_reversion": ("mean_reversion", ("reversal",), 60), "short_term_reversal": ("mean_reversion", ("reversal",), 14),
+    "extreme_reversal": ("mean_reversion", ("reversal",), 40), "range_reversal": ("mean_reversion", ("range", "reversal"), 50),
+    "ema_pullback": ("trend", ("pullback", "ema"), 120), "ema_slope": ("trend", ("ema",), 90),
+    "trend_strength": ("trend", ("ema",), 80), "higher_high_lower_low": ("price_structure", (), 14),
+    "candle_engulfing": ("candlestick", (), 14), "pinbar": ("candlestick", (), 14),
+    "three_bar_momentum": ("momentum", (), 14), "inside_bar_breakout": ("candlestick", ("breakout",), 14),
+    "volume_breakout": ("volume", ("breakout", "volume_confirmation"), 50),
+    "volume_trend": ("volume", ("ema", "volume_confirmation"), 80),
+    "volatility_regime_trend": ("volatility", ("regime", "ema"), 114),
+    "low_volatility_breakout": ("volatility", ("breakout", "compression"), 114),
+    "macd_momentum": ("momentum", ("macd",), 35), "macd_trend": ("trend", ("macd",), 35),
+    "bollinger_squeeze_breakout": ("volatility", ("breakout", "compression"), 89),
+}
+
 
 def register_model_pool() -> None:
     common = ("open", "high", "low", "close", "volume")
     for name, category, fn, grid in _SPECS:
-        family = category.split("/", 1)[0]
+        family, traits, warmup_bars = _METADATA[name]
         register_model(ModelSpec(
             name, category, "经典量化/技术分析候选",
             "第一批基础候选；必须重新经过统一 TRAIN→VALIDATION→OOS。",
@@ -269,5 +294,6 @@ def register_model_pool() -> None:
             model_id=f"quantbot.{name}.v1",
             causal_timing="t_minus_1_to_t_intent",
             long_short_capable=True,
-            warmup_bars=None,
+            warmup_bars=warmup_bars,
+            secondary_traits=traits,
         ), fn)

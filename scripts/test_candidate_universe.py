@@ -36,8 +36,8 @@ def main():
     assert len(universe) == 36
     assert candidate_universe_hash(universe) == candidate_universe_hash(again)
     assert len({x.model_id for x in universe}) == len(universe)
-    assert all(x.eligibility_state == "review_required" and not x.research_eligible for x in universe)
-    assert all(x.warmup_bars is None and "warmup_bars_unverified" in x.eligibility_reasons for x in universe)
+    assert all(x.eligibility_state == "eligible" and x.research_eligible for x in universe)
+    assert all(isinstance(x.warmup_bars, int) and x.warmup_bars >= 0 for x in universe)
     assert all(len(x.parameter_grid_hash) == len(x.strategy_function_hash) == len(x.implementation_module_hash) == 64 for x in universe)
     assert CURRENT_PROTOCOL_SCOPE.timeframe == "1h" and len(CURRENT_PROTOCOL_SCOPE.symbols) == 6
 
