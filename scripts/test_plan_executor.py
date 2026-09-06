@@ -22,7 +22,7 @@ def main():
   else:raise AssertionError('tampered plan must fail before data')
   from quantbot.research.model_registry import list_models
   before=list_models();_,verified_entries=load_verified_plan(ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json',ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json',lock);assert list_models()==before
- plan=json.loads((ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json').read_text());calls=[]
+ plan=json.loads((ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json').read_text());freeze=json.loads((ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json').read_text());calls=[]
  def loader(**kwargs):calls.append(kwargs);return 'synthetic-frame'
  task=plan['tasks'][0];assert load_task_frame(plan,task['task_identity'],'TRAIN',loader)=='synthetic-frame' and len(calls)==1
  for identity,window in (('bad','TRAIN'),(task['task_identity'],'OOS')):
@@ -43,15 +43,19 @@ def main():
  # Full-plan dispatcher is deterministic and preserves plan/freeze provenance.
  from quantbot.research.candidate_universe import build_candidate_universe
  entries=verified_entries
- subset=dict(plan);subset['tasks']=plan['tasks'][:2]
- outputs=execute_verified_plan(subset,entries,ev)
+ outputs=execute_verified_plan(plan,entries,ev,freeze)
  assert [x['task_identity'] for x in outputs]==sorted(x['task_identity'] for x in outputs) and all(x['research_plan_identity']==plan['research_plan_identity'] for x in outputs)
- audit=execution_audit(plan,outputs);assert audit['tasks_completed']==2 and audit['oos_authorization']=='NOT_AUTHORIZED'
+ audit=execution_audit(plan,outputs);assert audit['tasks_completed']==len(plan['tasks']) and audit['oos_authorization']=='NOT_AUTHORIZED'
  assert validate_execution_outputs(plan,outputs)
  def broken(*args):raise ValueError('synthetic evaluator failure')
- failed=execute_verified_plan(subset,entries,broken)
+ failed=execute_verified_plan(plan,entries,broken,freeze)
  assert all(x['status']=='FAILED' and x['research_freeze_identity']==plan['research_freeze_identity'] for x in failed)
  def invalid(*args):return {'total_return':1}
- assert execute_verified_plan(subset,entries,invalid)[0]['status']=='FAILED'
+ assert execute_verified_plan(plan,entries,invalid,freeze)[0]['status']=='FAILED'
+ tampered=json.loads(json.dumps(plan));tampered['boundary']['actual_end']='2099-01-01T00:00:00Z';tampered['boundary_identity_hash']=__import__('quantbot.research.research_plan',fromlist=['identity_payload'])._hash(tampered['boundary']);tampered['research_plan_identity']=__import__('quantbot.research.research_plan',fromlist=['identity_payload'])._hash(__import__('quantbot.research.research_plan',fromlist=['identity_payload']).identity_payload(tampered));before_calls=len(calls)
+ try:execute_verified_plan(tampered,entries,ev,freeze)
+ except ValueError:pass
+ else:raise AssertionError('dispatcher must validate freeze anchor before evaluator')
+ assert len(calls)==before_calls
  print('PLAN_EXECUTOR_SYNTHETIC_TEST_OK')
 if __name__=='__main__':main()

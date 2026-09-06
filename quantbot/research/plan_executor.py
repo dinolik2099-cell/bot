@@ -70,8 +70,13 @@ def execute_synthetic_cell(entry, task, evaluator, top_k=5):
         validation.append({"params":row['params'],**metrics,"research_state":"RETAINED_FOR_FUTURE_REVIEW" if retained else "HOLD","oos_authorized":False})
     return {"task_identity":task['task_identity'],"model_id":task['model_id'],"symbol":task['symbol'],"train":train,"validation":validation}
 
-def execute_verified_plan(plan, entries, evaluator):
-    """Pure plan orchestration; evaluator remains injected and data-free here."""
+def execute_verified_plan(plan, entries, evaluator, accepted_freeze_manifest):
+    """Execute only a plan revalidated against the accepted freeze chain.
+
+    ``evaluator`` is deliberately injected.  Validation therefore happens before
+    the first possible evaluator (and, by extension, market-data) call.
+    """
+    validate_plan(plan, entries, accepted_freeze_manifest)
     if plan.get('oos_status')!='SEALED' or plan.get('oos_authorization')!='NOT_AUTHORIZED': raise PlanExecutionError('oos_not_sealed')
     by_id={entry.model_id:entry for entry in entries}
     if set(by_id)!={row['model_id'] for row in plan['models']}: raise PlanExecutionError('entry_set_mismatch')
@@ -99,6 +104,9 @@ def execution_audit(plan, outputs):
 
 def validate_execution_outputs(plan, outputs):
     expected={task['task_identity']:task for task in plan['tasks']}
+    actual_ids=[row.get('task_identity') for row in outputs]
+    if len(actual_ids)!=len(expected) or set(actual_ids)!=set(expected) or len(set(actual_ids))!=len(actual_ids):
+        raise PlanExecutionError('output_task_set_mismatch')
     for row in outputs:
         task=expected.get(row.get('task_identity'))
         if task is None or row.get('model_id')!=task['model_id'] or row.get('symbol')!=task['symbol']: raise PlanExecutionError('output_task_provenance_mismatch')
