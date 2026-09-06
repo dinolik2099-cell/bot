@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from quantbot.research.integration import find_gap_ranges
+from quantbot.research.authorization_gate import validate_pre_research_freeze
 from quantbot.research.model_registry import get_model, register_existing_models, list_models, validate_registry
 from quantbot.research.runner import build_research_dataset, load_research_frames, split_frame
 from quantbot.strategies.model_pool import register_model_pool
@@ -246,6 +247,7 @@ def _load_shortlist(path: Path) -> list[str]:
 
 
 def run(args) -> dict[str, Any]:
+    validate_pre_research_freeze(ROOT / "docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json", json.loads(Path(args.lock).read_text(encoding="utf-8")))
     models = _load_shortlist(Path(args.shortlist_report))
     expected_models = {
         "price_ema_momentum", "rsi_momentum", "roc_momentum", "higher_high_lower_low",

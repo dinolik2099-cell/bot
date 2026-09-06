@@ -21,6 +21,7 @@ from quantbot.backtest.engine_v2 import BacktestEngine
 from quantbot.backtest.costs import CostModel
 from quantbot.research.evaluation import make_strategy_adapter
 from quantbot.research.integration import find_gap_ranges
+from quantbot.research.authorization_gate import require_oos_authorized
 from quantbot.research.model_registry import get_model, register_existing_models, validate_registry, list_models
 from quantbot.research.runner import build_research_dataset, load_research_frames, split_frame
 from quantbot.strategies.model_pool import register_model_pool
@@ -177,6 +178,7 @@ def _worker_star(args):
 
 
 def run(args) -> dict[str, Any]:
+    require_oos_authorized(ROOT / "docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json", json.loads(Path(args.lock).read_text(encoding="utf-8")))
     register_existing_models(); register_model_pool(); validate_registry()
     dataset = build_research_dataset(args.lock)
     freeze = _load_freeze(Path(args.freeze_manifest), dataset.boundary.dataset_id)

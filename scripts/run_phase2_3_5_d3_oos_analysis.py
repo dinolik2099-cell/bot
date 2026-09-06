@@ -10,6 +10,7 @@ import argparse, json, math, statistics
 from pathlib import Path
 from collections import defaultdict
 import numpy as np
+from quantbot.research.authorization_gate import require_oos_authorized
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_D1 = ROOT / "data/reports/phase2_3_5_d1_freeze_manifest.json"
@@ -126,6 +127,7 @@ def main():
     ap.add_argument("--d1",default=str(DEFAULT_D1)); ap.add_argument("--d2",default=str(DEFAULT_D2)); ap.add_argument("--curves",default=str(DEFAULT_CURVES));
     ap.add_argument("--output",default=str(ROOT/"data/reports/phase2_3_5_d3_oos_analysis.json"))
     args=ap.parse_args()
+    require_oos_authorized(ROOT / "docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json", json.loads((ROOT / "data/reports/research_boundary_lock.json").read_text(encoding="utf-8")))
     d1=load_json(args.d1); d2=load_json(args.d2); validate_inputs(d1,d2); curves=load_curves(args.curves)
     if set(curves) != {(m,s) for m in EXPECTED_MODELS for s in EXPECTED_SYMBOLS}: raise ValueError("OOS equity curve缺少72个单元")
     rows=[]
