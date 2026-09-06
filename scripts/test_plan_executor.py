@@ -1,7 +1,7 @@
 from pathlib import Path
 import sys,json,tempfile
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
-from quantbot.research.plan_executor import authorize_window,rank_train,PlanExecutionError,execute_synthetic_cell,load_verified_plan,load_task_frame,execute_verified_plan,execution_audit,validate_execution_outputs
+from quantbot.research.plan_executor import authorize_window,rank_train,PlanExecutionError,execute_synthetic_cell,load_verified_plan,load_task_frame,execute_verified_plan,execution_audit,validate_execution_outputs,preflight_summary
 from quantbot.research.model_registry import ModelSpec,RegisteredModel
 def main():
  try:authorize_window({},'OOS')
@@ -22,6 +22,7 @@ def main():
   else:raise AssertionError('tampered plan must fail before data')
   from quantbot.research.model_registry import list_models
   before=list_models();_,verified_entries=load_verified_plan(ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json',ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json',lock);assert list_models()==before
+  summary=preflight_summary(ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json',ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json',lock);assert summary['models']==36 and summary['tasks']==216 and summary['oos_authorization']=='NOT_AUTHORIZED'
  plan=json.loads((ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json').read_text());freeze=json.loads((ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json').read_text());calls=[]
  def loader(**kwargs):calls.append(kwargs);return 'synthetic-frame'
  task=plan['tasks'][0];assert load_task_frame(plan,task['task_identity'],'TRAIN',loader)=='synthetic-frame' and len(calls)==1

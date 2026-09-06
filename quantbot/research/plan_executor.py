@@ -27,6 +27,18 @@ def load_verified_plan(plan_path, freeze_path, boundary_lock):
     if plan.get('oos_status')!='SEALED' or plan.get('oos_authorization')!='NOT_AUTHORIZED': raise PlanExecutionError('oos_not_sealed')
     return plan,entries
 
+def preflight_summary(plan_path, freeze_path, boundary_lock):
+    """Verify the committed N3/N5 chain without constructing a data interface."""
+    plan, entries=load_verified_plan(plan_path,freeze_path,boundary_lock)
+    return {
+        'research_plan_identity':plan['research_plan_identity'],
+        'research_freeze_identity':plan['research_freeze_identity'],
+        'models':len(entries),
+        'tasks':len(plan['tasks']),
+        'oos_status':plan['oos_status'],
+        'oos_authorization':plan['oos_authorization'],
+    }
+
 def authorize_window(plan, window):
     if window not in {'TRAIN','VALIDATION'}: raise PlanExecutionError('window_not_authorized')
     return window
