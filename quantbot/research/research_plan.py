@@ -19,7 +19,7 @@ def build_plan(entries,scope,lock,freeze):
  protocol_hash=_hash(protocol_scope_dict(scope));tasks=[{"model_id":e.model_id,"symbol":s,"task_identity":task_id(freeze,e.model_id,s,e.parameter_grid_hash,protocol_hash)} for e in models for s in symbols]
  core={"schema_version":SCHEMA_VERSION,"research_freeze_identity":freeze,"candidate_universe_hash":_hash([e.canonical_dict() for e in models]),"protocol_scope":protocol_scope_dict(scope),"protocol_scope_hash":protocol_hash,"boundary":boundary,"boundary_identity_hash":_hash(boundary),"models":rows,"symbols":symbols,"ranking":RANKING,"top_k_train":TOP_K_TRAIN,"viability":VIABILITY,"oos_status":"SEALED","oos_authorization":"NOT_AUTHORIZED","tasks":tasks,"counts":{"models":len(models),"symbols":len(symbols),"model_symbol_cells":len(tasks),"train_evaluations":sum(x["grid_combinations"] for x in rows)*len(symbols),"validation_evaluations_max":len(tasks)*TOP_K_TRAIN}}
  core["research_plan_identity"]=_hash(identity_payload(core));return core
-def validate_plan(plan):
+def validate_plan(plan, expected_entries=None):
  if plan.get("schema_version")!=SCHEMA_VERSION: raise ValueError("unsupported_plan_schema")
  if plan.get("oos_status")!="SEALED" or plan.get("oos_authorization")!="NOT_AUTHORIZED": raise ValueError("oos_not_authorized")
  if plan.get("protocol_scope_hash")!=_hash(plan.get("protocol_scope")): raise ValueError("protocol_scope_hash_mismatch")
@@ -29,7 +29,19 @@ def validate_plan(plan):
  if counts.get("models")!=len(models) or counts.get("symbols")!=len(plan.get("symbols",[])): raise ValueError("count_mismatch")
  if counts.get("model_symbol_cells")!=len(tasks): raise ValueError("task_count_mismatch")
  if len({(x.get("model_id"),x.get("symbol")) for x in tasks})!=len(tasks) or len({x.get("task_identity") for x in tasks})!=len(tasks): raise ValueError("task_identity_mismatch")
+ pairs={(x.get("model_id"),x.get("symbol")) for x in tasks}; expected_pairs={(m.get("model_id"),s) for m in models for s in plan.get("symbols",[])}
+ if pairs!=expected_pairs: raise ValueError("task_cartesian_product_mismatch")
+ grids={m.get("model_id"):m.get("parameter_grid_hash") for m in models}
+ for task in tasks:
+  if task.get("task_identity")!=task_id(plan["research_freeze_identity"],task["model_id"],task["symbol"],grids[task["model_id"]],plan["protocol_scope_hash"]): raise ValueError("task_identity_mismatch")
  if counts.get("train_evaluations")!=sum(x.get("grid_combinations",0) for x in models)*counts.get("symbols"): raise ValueError("train_evaluations_mismatch")
  if counts.get("validation_evaluations_max")!=counts.get("model_symbol_cells")*plan.get("top_k_train"): raise ValueError("validation_evaluations_mismatch")
  if plan.get("research_plan_identity")!=_hash(identity_payload(plan)): raise ValueError("research_plan_identity_mismatch")
+ if expected_entries is not None:
+  expected={e.model_id:e for e in expected_entries}
+  if set(expected)!={m.get("model_id") for m in models}: raise ValueError("frozen_model_set_mismatch")
+  for row in models:
+   e=expected[row["model_id"]]
+   actual={"family":e.family,"secondary_traits":list(e.secondary_traits),"warmup_bars":e.warmup_bars,"required_features":list(e.required_features),"parameter_grid_hash":e.parameter_grid_hash,"strategy_function_hash":e.strategy_function_hash,"implementation_module_hash":e.implementation_module_hash}
+   if any(row.get(k)!=v for k,v in actual.items()): raise ValueError("frozen_model_metadata_mismatch")
  return True
