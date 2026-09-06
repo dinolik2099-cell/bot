@@ -21,8 +21,17 @@ def validate_pre_research_freeze(manifest_path: str | Path, boundary_lock: Mappi
     manifest = _load(Path(manifest_path)); reasons=[]
     if manifest.get("schema_version") != SCHEMA_VERSION: reasons.append("unsupported_freeze_schema")
     if models is None:
+        # Registration APIs intentionally reject duplicates.  Build a temporary
+        # universe for validation, then restore the exact caller-owned registry.
+        from .model_registry import _REGISTRY
         from quantbot.strategies.model_pool import register_model_pool
-        register_existing_models(); register_model_pool(); validate_registry(); models=build_candidate_universe()
+        snapshot = dict(_REGISTRY)
+        try:
+            _REGISTRY.clear()
+            register_existing_models(); register_model_pool(); validate_registry()
+            models=build_candidate_universe()
+        finally:
+            _REGISTRY.clear(); _REGISTRY.update(snapshot)
     scope = CURRENT_PROTOCOL_SCOPE if scope is None else scope
     candidate_hash = __import__("quantbot.research.candidate_universe", fromlist=["candidate_universe_hash"]).candidate_universe_hash(tuple(models))
     scope_hash = _hash(protocol_scope_dict(scope)); boundary = boundary_identity(boundary_lock); boundary_hash = _hash(boundary)
