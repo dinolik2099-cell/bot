@@ -1,5 +1,5 @@
 from pathlib import Path
-import sys,json
+import sys,json,tempfile,subprocess
 from dataclasses import replace
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from quantbot.research.candidate_universe import CURRENT_PROTOCOL_SCOPE,build_candidate_universe
@@ -15,5 +15,17 @@ def main():
    try:validate_plan(bad)
    except ValueError:pass
    else:raise AssertionError(key)
+ bad=json.loads(json.dumps(p));bad['counts']['train_evaluations']+=1
+ try:validate_plan(bad)
+ except ValueError as x:assert str(x)=='train_evaluations_mismatch'
+ else:raise AssertionError('train count')
+ bad=json.loads(json.dumps(p));bad['tasks'].append(bad['tasks'][0])
+ try:validate_plan(bad)
+ except ValueError as x:assert str(x)=='task_count_mismatch'
+ else:raise AssertionError('task duplicate')
+ bad=json.loads(json.dumps(p));bad['oos_authorization']='AUTHORIZED'
+ try:validate_plan(bad)
+ except ValueError as x:assert str(x)=='oos_not_authorized'
+ else:raise AssertionError('oos')
  assert build_plan(e,replace(CURRENT_PROTOCOL_SCOPE,timeframe='4h'),lock,p['research_freeze_identity'])['research_plan_identity']!=p['research_plan_identity'];print('RESEARCH_PLAN_SYNTHETIC_TEST_OK')
 if __name__=='__main__':main()
