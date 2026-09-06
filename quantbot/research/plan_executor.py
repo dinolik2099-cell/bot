@@ -80,3 +80,12 @@ def execute_verified_plan(plan, entries, evaluator):
             cell={'task_identity':task['task_identity'],'model_id':task['model_id'],'symbol':task['symbol'],**provenance,'status':'FAILED','error_type':type(exc).__name__,'error_message':str(exc)}
         outputs.append(cell)
     return outputs
+
+def execution_audit(plan, outputs):
+    """Deterministic, result-free execution accounting for audit transport."""
+    completed=sum(row.get('status')=='COMPLETED' for row in outputs)
+    return {'research_plan_identity':plan['research_plan_identity'],'research_freeze_identity':plan['research_freeze_identity'],
+            'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED','tasks_total':len(outputs),
+            'tasks_completed':completed,'tasks_failed':len(outputs)-completed,
+            'train_evaluations':sum(len(row.get('train',[])) for row in outputs),
+            'validation_evaluations':sum(len(row.get('validation',[])) for row in outputs)}

@@ -1,7 +1,7 @@
 from pathlib import Path
 import sys,json,tempfile
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
-from quantbot.research.plan_executor import authorize_window,rank_train,PlanExecutionError,execute_synthetic_cell,load_verified_plan,load_task_frame,execute_verified_plan
+from quantbot.research.plan_executor import authorize_window,rank_train,PlanExecutionError,execute_synthetic_cell,load_verified_plan,load_task_frame,execute_verified_plan,execution_audit
 from quantbot.research.model_registry import ModelSpec,RegisteredModel
 def main():
  try:authorize_window({},'OOS')
@@ -46,6 +46,7 @@ def main():
  subset=dict(plan);subset['tasks']=plan['tasks'][:2]
  outputs=execute_verified_plan(subset,entries,ev)
  assert [x['task_identity'] for x in outputs]==sorted(x['task_identity'] for x in outputs) and all(x['research_plan_identity']==plan['research_plan_identity'] for x in outputs)
+ audit=execution_audit(plan,outputs);assert audit['tasks_completed']==2 and audit['oos_authorization']=='NOT_AUTHORIZED'
  def broken(*args):raise ValueError('synthetic evaluator failure')
  failed=execute_verified_plan(subset,entries,broken)
  assert all(x['status']=='FAILED' and x['research_freeze_identity']==plan['research_freeze_identity'] for x in failed)
