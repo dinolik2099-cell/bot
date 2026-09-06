@@ -14,8 +14,13 @@ def load_verified_plan(plan_path, freeze_path, boundary_lock):
     """Validate all identities before a caller may access its data interface."""
     plan=json.loads(Path(plan_path).read_text(encoding='utf-8'))
     freeze=json.loads(Path(freeze_path).read_text(encoding='utf-8'))
+    from quantbot.research.model_registry import _REGISTRY
     from quantbot.strategies.model_pool import register_model_pool
-    register_existing_models();register_model_pool();entries=build_candidate_universe()
+    snapshot=dict(_REGISTRY)
+    try:
+        _REGISTRY.clear();register_existing_models();register_model_pool();entries=build_candidate_universe()
+    finally:
+        _REGISTRY.clear();_REGISTRY.update(snapshot)
     validate_pre_research_freeze(freeze_path,boundary_lock,models=entries,scope=CURRENT_PROTOCOL_SCOPE)
     validate_plan(plan,entries,freeze)
     if plan.get('oos_status')!='SEALED' or plan.get('oos_authorization')!='NOT_AUTHORIZED': raise PlanExecutionError('oos_not_sealed')

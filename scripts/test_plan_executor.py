@@ -20,6 +20,8 @@ def main():
   try:load_verified_plan(p,ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json',lock)
   except Exception:pass
   else:raise AssertionError('tampered plan must fail before data')
+  from quantbot.research.model_registry import list_models
+  before=list_models();_,verified_entries=load_verified_plan(ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json',ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json',lock);assert list_models()==before
  plan=json.loads((ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json').read_text());calls=[]
  def loader(**kwargs):calls.append(kwargs);return 'synthetic-frame'
  task=plan['tasks'][0];assert load_task_frame(plan,task['task_identity'],'TRAIN',loader)=='synthetic-frame' and len(calls)==1
@@ -30,7 +32,7 @@ def main():
  assert len(calls)==1
  # Full-plan dispatcher is deterministic and preserves plan/freeze provenance.
  from quantbot.research.candidate_universe import build_candidate_universe
- entries=build_candidate_universe()
+ entries=verified_entries
  subset=dict(plan);subset['tasks']=plan['tasks'][:2]
  outputs=execute_verified_plan(subset,entries,ev)
  assert [x['task_identity'] for x in outputs]==sorted(x['task_identity'] for x in outputs) and all(x['research_plan_identity']==plan['research_plan_identity'] for x in outputs)
