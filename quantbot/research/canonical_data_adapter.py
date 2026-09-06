@@ -14,7 +14,7 @@ import pandas as pd
 
 from .formal_runner import N7Context, N7ExecutionError, authorize_n7_window
 from .freeze_manifest import _hash
-from .integration import load_boundary_lock, timestamp_in_non_tradable_gap, load_boundary_aware_symbol
+from .integration import load_boundary_lock, timestamp_in_non_tradable_gap, load_boundary_aware_symbol_window
 from .formal_runner import run_n7_plan
 
 
@@ -110,8 +110,7 @@ def make_n8_canonical_window_loader(context: N8DataContext, raw_root):
     all guards in the private shared loader have passed.
     """
     def source(*, symbol, market, interval, window, start, end, dataset_id):
-        frame=load_boundary_aware_symbol(raw_root,symbol,interval,market=market)
-        return frame.loc[(frame.index>=start)&(frame.index<=end)].copy(),'canonical_raw'
+        return load_boundary_aware_symbol_window(raw_root,symbol,interval,market=market,start=start,end=end),'canonical_raw'
     return _make_n8_window_loader_for_test(context,source)
 
 

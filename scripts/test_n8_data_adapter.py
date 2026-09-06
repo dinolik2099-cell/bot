@@ -5,6 +5,7 @@ ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from quantbot.research.formal_runner import load_n7_context
 from quantbot.research.canonical_data_adapter import N8DataError,load_n8_data_context,_make_n8_window_loader_for_test,make_n8_canonical_window_loader
 from quantbot.research.authorization_gate import FreezeAuthorizationError
+from quantbot.data.load import load_symbol_window
 
 PLAN=ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json';FREEZE=ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json';LOCK=json.loads((ROOT/'data/reports/research_boundary_lock.json').read_text())
 def clone(v):return json.loads(json.dumps(v))
@@ -16,6 +17,11 @@ def complete_frame(n8,symbol,window):
  from quantbot.research.integration import timestamp_in_non_tradable_gap
  index=index[[not timestamp_in_non_tradable_gap(n8.dataset,symbol,ts) for ts in index]]
  return pd.DataFrame({'open':1.,'high':1.,'low':1.,'close':1.,'volume':1.},index=index)
+def write_shard(path,timestamps):
+ rows=[]
+ for ts in timestamps:
+  ms=int(pd.Timestamp(ts).timestamp()*1000);rows.append([ms,1,1,1,1,1,ms+3599999,1,1,1,1,0])
+ pd.DataFrame(rows).to_csv(path,index=False,header=False)
 def main():
  n7=load_n7_context(PLAN,FREEZE,LOCK);n8=load_n8_data_context(n7,ROOT/'data/reports/research_boundary_lock.json');task=n7.plan['tasks'][0];calls=[]
  def source(**kwargs):calls.append(kwargs);return complete_frame(n8,kwargs['symbol'],kwargs['window']),'canonical_raw'
@@ -58,6 +64,20 @@ def main():
  internal=complete_frame(n8,task['symbol'],'TRAIN').drop(complete_frame(n8,task['symbol'],'TRAIN').index[100]);reject(lambda:invalid_source(internal)(window='TRAIN',symbol=task['symbol'],task=task,boundary=n7.plan['boundary']))
  fake_calls=[];fake=lambda **kwargs:fake_calls.append(kwargs) or (complete_frame(n8,task['symbol'],'TRAIN'),'canonical_raw')
  reject(lambda:make_n8_canonical_window_loader(n8,fake)(window='TRAIN',symbol=task['symbol'],task=task,boundary=n7.plan['boundary']));assert not fake_calls
+ # Filesystem regression: the bounded canonical reader opens only overlapping shards.
+ with tempfile.TemporaryDirectory() as td:
+  raw=Path(td);directory=raw/'um'/'1h'/'BTCUSDT';directory.mkdir(parents=True)
+  train=directory/'BTCUSDT-1h-2024-12.csv';validation=directory/'BTCUSDT-1h-2025-01.csv';oos=directory/'BTCUSDT-1h-2026-01.csv'
+  write_shard(train,['2024-12-31T22:00:00+00:00','2024-12-31T23:00:00+00:00']);write_shard(validation,['2025-01-01T00:00:00+00:00','2025-01-01T01:00:00+00:00']);write_shard(oos,['2026-01-01T00:00:00+00:00'])
+  import quantbot.data.load as raw_load
+  opened=[];original=raw_load.pd.read_csv
+  def tracked(path,*args,**kwargs):opened.append(Path(path).name);return original(path,*args,**kwargs)
+  raw_load.pd.read_csv=tracked
+  try:
+   assert len(load_symbol_window(raw,'BTCUSDT','1h',market='um',start='2024-12-31T22:00:00+00:00',end='2024-12-31T23:00:00+00:00'))==2;assert opened==[train.name]
+   opened.clear();assert len(load_symbol_window(raw,'BTCUSDT','1h',market='um',start='2025-01-01T00:00:00+00:00',end='2025-01-01T01:00:00+00:00'))==2;assert opened==[validation.name]
+   opened.clear();assert len(load_symbol_window(raw,'BTCUSDT','1h',market='um',start='2024-12-31T23:00:00+00:00',end='2025-01-01T00:00:00+00:00'))==2;assert opened==[train.name,validation.name]
+  finally:raw_load.pd.read_csv=original
  assert all(item['window']!='OOS' for item in calls) and len(calls)==3
  print('N8_DATA_ADAPTER_SYNTHETIC_TEST_OK')
 if __name__=='__main__':main()

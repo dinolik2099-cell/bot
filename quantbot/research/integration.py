@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from quantbot.data.load import load_symbol
+from quantbot.data.load import load_symbol, load_symbol_window
 
 
 @dataclass(frozen=True)
@@ -181,6 +181,11 @@ def load_boundary_aware_symbol(
         market=market,
         validate=False,
     )
+
+
+def load_boundary_aware_symbol_window(raw_root: str | Path, symbol: str, interval: str, *, market: str, start, end) -> pd.DataFrame:
+    """N8 canonical raw path: physical reads are limited to overlapping shards."""
+    return load_symbol_window(raw_root,symbol,interval,market=market,start=start,end=end)
 
 
 def load_symbol_with_parquet_fallback(

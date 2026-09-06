@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import pandas as pd
 
 from .validator import expected_timestamp_unit, validate_frame
@@ -48,6 +49,36 @@ def load_symbol(root: str | Path, symbol: str, interval: str, *, market: str = "
         if not report.ok:
             raise ValueError(f"Data quality failed for {market}/{symbol}/{interval}: {report.to_dict()}")
     return df
+
+
+def load_symbol_window(root: str | Path, symbol: str, interval: str, *, market: str,
+                       start, end) -> pd.DataFrame:
+    """Read only canonical monthly raw shards overlapping the explicit UTC range.
+
+    This is deliberately separate from ``load_symbol``: N8 must never load an
+    entire symbol and slice afterward, because that could physically read OOS
+    shards during a non-OOS request.
+    """
+    start_ts=pd.Timestamp(start);end_ts=pd.Timestamp(end)
+    start_ts=start_ts.tz_localize('UTC') if start_ts.tzinfo is None else start_ts.tz_convert('UTC')
+    end_ts=end_ts.tz_localize('UTC') if end_ts.tzinfo is None else end_ts.tz_convert('UTC')
+    if start_ts>end_ts: raise ValueError('start must be <= end')
+    directory=Path(root)/market/interval/symbol.upper()
+    files=sorted(directory.glob('*.csv'))
+    if not files: raise FileNotFoundError(f'No data: {directory}')
+    pattern=re.compile(rf'^{re.escape(symbol.upper())}-{re.escape(interval)}-(\d{{4}})-(\d{{2}})\.csv$')
+    selected=[]
+    for path in files:
+        match=pattern.fullmatch(path.name)
+        if match is None: raise ValueError(f'Unrecognized canonical shard name: {path.name}')
+        year,month=map(int,match.groups())
+        month_start=pd.Timestamp(year=year,month=month,day=1,tz='UTC')
+        month_end=(month_start+pd.offsets.MonthBegin(1))-pd.Timedelta(hours=1)
+        if month_start<=end_ts and month_end>=start_ts: selected.append(path)
+    if not selected: raise FileNotFoundError(f'No canonical shards overlap requested window: {directory}')
+    frames=[normalize_kline_frame(pd.read_csv(path,header=None)) for path in selected]
+    df=pd.concat(frames).sort_index();df=df[~df.index.duplicated(keep='first')]
+    return df.loc[(df.index>=start_ts)&(df.index<=end_ts)].copy()
 
 
 def save_parquet(df: pd.DataFrame, path: str | Path) -> Path:
