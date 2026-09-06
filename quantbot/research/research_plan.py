@@ -18,3 +18,8 @@ def build_plan(entries,scope,lock,freeze):
  tasks=[{"model_id":e.model_id,"symbol":s,"task_identity":task_id(freeze,e,s)} for e in models for s in symbols]
  core={"research_freeze_identity":freeze,"candidate_universe_hash":_hash([e.canonical_dict() for e in models]),"protocol_scope":protocol_scope_dict(scope),"boundary":boundary,"models":rows,"symbols":symbols,"ranking":RANKING,"top_k_train":TOP_K_TRAIN,"viability":VIABILITY,"oos_status":"SEALED","oos_authorization":"NOT_AUTHORIZED"}
  core["research_plan_identity"]=_hash(core);core.update({"schema_version":SCHEMA_VERSION,"tasks":tasks,"counts":{"models":len(models),"symbols":len(symbols),"model_symbol_cells":len(tasks),"train_evaluations":sum(x["grid_combinations"] for x in rows)*len(symbols),"validation_evaluations_max":len(tasks)*TOP_K_TRAIN}});return core
+def validate_plan(plan):
+ if plan.get("schema_version")!=SCHEMA_VERSION: raise ValueError("unsupported_plan_schema")
+ if plan.get("oos_status")!="SEALED" or plan.get("oos_authorization")!="NOT_AUTHORIZED": raise ValueError("oos_not_authorized")
+ if plan.get("counts",{}).get("model_symbol_cells")!=len(plan.get("tasks",[])): raise ValueError("task_count_mismatch")
+ return True
