@@ -65,8 +65,31 @@ def frozen_grid(entry):
 def validate_metrics(metrics):
     required=('total_return','max_drawdown','profit_factor','trades')
     if not isinstance(metrics,dict) or any(key not in metrics for key in required): raise PlanExecutionError('invalid_evaluator_metrics')
-    if not all(math.isfinite(float(metrics[key])) for key in required[:3]) or int(metrics['trades'])<0: raise PlanExecutionError('invalid_evaluator_metrics')
+    if (not all(math.isfinite(float(metrics[key])) for key in ('total_return','max_drawdown'))
+            or math.isnan(float(metrics['profit_factor'])) or float(metrics['profit_factor'])<0
+            or int(metrics['trades'])<0): raise PlanExecutionError('invalid_evaluator_metrics')
     return metrics
+
+def make_canonical_evaluator(frame_loader, strategy_resolver, engine_factory):
+    """Return an injectable evaluator bound to the accepted engine/cost classes.
+
+    The loader is intentionally supplied by the future authorized runner.  This
+    layer neither discovers files nor opens market data by itself.
+    """
+    from quantbot.backtest.costs import CostModel
+    from quantbot.backtest.engine_v2 import BacktestEngine
+    from quantbot.research.evaluation import evaluate_strategy
+    def evaluator(window, entry, task, params):
+        authorize_window({},window)
+        engine=engine_factory()
+        if not isinstance(engine,BacktestEngine) or not isinstance(engine.cost_model,CostModel):
+            raise PlanExecutionError('canonical_engine_or_cost_model_required')
+        frame=frame_loader(window=window,entry=entry,task=task)
+        strategy=strategy_resolver(entry.model_id)
+        result=evaluate_strategy(symbol=task['symbol'],window=window,frame=frame,strategy=strategy,engine=engine,params=params,tag=task['task_identity'])
+        metrics=result.backtest.metrics()
+        return {key:metrics[key] for key in ('total_return','max_drawdown','profit_factor','trades')}
+    return evaluator
 
 def execute_synthetic_cell(entry, task, evaluator, top_k=5):
     """Injected evaluator only; caller is responsible for verified data access."""
