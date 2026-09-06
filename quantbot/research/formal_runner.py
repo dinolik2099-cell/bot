@@ -35,6 +35,18 @@ class N7Context:
     boundary_lock: Mapping[str, Any]
 
 
+_CANONICAL_EXECUTION_TOKEN=object()
+
+
+@dataclass(frozen=True)
+class N7ExecutionBatch:
+    """Opaque result of the formal canonical execution path."""
+    outputs: list[Mapping[str, Any]]
+    research_plan_identity: str
+    research_freeze_identity: str
+    _token: object
+
+
 def load_n7_context(plan_path, freeze_path, boundary_lock: Mapping[str, Any]) -> N7Context:
     """Complete metadata-only N3 -> N5 -> N6 verification before data access."""
     plan, entries=load_verified_plan(plan_path,freeze_path,boundary_lock)
@@ -97,26 +109,38 @@ def _runtime_provenance(context: N7Context, task: Mapping[str, Any]) -> dict[str
     }
 
 
-def run_n7_plan(context: N7Context, evaluator: Callable[..., Mapping[str, Any]], *,
-                engine_identity: str = CURRENT_PROTOCOL_SCOPE.engine_identity,
-                cost_model_identity: str = CURRENT_PROTOCOL_SCOPE.cost_model_identity):
-    """Execute exactly the frozen plan through the accepted N6 executor.
-
-    This function is intentionally not invoked by the N7 preflight command.
-    """
-    verify_n7_runtime(engine_identity,cost_model_identity)
+def _run_n7_with_evaluator_for_test(context: N7Context, evaluator):
+    """Test helper only.  Its raw outputs cannot be written as formal N7 results."""
     outputs=execute_verified_plan(context.plan,context.entries,evaluator,context.freeze)
     validate_execution_outputs(context.plan,outputs,context.entries)
+    return outputs
+
+
+def run_n7_plan(context: N7Context, window_loader, strategy_resolver, engine_factory) -> N7ExecutionBatch:
+    """Formal N7 path: construct the canonical evaluator structurally in-run.
+
+    No raw evaluator argument is accepted, so fabricated metrics cannot acquire
+    canonical runtime provenance.  The N6 executor validates the full frozen
+    chain before this evaluator can call its guarded market-data loader.
+    """
+    verify_n7_runtime(CURRENT_PROTOCOL_SCOPE.engine_identity,CURRENT_PROTOCOL_SCOPE.cost_model_identity)
+    evaluator=make_n7_canonical_evaluator(context,window_loader,strategy_resolver,engine_factory)
+    outputs=_run_n7_with_evaluator_for_test(context,evaluator)
     result=[]
     by_task={task['task_identity']:task for task in context.plan['tasks']}
     for output in outputs:
         row=dict(output)
         row.update(_runtime_provenance(context,by_task[output['task_identity']]))
         result.append(row)
-    return result
+    return N7ExecutionBatch(outputs=result,research_plan_identity=context.plan['research_plan_identity'],research_freeze_identity=context.plan['research_freeze_identity'],_token=_CANONICAL_EXECUTION_TOKEN)
 
 
-def build_n7_result(context: N7Context, outputs: list[Mapping[str, Any]]) -> dict[str, Any]:
+def build_n7_result(context: N7Context, batch: N7ExecutionBatch) -> dict[str, Any]:
+    if not isinstance(batch,N7ExecutionBatch) or batch._token is not _CANONICAL_EXECUTION_TOKEN:
+        raise N7ExecutionError('formal_result_requires_canonical_execution_batch')
+    if batch.research_plan_identity!=context.plan['research_plan_identity'] or batch.research_freeze_identity!=context.plan['research_freeze_identity']:
+        raise N7ExecutionError('execution_batch_provenance_mismatch')
+    outputs=batch.outputs
     validate_execution_outputs(context.plan,outputs,context.entries)
     by_task={task['task_identity']:task for task in context.plan['tasks']}
     enriched=[]
