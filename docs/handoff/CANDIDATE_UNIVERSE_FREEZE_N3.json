@@ -52,6 +52,9 @@
   },
   "boundary_identity_hash": "fdd0ed8b2a0f723115ba738c8e85768bcac891d83db9532a05f789bbeabc0fa4",
   "research_freeze_identity": "4e1a66757a152af47dc7ba045ce64e97d1005711c5274c451827b68d07c5d9f1",
+  "non_identity_metadata": {
+    "created_at": "2026-09-06T00:00:00+00:00"
+  },
   "models": [
     {
       "model_id": "quantbot.atr_compression_breakout.v1",

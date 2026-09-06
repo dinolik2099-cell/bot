@@ -63,6 +63,7 @@ def build_freeze_manifest(entries, scope: CandidateUniverseProtocolScope, bounda
                 "candidate_universe_hash": candidate_hash, "protocol_scope": scope_data, "protocol_scope_hash": protocol_hash,
                 "research_boundary": boundary, "boundary_identity_hash": boundary_hash,
                 "research_freeze_identity": research_identity, "models": models}
+    # Provenance only: never place wall-clock values in a deterministic hash.
     if created_at is not None:
         manifest["non_identity_metadata"] = {"created_at": created_at}
     return manifest

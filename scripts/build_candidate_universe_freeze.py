@@ -1,4 +1,5 @@
 """Write a versioned N3 manifest from metadata only; never loads research data."""
+from datetime import datetime, timezone
 from pathlib import Path
 import json, subprocess, sys
 ROOT = Path(__file__).resolve().parents[1]; sys.path.insert(0, str(ROOT))
@@ -11,7 +12,12 @@ def main():
     lock = json.loads((ROOT / "data/reports/research_boundary_lock.json").read_text(encoding="utf-8"))
     register_existing_models(); register_model_pool(); validate_registry()
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    manifest = build_freeze_manifest(build_candidate_universe(), CURRENT_PROTOCOL_SCOPE, lock, commit)
+    # This is the accepted semantic model-metadata baseline, not this packaging
+    # commit.  Keeping it separate avoids circular self-provenance.
+    manifest = build_freeze_manifest(
+        build_candidate_universe(), CURRENT_PROTOCOL_SCOPE, lock, commit,
+        created_at=datetime.now(timezone.utc).isoformat(),
+    )
     output = ROOT / "docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json"
     if output.exists(): raise FileExistsError(f"immutable freeze exists: {output}")
     output.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
