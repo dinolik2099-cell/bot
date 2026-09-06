@@ -30,6 +30,16 @@ def main():
   except PlanExecutionError:pass
   else:raise AssertionError('pre-read guard')
  assert len(calls)==1
+ bad_plan=json.loads(json.dumps(plan));bad_plan['protocol_scope_hash']='x'*64
+ try:load_task_frame(bad_plan,task['task_identity'],'TRAIN',loader)
+ except PlanExecutionError:pass
+ else:raise AssertionError('protocol guard')
+ assert len(calls)==1
+ bad_plan=json.loads(json.dumps(plan));bad_plan['tasks'][0]['task_identity']='z'*64
+ try:load_task_frame(bad_plan,'z'*64,'TRAIN',loader)
+ except PlanExecutionError:pass
+ else:raise AssertionError('task guard')
+ assert len(calls)==1
  # Full-plan dispatcher is deterministic and preserves plan/freeze provenance.
  from quantbot.research.candidate_universe import build_candidate_universe
  entries=verified_entries
