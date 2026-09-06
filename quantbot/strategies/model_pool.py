@@ -213,7 +213,7 @@ def bollinger_squeeze_breakout(df, period=20, width=2.0, squeeze_window=50, sque
     return _finish(x, sq&(x.close>m+width*sd), sq&(x.close<m-width*sd), stop_atr, reward_r)
 
 
-# 28 additions + 4 existing = 32 candidates.
+# 32 model-pool candidates + 4 existing candidates = 36 registered candidates.
 _SPECS = [
     ("ema_trend", "趋势", ema_trend, {"fast":(10,20),"slow":(50,80),"stop_atr":(1.5,2.0,2.5),"reward_r":(2.0,3.0,4.0)}),
     ("ema_cross", "趋势/交叉", ema_cross, {"fast":(10,20),"slow":(50,80,120),"stop_atr":(1.5,2.0,2.5),"reward_r":(2.0,3.0)}),
@@ -266,4 +266,8 @@ def register_model_pool() -> None:
             oos_status="sealed",
             cost_sensitivity="unassessed",
             research_version="model-pool-v1",
+            model_id=f"quantbot.{name}.v1",
+            causal_timing="t_minus_1_to_t_intent",
+            long_short_capable=True,
+            warmup_bars=None,
         ), fn)

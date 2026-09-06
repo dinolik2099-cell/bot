@@ -30,6 +30,11 @@ class ModelSpec:
     cost_sensitivity: str = "unassessed"
     max_drawdown: float | None = None
     research_version: str = "unversioned"
+    # Unknown model attributes must remain unknown until explicitly declared.
+    model_id: str = ""
+    causal_timing: str = "unverified"
+    long_short_capable: bool | None = None
+    warmup_bars: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -90,6 +95,12 @@ def validate_registry() -> None:
                 raise ValueError(f"invalid {field} for {spec.name}: {getattr(spec, field)}")
         if not spec.research_version:
             raise ValueError(f"model {spec.name} has no research version")
+        if not spec.model_id:
+            raise ValueError(f"model {spec.name} has no stable model_id")
+        if spec.causal_timing not in {"t_minus_1_to_t_intent", "unverified"}:
+            raise ValueError(f"invalid causal timing for {spec.name}: {spec.causal_timing}")
+        if spec.warmup_bars is not None and spec.warmup_bars < 0:
+            raise ValueError(f"invalid warmup_bars for {spec.name}: {spec.warmup_bars}")
         if not callable(item.strategy):
             raise TypeError(f"strategy is not callable: {spec.name}")
 
@@ -141,4 +152,6 @@ def register_existing_models() -> None:
             family=family, description=rationale, future_data_risk="none_declared",
             train_status="not_run", validation_status="not_run", oos_status="sealed",
             cost_sensitivity="unassessed", research_version="existing-models-v1",
+            model_id=f"quantbot.{name}.v1", causal_timing="t_minus_1_to_t_intent",
+            long_short_capable=True, warmup_bars=None,
         ), fn)
