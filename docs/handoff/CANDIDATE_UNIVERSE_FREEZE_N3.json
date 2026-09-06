@@ -1,0 +1,877 @@
+{
+  "schema_version": "quantbot-candidate-freeze-v1",
+  "source_git_commit": "f933896f215ca7c6616ad01cee7148fa1bcd0dc2",
+  "freeze_status": {
+    "candidate_universe": "FROZEN",
+    "protocol_scope": "FROZEN",
+    "parameter_grids": "FROZEN",
+    "oos_status": "SEALED",
+    "oos_authorization": "NOT_AUTHORIZED",
+    "formal_research_results_embedded": false
+  },
+  "candidate_universe_hash": "9c1892e0e31a028060515b0dea4d1706305846f3476444812a1ce01bd9b68ffd",
+  "protocol_scope": {
+    "scope_id": "quantbot-six-symbol-1h-v1",
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "BNBUSDT",
+      "SOLUSDT",
+      "XRPUSDT",
+      "DOGEUSDT"
+    ],
+    "timeframe": "1h",
+    "engine_identity": "quantbot.backtest.engine_v2.BacktestEngine",
+    "cost_model_identity": "quantbot.backtest.costs.CostModel",
+    "causal_execution_policy": "intent at T-1 may be considered no earlier than T"
+  },
+  "protocol_scope_hash": "529598752b3bcf83596b88d07a15290240715cc9cfae653f054e6ce54da0bca2",
+  "research_boundary": {
+    "dataset_id": "UM_1H_6DC48D541517",
+    "market": "um",
+    "interval": "1h",
+    "requested_end": "2026-08-31T23:00:00+00:00",
+    "actual_end": "2026-07-31T23:00:00+00:00",
+    "train_boundary": {
+      "start": "2021-01-01T00:00:00+00:00",
+      "end": "2024-12-31T23:00:00+00:00"
+    },
+    "validation_boundary": {
+      "start": "2025-01-01T00:00:00+00:00",
+      "end": "2025-12-31T23:00:00+00:00"
+    },
+    "oos_boundary": {
+      "start": "2026-01-01T00:00:00+00:00",
+      "end": "2026-07-31T23:00:00+00:00"
+    },
+    "gap_policy": "non_tradable",
+    "synthetic_candles": false,
+    "lookahead_policy": "execution_at_T_uses_information_strictly_before_T",
+    "oos_status": "SEALED",
+    "lock_status": "LOCKED"
+  },
+  "boundary_identity_hash": "fdd0ed8b2a0f723115ba738c8e85768bcac891d83db9532a05f789bbeabc0fa4",
+  "research_freeze_identity": "4e1a66757a152af47dc7ba045ce64e97d1005711c5274c451827b68d07c5d9f1",
+  "models": [
+    {
+      "model_id": "quantbot.atr_compression_breakout.v1",
+      "version": "model-pool-v1",
+      "family": "volatility",
+      "secondary_traits": [
+        "breakout",
+        "compression"
+      ],
+      "parameter_grid_hash": "8e69e96d8bded4c1d258c1e25c333b01e35118af1b89b765a865820d0e8ec84a",
+      "strategy_function_hash": "1f257cf69a304546573f82228129fa1d475d4c9f649a67f992432be51593ad83",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 114,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.atr_expansion.v1",
+      "version": "model-pool-v1",
+      "family": "volatility",
+      "secondary_traits": [
+        "expansion"
+      ],
+      "parameter_grid_hash": "00a0787090487eaf9318ec121914c0b244156776acb58d84b17bedd5d188fc10",
+      "strategy_function_hash": "085518882aa36c35dbca25ad27407e85e8e7dc4ee59bce3e9b58feb68041beb2",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 114,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.bollinger_breakout.v1",
+      "version": "model-pool-v1",
+      "family": "breakout",
+      "secondary_traits": [],
+      "parameter_grid_hash": "8e42db205879efc392556c07152d7b6c87e14036ed6b0a90b1090a07ad4a360d",
+      "strategy_function_hash": "9915c622134ff131f625391c28eb75df0bd3a44a4b798fc62c2491a34273ae49",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 40,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.bollinger_reversion.v1",
+      "version": "model-pool-v1",
+      "family": "mean_reversion",
+      "secondary_traits": [
+        "reversal"
+      ],
+      "parameter_grid_hash": "e29287b0442d66b76e91da142154f30b41e9f6cbb4a628c9998cd5b41b92b4b5",
+      "strategy_function_hash": "15befa31750e773c499d875d9c77f3e71d8d3d88ead91c5e8b4646a998813385",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 40,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.bollinger_squeeze_breakout.v1",
+      "version": "model-pool-v1",
+      "family": "volatility",
+      "secondary_traits": [
+        "breakout",
+        "compression"
+      ],
+      "parameter_grid_hash": "0bcd86ae22ac1cad383043b8acedff9e452bf3c25d9cd9dd5079e55aacb911f4",
+      "strategy_function_hash": "0ad9e85ab39d01a5e81453d34c6bce8b4836d9490840705ca76f1ac161b6ac49",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 89,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.candle_engulfing.v1",
+      "version": "model-pool-v1",
+      "family": "candlestick",
+      "secondary_traits": [],
+      "parameter_grid_hash": "483cf25b01fa063e05bd57d4fdd3c4f28fd055d448c4454824dced0c63c96caf",
+      "strategy_function_hash": "0fb056f848aec4db294d1229cdb2a9189560067720719ce837476bb2b7f7e471",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 14,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.donchian_breakout.v1",
+      "version": "model-pool-v1",
+      "family": "breakout",
+      "secondary_traits": [],
+      "parameter_grid_hash": "e72aca98624aa7a77500ff21301d9a596ed89382e0da6b4339d84cb93ae9c2f2",
+      "strategy_function_hash": "ce3d5ae7bac6dc0d4229ac78df29736f18a66915e09bc22d2db1aa8d4de7ec85",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 60,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.donchian_retest.v1",
+      "version": "model-pool-v1",
+      "family": "breakout",
+      "secondary_traits": [
+        "retest"
+      ],
+      "parameter_grid_hash": "bfc4403ff5312222ade09d101ae7962f318e9d7b4ae02d3cc2a4415a05abf4c5",
+      "strategy_function_hash": "e0643452a0f750238351a0cdba15197414ea2c2fb6f0bc83f8d9623efdd8a29e",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 46,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.ema_cross.v1",
+      "version": "model-pool-v1",
+      "family": "trend",
+      "secondary_traits": [
+        "ema"
+      ],
+      "parameter_grid_hash": "1e883a296ea7ee7c8c870440f2d82b313d51f73e965440b4ab84443cd5b2f5ce",
+      "strategy_function_hash": "0cb2a97d062b166b3e4e75074b5e24e892b701d873cbf98257dbfa309a6f8fa0",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 120,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.ema_pullback.v1",
+      "version": "model-pool-v1",
+      "family": "trend",
+      "secondary_traits": [
+        "pullback",
+        "ema"
+      ],
+      "parameter_grid_hash": "1e883a296ea7ee7c8c870440f2d82b313d51f73e965440b4ab84443cd5b2f5ce",
+      "strategy_function_hash": "dfb50b86e8e29d03c5622cc62afb83c3eca0717a2cbdd96f6f1b4692cd569fd6",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 120,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.ema_slope.v1",
+      "version": "model-pool-v1",
+      "family": "trend",
+      "secondary_traits": [
+        "ema"
+      ],
+      "parameter_grid_hash": "0960934ece00a60b9c4b5f831a7181ac7fcc210fac55b3b243410643e2610834",
+      "strategy_function_hash": "ddf1ff2c4f5bed0cf712fbcea2ff045fe58509960976efda9aad768fed1750f1",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 90,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.ema_trend.v1",
+      "version": "model-pool-v1",
+      "family": "trend",
+      "secondary_traits": [
+        "ema"
+      ],
+      "parameter_grid_hash": "d6c2bd03cd8db808088720cf4470b8c70a70be56de37c0f5d8c16cd2722934cd",
+      "strategy_function_hash": "f3918b0652fc438179aaf6a411083dc847627eccbf3b774bdae4cd29dba4c683",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 80,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.extreme_reversal.v1",
+      "version": "model-pool-v1",
+      "family": "mean_reversion",
+      "secondary_traits": [
+        "reversal"
+      ],
+      "parameter_grid_hash": "c9f40352c636f02d1f32858cfd6d48e79a022697661f17ff2b80f108ccf22ba0",
+      "strategy_function_hash": "feba99a6b63f59a0fbc326099026f3b759a15b700e1ccd890eb9c05bec9e3012",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 40,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.higher_high_lower_low.v1",
+      "version": "model-pool-v1",
+      "family": "price_structure",
+      "secondary_traits": [],
+      "parameter_grid_hash": "6fbf05fca9e7f59a7424643c6e73d9a1aff57af880cb437c2dbcadb7ec829498",
+      "strategy_function_hash": "232038639bb13dd67720b8123722f811596d63e6d78e647f54ba945d383b07be",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 14,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.inside_bar_breakout.v1",
+      "version": "model-pool-v1",
+      "family": "candlestick",
+      "secondary_traits": [
+        "breakout"
+      ],
+      "parameter_grid_hash": "80f0b90ffb3193141b98da195162bb12f8df1f8cfc052373dae4a7349f3d7ce4",
+      "strategy_function_hash": "ef811f97fd47fb92fda0268492a96260cfca3662c57e82a835fd919dc6a7176b",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 14,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.low_volatility_breakout.v1",
+      "version": "model-pool-v1",
+      "family": "volatility",
+      "secondary_traits": [
+        "breakout",
+        "compression"
+      ],
+      "parameter_grid_hash": "0adc0663238e0e4b2277c598050d18ddd845483d3666761e46870905366a2d00",
+      "strategy_function_hash": "b1a7cc4a4736af3d56e906801ca87efbfb2c25aea9f2d550275d6f100924d453",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 114,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.macd_momentum.v1",
+      "version": "model-pool-v1",
+      "family": "momentum",
+      "secondary_traits": [
+        "macd"
+      ],
+      "parameter_grid_hash": "3d4c4cf37544cb2388f2dd0ba454e6cd282de0bb524e64c385d63cca23da68ba",
+      "strategy_function_hash": "0c3c5b0ff97c01273545e79ae98cae46616e2bfbcc8934f37878d59885b440df",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 35,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.macd_trend.v1",
+      "version": "model-pool-v1",
+      "family": "trend",
+      "secondary_traits": [
+        "macd"
+      ],
+      "parameter_grid_hash": "3d4c4cf37544cb2388f2dd0ba454e6cd282de0bb524e64c385d63cca23da68ba",
+      "strategy_function_hash": "2229547a4a97ca9c0ca984802f304219d5bed0a52c91be03839870bed85892af",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 35,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.mean_reversion.v1",
+      "version": "existing-models-v1",
+      "family": "mean_reversion",
+      "secondary_traits": [
+        "reversal"
+      ],
+      "parameter_grid_hash": "c09ab9901c35f60ce5934593dc4584bdbba66e6016d1fa90ab3dd3bdd55ebf27",
+      "strategy_function_hash": "7eff89ccaacbe780ab468b544d737ffaef4ea912a39ade46e5f8eea4d9138dfd",
+      "implementation_module_hash": "276dfc6987c9d6a1cb57d78c3790ad6ff050ef52396c8a7d17ea77e275641161",
+      "warmup_bars": 60,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.multi_period_momentum.v1",
+      "version": "model-pool-v1",
+      "family": "momentum",
+      "secondary_traits": [],
+      "parameter_grid_hash": "cbc23d983f14d0798c2cb548897fd3391e6e3e8a8fd305f895fcaba947019c3c",
+      "strategy_function_hash": "2d85dd09da41759a9493f5c531d548616fbead617f8177b06a37927183c16a08",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 60,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.pinbar.v1",
+      "version": "model-pool-v1",
+      "family": "candlestick",
+      "secondary_traits": [],
+      "parameter_grid_hash": "15cd4e99a4bd5440cd85fa0603b6cec1e6c8d368c8f81858831bdae4bf647b6e",
+      "strategy_function_hash": "99eacdadb11b23cbadea024f7614e48cf38de721aca14ca5cb82a7a6fe56f0ca",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 14,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.price_ema_momentum.v1",
+      "version": "model-pool-v1",
+      "family": "trend",
+      "secondary_traits": [
+        "momentum",
+        "ema"
+      ],
+      "parameter_grid_hash": "fc0d2eaaa08587dc3ef7d11ad662291ca5598bcc5f143a4735fa7c39f7dd80b0",
+      "strategy_function_hash": "fce6e760ad2d66c6f15441dc87226dbb491ca2dbc85ce6003d63d6e92291589b",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 80,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.range_reversal.v1",
+      "version": "model-pool-v1",
+      "family": "mean_reversion",
+      "secondary_traits": [
+        "range",
+        "reversal"
+      ],
+      "parameter_grid_hash": "e97d9b4be2bb952c61c337f112bae56ebdb494865e1cc04a25f4d30338ac5e3a",
+      "strategy_function_hash": "852c370a9d857f55f1099904283abb333278ab8d241ee77556ea5e2aea22bebc",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 50,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.roc_momentum.v1",
+      "version": "model-pool-v1",
+      "family": "momentum",
+      "secondary_traits": [],
+      "parameter_grid_hash": "8ce7a69b23fb46e480ffa522d539fb240fc4cc72a165f2d9c76de6112419beab",
+      "strategy_function_hash": "1649f250a9be04538d1674aeb781012661ee31e4f2097068ed9e65d6628772d2",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 40,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.rsi_momentum.v1",
+      "version": "model-pool-v1",
+      "family": "momentum",
+      "secondary_traits": [],
+      "parameter_grid_hash": "9c999280c127df143af4243b9425ac71701d9f9fd704efdf86bf044a5246d4fa",
+      "strategy_function_hash": "2bd56efb46777ce79c1521efa6ecc2646551ca5722acacdd3e0e7129ec96ac88",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 21,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.rsi_reversal.v1",
+      "version": "model-pool-v1",
+      "family": "mean_reversion",
+      "secondary_traits": [
+        "reversal"
+      ],
+      "parameter_grid_hash": "18c6e9f89fe70f893b22ebf8bcee79b91ee7d5006d1180d898a70361931e482b",
+      "strategy_function_hash": "b0c9e94fcc1861939fd6169dbbb5d2c3b0afea5e78bae094384183f1f36d6011",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 21,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.short_term_reversal.v1",
+      "version": "model-pool-v1",
+      "family": "mean_reversion",
+      "secondary_traits": [
+        "reversal"
+      ],
+      "parameter_grid_hash": "9681158cc354dce0d9fdae8dadde2b1dfad6aa62f5942a1cb3618dfaf78f938f",
+      "strategy_function_hash": "47ad035f6475256b98c62723ab8f6794327f3cb9d8f5c5c0cc845db65cc812ad",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 14,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.three_bar_momentum.v1",
+      "version": "model-pool-v1",
+      "family": "momentum",
+      "secondary_traits": [],
+      "parameter_grid_hash": "a51b21ba69996481a2b6d8fa65ac245f73178c5a55585f74277dabb9f12934d2",
+      "strategy_function_hash": "7fd3b1beb95e64b196378bb0290d06a7ed04377e09752a2d747c7a8e67f14c42",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 14,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.trend_breakout.v1",
+      "version": "existing-models-v1",
+      "family": "trend",
+      "secondary_traits": [
+        "breakout"
+      ],
+      "parameter_grid_hash": "f0c75ecd0e8ec561caa455e0f92c894a2b5a7fb50270b9f9d55cf31774a38e02",
+      "strategy_function_hash": "e213d6b436e34517a815a5c0de30d42a533ef5b5791d17b4f85bfcfc2fbfb7c5",
+      "implementation_module_hash": "276dfc6987c9d6a1cb57d78c3790ad6ff050ef52396c8a7d17ea77e275641161",
+      "warmup_bars": 80,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.trend_pullback.v1",
+      "version": "existing-models-v1",
+      "family": "trend",
+      "secondary_traits": [
+        "pullback"
+      ],
+      "parameter_grid_hash": "adce2ea452018a89e454eb37b765de73d92de3938f127592945ffc8d6276bac3",
+      "strategy_function_hash": "b59ef7be58f748daa9adbbcc44cdf1be51cb12569b85c5b724aec631ffe76337",
+      "implementation_module_hash": "276dfc6987c9d6a1cb57d78c3790ad6ff050ef52396c8a7d17ea77e275641161",
+      "warmup_bars": 120,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.trend_strength.v1",
+      "version": "model-pool-v1",
+      "family": "trend",
+      "secondary_traits": [
+        "ema"
+      ],
+      "parameter_grid_hash": "7f535a722a08d7c7585bce281390acbfb1b0468fde21b95fe06a85971a717b5f",
+      "strategy_function_hash": "1dcd2ce1ded95dcd3245d77ceca6981986203f613bc46d1a32036f9caf5fa01d",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 80,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.volatility_breakout.v1",
+      "version": "existing-models-v1",
+      "family": "volatility",
+      "secondary_traits": [
+        "breakout",
+        "expansion"
+      ],
+      "parameter_grid_hash": "d280ab6d42d17f82b252f8c7eaa11ff56e04fd823a1af61e0987ee8e2421efc2",
+      "strategy_function_hash": "9399d7a8ea3d4d2a97c083097509b56346a306f17fd5e4c42349d39ee1e17f85",
+      "implementation_module_hash": "276dfc6987c9d6a1cb57d78c3790ad6ff050ef52396c8a7d17ea77e275641161",
+      "warmup_bars": 64,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.volatility_regime_trend.v1",
+      "version": "model-pool-v1",
+      "family": "volatility",
+      "secondary_traits": [
+        "regime",
+        "ema"
+      ],
+      "parameter_grid_hash": "063f55469b3489e6976b6c3a288bfc78d63b1893602cf6aa197227b670b0821d",
+      "strategy_function_hash": "60b276a0fbb4fe7e87fcb352f5234db758ce2572a13767719b8fd62d1ea8469b",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 114,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.volume_breakout.v1",
+      "version": "model-pool-v1",
+      "family": "volume",
+      "secondary_traits": [
+        "breakout",
+        "volume_confirmation"
+      ],
+      "parameter_grid_hash": "e35c716f364e287694e924265f04afb31ab9f1534ca063cd4328ede1b7c01c45",
+      "strategy_function_hash": "e365c02edb0016af218abe3193852766a07e6577e754574fe0ab0a174830449f",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 50,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.volume_trend.v1",
+      "version": "model-pool-v1",
+      "family": "volume",
+      "secondary_traits": [
+        "ema",
+        "volume_confirmation"
+      ],
+      "parameter_grid_hash": "d84aff32898d91a4c5ed68b5ff0987577b340d9efbf66fba4546132b31ed4e61",
+      "strategy_function_hash": "9a82b11c9da7a681e8225459645bd2795934de0f2fb0b02eaccd9a2c09293bee",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 80,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    },
+    {
+      "model_id": "quantbot.zscore_reversion.v1",
+      "version": "model-pool-v1",
+      "family": "mean_reversion",
+      "secondary_traits": [
+        "reversal"
+      ],
+      "parameter_grid_hash": "ac04f34f13427f80a7d528740747ea2cdd0251cd07cfae3c3dc91fa768507365",
+      "strategy_function_hash": "c6251408489f932d1c72ef9cb2ecdb51a62bc06b7dcf084c263a6f4d8c6941b4",
+      "implementation_module_hash": "bf465e20b532c1226e1661a4b279f1caa8e85491469b9d45454388ad1e21be1a",
+      "warmup_bars": 60,
+      "causal_timing": "t_minus_1_to_t_intent",
+      "long_short_capable": true,
+      "research_eligible": true,
+      "eligibility_state": "eligible",
+      "required_features": [
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume"
+      ]
+    }
+  ]
+}
