@@ -57,3 +57,17 @@ def execute_synthetic_cell(entry, task, evaluator, top_k=5):
         retained=metrics['total_return']>0 and metrics['profit_factor']>=1.0
         validation.append({"params":row['params'],**metrics,"research_state":"RETAINED_FOR_FUTURE_REVIEW" if retained else "HOLD","oos_authorized":False})
     return {"task_identity":task['task_identity'],"model_id":task['model_id'],"symbol":task['symbol'],"train":train,"validation":validation}
+
+def execute_verified_plan(plan, entries, evaluator):
+    """Pure plan orchestration; evaluator remains injected and data-free here."""
+    if plan.get('oos_status')!='SEALED' or plan.get('oos_authorization')!='NOT_AUTHORIZED': raise PlanExecutionError('oos_not_sealed')
+    by_id={entry.model_id:entry for entry in entries}
+    if set(by_id)!={row['model_id'] for row in plan['models']}: raise PlanExecutionError('entry_set_mismatch')
+    outputs=[]
+    for task in sorted(plan['tasks'],key=lambda x:x['task_identity']):
+        entry=by_id.get(task['model_id'])
+        if entry is None: raise PlanExecutionError('task_model_missing')
+        cell=execute_synthetic_cell(entry,task,evaluator,top_k=plan['top_k_train'])
+        cell.update({'research_plan_identity':plan['research_plan_identity'],'research_freeze_identity':plan['research_freeze_identity'],'parameter_grid_hash':entry.parameter_grid_hash})
+        outputs.append(cell)
+    return outputs
