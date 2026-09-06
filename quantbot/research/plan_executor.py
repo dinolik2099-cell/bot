@@ -1,6 +1,7 @@
 """N6 injectable, non-OOS executor; formal runs are intentionally not invoked here."""
 from __future__ import annotations
 import json
+import math
 from pathlib import Path
 from itertools import product
 from .research_plan import validate_plan, task_id
@@ -49,16 +50,22 @@ def frozen_grid(entry):
     keys=sorted(entry.parameter_grid)
     return [dict(zip(keys, values)) for values in product(*(entry.parameter_grid[k] for k in keys))]
 
+def validate_metrics(metrics):
+    required=('total_return','max_drawdown','profit_factor','trades')
+    if not isinstance(metrics,dict) or any(key not in metrics for key in required): raise PlanExecutionError('invalid_evaluator_metrics')
+    if not all(math.isfinite(float(metrics[key])) for key in required[:3]) or int(metrics['trades'])<0: raise PlanExecutionError('invalid_evaluator_metrics')
+    return metrics
+
 def execute_synthetic_cell(entry, task, evaluator, top_k=5):
     """Injected evaluator only; caller is responsible for verified data access."""
     train=[]
     for params in frozen_grid(entry):
-        metrics=evaluator('TRAIN', entry, task, params)
+        metrics=validate_metrics(evaluator('TRAIN', entry, task, params))
         train.append({"params":params,**metrics})
     top=rank_train(train)[:top_k]
     validation=[]
     for row in top:
-        metrics=evaluator('VALIDATION', entry, task, row['params'])
+        metrics=validate_metrics(evaluator('VALIDATION', entry, task, row['params']))
         retained=metrics['total_return']>0 and metrics['profit_factor']>=1.0
         validation.append({"params":row['params'],**metrics,"research_state":"RETAINED_FOR_FUTURE_REVIEW" if retained else "HOLD","oos_authorized":False})
     return {"task_identity":task['task_identity'],"model_id":task['model_id'],"symbol":task['symbol'],"train":train,"validation":validation}

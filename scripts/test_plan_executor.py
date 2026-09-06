@@ -50,5 +50,7 @@ def main():
  def broken(*args):raise ValueError('synthetic evaluator failure')
  failed=execute_verified_plan(subset,entries,broken)
  assert all(x['status']=='FAILED' and x['research_freeze_identity']==plan['research_freeze_identity'] for x in failed)
+ def invalid(*args):return {'total_return':1}
+ assert execute_verified_plan(subset,entries,invalid)[0]['status']=='FAILED'
  print('PLAN_EXECUTOR_SYNTHETIC_TEST_OK')
 if __name__=='__main__':main()
