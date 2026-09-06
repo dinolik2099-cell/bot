@@ -748,1087 +748,1086 @@
   },
   "oos_status": "SEALED",
   "oos_authorization": "NOT_AUTHORIZED",
-  "research_plan_identity": "57ff7a1e6395bd65636982b84c7d437d2a9c7d9f78ef8632aede13228992b771",
   "tasks": [
     {
       "model_id": "quantbot.atr_compression_breakout.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "568dc703a00c458c079849bbe5eb21cd02689e39d1d47ce81d5e2316b38de58f"
+      "task_identity": "d2fe3c87b41d5493a7f19e6764690780a317a22d6b0211b3633d4773ff1feff9"
     },
     {
       "model_id": "quantbot.atr_compression_breakout.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "cc88bfeb5e69abefaf054396d4e858a8884031fd7a970fa0198666d6d8a8ec28"
+      "task_identity": "1cf34c7c6cc898da18df634c83d0a8b234d8d038200145327f6edf321975e474"
     },
     {
       "model_id": "quantbot.atr_compression_breakout.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "a26ffe413626d9ff44a20914664bf85dabd35aa29b0b8a3c424edcd14260dac2"
+      "task_identity": "79fc67e321900e5bdce1730570ed32de2da8843f01aecab5f2628ff59943c1c6"
     },
     {
       "model_id": "quantbot.atr_compression_breakout.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "c7e17984aa851bc31a16c9a0c5ab2e33f594a2fc60c37f95eaa3d9b0da5350a1"
+      "task_identity": "a524e910302a16935188d2d5ef88fab3ab806b5b1345cadcbfb6f1896f750e92"
     },
     {
       "model_id": "quantbot.atr_compression_breakout.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "e2b14024082282908b69b0495d6dd013f82a54266fe192537e775b386e6528db"
+      "task_identity": "d7812d47be8652c30470baa870cfe99ffc725ab74739180f404c9d344a161d23"
     },
     {
       "model_id": "quantbot.atr_compression_breakout.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "c0b9e824722f2f52253bb7f85243cf7459094dd3560fb4f9f3975ce060971f70"
+      "task_identity": "c1c8afeba310880636047453672d20253e1fd682652fa4c21e3852ade04d21e4"
     },
     {
       "model_id": "quantbot.atr_expansion.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "31e010009e3196e435b214fad14a44952f942f5a04037fae31356ee3520bd0dc"
+      "task_identity": "c07729a3dece17e64b1bded7a9f86642eb5cc299f0e6e420afe03de71d8b31e7"
     },
     {
       "model_id": "quantbot.atr_expansion.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "86cc42f42d5e6e4f089cfc4e5937ef0017e13793e7e09c39b0f6b44066a175eb"
+      "task_identity": "a82a46e52b0b70ed1cd12abcda202fdfe4f8532e2b9f24999b6d0a77a4db13ab"
     },
     {
       "model_id": "quantbot.atr_expansion.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "e447f7794e7119e01f883c4dcc717828184f391ea1652ac8549f75b57fa245a5"
+      "task_identity": "981d2e54f6b78eec2806b22aacbb9e861f40b454de7680a054e9d8c7e4eaa90d"
     },
     {
       "model_id": "quantbot.atr_expansion.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "2dfa708a817026817af448c1c6b9befea9d8361500c84c6c53c9be9e580173ef"
+      "task_identity": "563eec58717e88d58d8bb1367678117e432092308b488df52e80f3d973358e7f"
     },
     {
       "model_id": "quantbot.atr_expansion.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "ca3d74190296d0b173472994a6673adeb0c8a8a06d64f40e4661d6c868dfe6f0"
+      "task_identity": "ecbb7af1fbb7d7a036e4b150e3e49b451f788ba7177e06c4533bdf925cd2ed18"
     },
     {
       "model_id": "quantbot.atr_expansion.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "4afcf7b79671d5cdb592aad7ac4fc84a336aff44560c8e13c28741f3b30fb5b0"
+      "task_identity": "ba9ee008a03688642517948618a35cdaac92ee4fcabf22b65238c6540d5190d0"
     },
     {
       "model_id": "quantbot.bollinger_breakout.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "ab82275fa9714fb420a403b7c7cd94d3ee9bd89463626f660279bcf80abd79ea"
+      "task_identity": "fdfe216831c6f8b86d10f6c11fe706e40fd000d2cff5cb6f9e3f2126d0e63e16"
     },
     {
       "model_id": "quantbot.bollinger_breakout.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "8c5150af75140319ecbbe6a8442b8ada2f8a4efd59493f126f21e8d2f8d8fc65"
+      "task_identity": "0f213e8c24e7fb99293a48d4cd976369d85fad5f7ab47929c1e5c474a741d459"
     },
     {
       "model_id": "quantbot.bollinger_breakout.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "5f869cf49d4c8dc89647304e20edb6d1d18393bfe6284eccd6ff783f9717762a"
+      "task_identity": "6ddace6e6002890a61a17add307ad5ec01c9c39697135b63dafae76fc239959e"
     },
     {
       "model_id": "quantbot.bollinger_breakout.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "56927e3814a7a9678de6b47b20c09c69eac71daa88976b09c02b1ca43d755f56"
+      "task_identity": "3d3996e1705d43704ac45c6ebb84922b6899b1844e682f25066c9d1c4be1c727"
     },
     {
       "model_id": "quantbot.bollinger_breakout.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "7e1f3b558814a923400b70161dc1ac315e010cf207e66fd7526e27f2ffa6328b"
+      "task_identity": "0998d9b766bb2cf7cf286915c4b9ddeb511e5e341592bbb7d504fbb37937e617"
     },
     {
       "model_id": "quantbot.bollinger_breakout.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "4d7c82b7aa42cb05374fa6cc6b70493704b58670d0a83ea784a149a379111367"
+      "task_identity": "8c94a84028130b5b0ff0af4a6b725add72be2570efa7b3cb19b0d9b03ed85b66"
     },
     {
       "model_id": "quantbot.bollinger_reversion.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "7d2cc4046e59bb34923e99987ef9a0320e1166d7ca40f1fa70124e4561989d60"
+      "task_identity": "d51dce4806da864c17bbc926f33d7e6c63270edbd816de6ca54d5c9e48cacc7a"
     },
     {
       "model_id": "quantbot.bollinger_reversion.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "2869f57d3375bcaff3fa9b34530878827a0dadeb43859715ff1bcfa736df503a"
+      "task_identity": "b4f5286b246e84e457f5665e8487d20682146fa8ead91f2260642b9e20aa40ae"
     },
     {
       "model_id": "quantbot.bollinger_reversion.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "757e1e3a80419ce7789976bd6317d6bb15b5db82aefed73f18ad6c631db443ed"
+      "task_identity": "307c393e22b04778d949143227e2f6af3258e8fadc80ac6fb155c94369481813"
     },
     {
       "model_id": "quantbot.bollinger_reversion.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "8d37dfabccd3e315d4b8b870ef5fc526dce57ceced9053e3db44f57a2ede4995"
+      "task_identity": "fd2ab970ab94dbbe65cbea3a65d524fc6a2070f5e6035781ad2b7ba26945809a"
     },
     {
       "model_id": "quantbot.bollinger_reversion.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "ad5bfb358ed1c0e25e317d679979288786ec55f0bcc0d9ddacdaa27a2656e752"
+      "task_identity": "f43f965b61e7bdf42ca74d438b0481fe2b284a5a281d9dd990be1fb91bcc6d3f"
     },
     {
       "model_id": "quantbot.bollinger_reversion.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "d692f3a521d26f30c528dc52765774d0e5e92d10665e34731c0948b75daf2001"
+      "task_identity": "9f26cd8a71740368ee7775d42a75d81efcf0e5439b8257297e11fcfc200fdc9f"
     },
     {
       "model_id": "quantbot.bollinger_squeeze_breakout.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "cede7dffd42072c48a23bb19a9f03c6148bfa7e2d559f9ba9f5dead11de876a6"
+      "task_identity": "8f947b13a6a7f763cf229f53adf7d5b62e7445e696c89badf5500c74e2235bcd"
     },
     {
       "model_id": "quantbot.bollinger_squeeze_breakout.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "b77a8e11ca5c43a09188df66155de9eea4fa643cbafbc7c36c2aab4978d66dc3"
+      "task_identity": "f49e33c50a7cee2665808c69f447007337f7a391e00b0fd0cf5a8af124173d89"
     },
     {
       "model_id": "quantbot.bollinger_squeeze_breakout.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "0f21a4d9a8dc4be7037bec69beb847bc2c2129f57a45b52b1654203ab328b15c"
+      "task_identity": "6fb5ab0d56bc15f1f9a4358db9d04d5cd7bff70638a632f212c73998fcdca102"
     },
     {
       "model_id": "quantbot.bollinger_squeeze_breakout.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "2d6cc2d50648bac305c607733e09418fbee6332f83cda2d9e6f807545d334a84"
+      "task_identity": "6c05bc37f2ce508d1b7c1d23e4f7c1fc983875011657dfd151564b982da588bb"
     },
     {
       "model_id": "quantbot.bollinger_squeeze_breakout.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "a110cf790ff47a576779047378d5d4f5708d226184a95cdebc5d2ffda1ca229c"
+      "task_identity": "5a89bbe0521c9cb8ce5559eb4df723c8be8432aa21cc8c8211ce810f97c8174f"
     },
     {
       "model_id": "quantbot.bollinger_squeeze_breakout.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "cee6c3f28625171e1486dc4361975e6b56aeff3a42968c615f7e9023c714fd74"
+      "task_identity": "c30f718002d3268b259fb79b2e6e88dabce16be3cd1bcfe2ac0dccde3c2a06bc"
     },
     {
       "model_id": "quantbot.candle_engulfing.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "eb87788326de2ce5afc76bf4428ef834e26a2ebf622fb999701dc51c901d3bdf"
+      "task_identity": "0fc2fafafc48bbbd3ff7a48206401beb1d9646c937e84c168672a12990f5a863"
     },
     {
       "model_id": "quantbot.candle_engulfing.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "1b30141deb1b48c1b41b4882616e57c7617cde2f040c9fa730fcd2e2984715c8"
+      "task_identity": "04c189e10f0a15221c4eea2bef53766b6f0ffc0e078813a5e9b15dedd6428fe8"
     },
     {
       "model_id": "quantbot.candle_engulfing.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "357c29727720a49f6cd1eec303efaedaabc127ad641ae76fbdbac3583ef59d3e"
+      "task_identity": "d03682efb69c351e6b27790e78187d60c3cadb2eee3636f5479999cea804264f"
     },
     {
       "model_id": "quantbot.candle_engulfing.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "11dda1d601e114c9cf19659cc06b89a3aef837ac5ce18e3350cc3715b681b987"
+      "task_identity": "77d77c40380583dd1c381ccb7b9b050754c1582fd2d7951de42d2b2dcc5f8906"
     },
     {
       "model_id": "quantbot.candle_engulfing.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "dbbe8af62d33e682bd32944f2783a7e8e4b1a6f8af7ef08114ad17fd86fcdf24"
+      "task_identity": "1a37efac6d0f91011ee7bcce326af112d45717b328cdb3899b1041ccc0eb22d9"
     },
     {
       "model_id": "quantbot.candle_engulfing.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "9848db09405d77d1edde17ecd891e406caeb5a3f9e251130b472106211636a47"
+      "task_identity": "e495dac362b13d6606c3120181c46a260c978cd20c6648c0e941f54efb8818ae"
     },
     {
       "model_id": "quantbot.donchian_breakout.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "371362a0fe147bead2585e11bd86924ab0dd788aee34b6ba216b19f1c7269089"
+      "task_identity": "3404b08c94c695a7b81247e9b7836d6ff3c2109e282158e4ba9795d8fadd8c72"
     },
     {
       "model_id": "quantbot.donchian_breakout.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "1acac3d056d653d2fb13b580c7779fd3c2b794c4f3453ee94cc3515ed4bbca6e"
+      "task_identity": "5cdce5273330047e19b144fed40eeb0c26c787c10fb557022bf6fb24bd78cdfd"
     },
     {
       "model_id": "quantbot.donchian_breakout.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "c94a168108e7e5bcda7cb06096b7a78d9ea26ab3fc9c30d454632a4cdb7c7c46"
+      "task_identity": "377cdf38b8dbd097786cc73bf9334fbfc4f0e0b0c679f92b6c8dee3489195693"
     },
     {
       "model_id": "quantbot.donchian_breakout.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "f44a5586e63a55c8b33e9bcfa9058fab6d9834c2384f102625a4c0f013211314"
+      "task_identity": "cbd156e3d71c0375f26e7c01626b5de80ea6c3cc5813d3ab7a9137fdb1e77f64"
     },
     {
       "model_id": "quantbot.donchian_breakout.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "219e38ebb88213f17ca909064afa6dcf3a4fcfe6a069b73cfa84938e71e7da91"
+      "task_identity": "a92f1b4f63e9abb12d309681a1b35d21d074053ca12421ec1c6d1b19056a2376"
     },
     {
       "model_id": "quantbot.donchian_breakout.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "4118c464fec1365c804b1124579f7e7863623bf565f21f4b787723ebf8a6debd"
+      "task_identity": "07054ed8d7d564cf379eb959c08bc4e5850a78c97b619bd89818fc3a4c7cd7ed"
     },
     {
       "model_id": "quantbot.donchian_retest.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "e27624c334293f5e3bfdd3538eee0aef5776fed1fcdfbaa1e572bde2b44d7c8f"
+      "task_identity": "050e1542956b6f0575816365e6305a96fda1fa0aeaa128e2e161457df1fe1a3e"
     },
     {
       "model_id": "quantbot.donchian_retest.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "52a0556f49ce1bb3db60aebe09e834754983f15ffaf8ca35a494da104c953dc7"
+      "task_identity": "98bb58d7be6a4696b967cf6cbc82ad867509b01e704aee2809aaddf8c3679d61"
     },
     {
       "model_id": "quantbot.donchian_retest.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "8a6972f41a33f05bd335618f30d69b745832741567c78f91a364c2b9b4769b0b"
+      "task_identity": "84c85c8b84a4fad856b4e346f2076a4579449808d09f4656c4ffa8c2f8d3b337"
     },
     {
       "model_id": "quantbot.donchian_retest.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "bfd410bc5c450efa5ce350568c44310961749b58e6d27277d0881d0adfa77f40"
+      "task_identity": "80ec9e1c03bfda5fb3c9a29ab8a116044cf6dc68b6fe022e4a09d2ef65f88a99"
     },
     {
       "model_id": "quantbot.donchian_retest.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "36b9981df170c9aaaa4954765c1acdb8ce1178103a555ef866f6404bcda0e7b3"
+      "task_identity": "69d807daea3cd60985e81b5f8b569f40aed90322d394a3b2189003ad393fad2e"
     },
     {
       "model_id": "quantbot.donchian_retest.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "919597df6c520b9eeb95bc23ed44ba4da70a940c1a5cda1e5e5c8dcfc3fe3317"
+      "task_identity": "9802b46fc3871d8e921acf9fba59e54d851e217804786f00bb95be91a2fee1f9"
     },
     {
       "model_id": "quantbot.ema_cross.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "1cef038cfbf5cae446b845775253a499b310bc39f121b7eea40722fa90017077"
+      "task_identity": "e0fe592539cdd3d46131c572d90fe0f31a4cdf089e31ba05b5b13bf4bed96fb2"
     },
     {
       "model_id": "quantbot.ema_cross.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "1aac9f0e1bd6626732a227905a56419c8b8bd08574abe035e35dffac62aa5a9c"
+      "task_identity": "c9d3294f8b2cbde58bdbd58cd72ad3955c6318226f888cebe656cbd3f49984ce"
     },
     {
       "model_id": "quantbot.ema_cross.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "9d04cd0884a249ef3c2674953bd365032a7de1948a814a228a5f717d2e3ce7c0"
+      "task_identity": "a3deb3b341fd015748da19a2328e93f12697dd840ad74ca1aaef1c16839e972e"
     },
     {
       "model_id": "quantbot.ema_cross.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "3b8f47a1b02e27130f788ef3e7d40044f9e739b4207d00c79dd2d758cf20c292"
+      "task_identity": "e03aa783c31bf036ea96c85d52ef2d77dcbfe3445f4086f12093e2747c9d18e1"
     },
     {
       "model_id": "quantbot.ema_cross.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "35114d05f9362940cc55ef474455eab1f9ec9a6999e2a8f03db1109484ebc24a"
+      "task_identity": "be45739d1647e74a34ff5030d88173abb5e80088e02487bda60bd068f0a65914"
     },
     {
       "model_id": "quantbot.ema_cross.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "689aa66e09463c6f25d303cd0b770ccbf221775018bde89770882b6186b65cf4"
+      "task_identity": "b768ce98751f9377e2f05a6d7f6d9c3c0a3d252fd5e2d58ad2ab5bbf987a733a"
     },
     {
       "model_id": "quantbot.ema_pullback.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "0ce1748dd73330a7ee25fc359010dd5591a09da52392fc60ca77b5d7f0250a77"
+      "task_identity": "3748f904b817ef7b047b6047ae07284c45d365c73880f08260c60308800f54ca"
     },
     {
       "model_id": "quantbot.ema_pullback.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "2eac5255af53e3a8916ed28ed7a73c9d077666a667f243da022eb593440e46a9"
+      "task_identity": "bad468560e6fea70ddf6e7ecfea703bcbe99d12aecfbd01ee48e20d8b8ba2026"
     },
     {
       "model_id": "quantbot.ema_pullback.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "b224d69a81f9ec2ac286d6bc778034416191561f73fde41f48e974c7ad64a5cf"
+      "task_identity": "904ca8796788601111f8b79d5e5fc23d600dff52e9259a3ea53e8eb2740a935f"
     },
     {
       "model_id": "quantbot.ema_pullback.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "680a33c046b33a3f3882f9f633688c47ccd3541fc723815fdbd3388178f5d677"
+      "task_identity": "99aec9ed47a644ffd79b15fd570d5a305b5bb95fec9d2931954f16615f88bfd1"
     },
     {
       "model_id": "quantbot.ema_pullback.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "1099d9de32e7522c6045e26fdfd3a22305c0521831cdb13e76ae7ee376e08426"
+      "task_identity": "5c476a7c46db8917eec0e4fafababd69ed4810f5414f6c76144c585e13515d7e"
     },
     {
       "model_id": "quantbot.ema_pullback.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "20aa0f6435f179a7f34eef6c9d2f521f024e7cb601eb527a0e8fd224cd672341"
+      "task_identity": "16588c16d7d70396b374e7322405fcf789d19a842dd27b31ee9416df698e47c1"
     },
     {
       "model_id": "quantbot.ema_slope.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "599c27fb3e8029d82f9647366b76d95ea4b3681e1d00c9a089d2b5d38a0c141a"
+      "task_identity": "558f2fb1a20bddb9d8192b30c1a9662b4aae57e302b554b0e1e645399c7562ba"
     },
     {
       "model_id": "quantbot.ema_slope.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "893f3eb7324c211ff175aafb2940b22d03a99716333596358847f126a1a408d3"
+      "task_identity": "dc08c67ca58c64a95a7571d084d78628e1cb6e87158dd2a5c8dba372529d2471"
     },
     {
       "model_id": "quantbot.ema_slope.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "9f5aa74048ee08883868455dde008fcbbbbde32d2fd49dd922966bcf7d2b72e9"
+      "task_identity": "74a2fa81c3daa9f8abf97eb60125c8bc0158ad0fdd2e78cffe73a397a5ca5202"
     },
     {
       "model_id": "quantbot.ema_slope.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "cd8bd8b6211fbe4e74aca3277d05d55542cc7d2e3cef60dd601ffcc65c886378"
+      "task_identity": "500bf866d9a0f3d06a8583a6af601834d2b8caffa2e23fdc9ebab585d56b6ba7"
     },
     {
       "model_id": "quantbot.ema_slope.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "3b01901ce2b8dcfa2168b869966a8b01b9698982f87843427e63b0213dc06e3a"
+      "task_identity": "a62af6135133ed0ddcd7f47137d81ee4e1ae22db169b0a1a4932ecbc8c654b11"
     },
     {
       "model_id": "quantbot.ema_slope.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "6917b21f0f5dc640571154f2ec14f4e1fc586a680d944d15d05d506ee105d86d"
+      "task_identity": "b194de295012dc387dc38e79bcc9e157c78a15e5fd699e0c4e8f541afd346216"
     },
     {
       "model_id": "quantbot.ema_trend.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "90fff73b52d84bfdbde2d1ba6961fdff2a326b03ab779bc721a0df56ea712a4c"
+      "task_identity": "716be26953a098fab1b2441a331cc98bb8ac0dfb4ba8f8e94a940f446b5bd116"
     },
     {
       "model_id": "quantbot.ema_trend.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "b36c9f34567bb7d6769404cc9edbc9484888a9542844eda3d2f3fcde630102d6"
+      "task_identity": "faaf5d23a4bfa265a8a400e3ef3fa304108513426c8535ae1290ba52bf290a22"
     },
     {
       "model_id": "quantbot.ema_trend.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "9e6bf004a9fdf8b98155c89876f6b4805b8f21abe5c45094ebb87217db15d96c"
+      "task_identity": "477a0edbc5b2f26ba7a10eb8d7ff9b3e1c0137d4ea465a4281db5a529c6465f8"
     },
     {
       "model_id": "quantbot.ema_trend.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "129a0879c499ff7b5e569111cd57f02d15b6af7e9576a4f6b0ea306a9bc3163b"
+      "task_identity": "d21b85c49c0602cf5d6c7082956637f70241b96ef3a6933b134ffed52310ade1"
     },
     {
       "model_id": "quantbot.ema_trend.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "48d9291ab8930b73f708775d356c37599b6ea2caee9f144367f786928ad9f0fd"
+      "task_identity": "9324cb7c21618cdc90127ce35fd486bf799376c912bf5463c67dd644270b7cd1"
     },
     {
       "model_id": "quantbot.ema_trend.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "21e5ad516886c9c1b03ab93c38f91b7bee8ef4e127a05a83839654b52dca1689"
+      "task_identity": "7e1723553bc30c534e7bc7535fa4c3fcdff02f487466831e7bdccb436f7965f9"
     },
     {
       "model_id": "quantbot.extreme_reversal.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "ff4ea9c216a380d9a5651127d803470b5210fa71dad49e2d3eef5558fde8d17b"
+      "task_identity": "7f497ab3c6c49c81c7e9b902c5eac8273ed6e67d19e7bdf1ddac2f5490f58b1b"
     },
     {
       "model_id": "quantbot.extreme_reversal.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "924c1385c70321e1658d9f0417922fbaab8cea64ae16af01d51cc31a036e534c"
+      "task_identity": "a8d1841061780831e4ae9e0e81dc9804fadf6aae4544bfd9da4285327a326f2d"
     },
     {
       "model_id": "quantbot.extreme_reversal.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "099d3bde8820facdf80bafdb5c72abafad73d357146d9a19b0eb390db10347b6"
+      "task_identity": "d7af27f6027a6a8a7b62bb85748ace5f9b4d26c3e826588b7cf996fc10321e89"
     },
     {
       "model_id": "quantbot.extreme_reversal.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "73ef8fa29c115e126467dceb72149d014e746525366b5befb29a23265ee55bd1"
+      "task_identity": "390eb68acfa655e925c8dd3049ba9ce2fd2a019ac96a5170140ff2d759256c97"
     },
     {
       "model_id": "quantbot.extreme_reversal.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "24628c99b91e7a505c859c63161219d7bbbbdac162a13562d9fad89c2d57f880"
+      "task_identity": "c4771c6105a69b38f89efce93a75763315e4fd1d994ea25e49c3c97585db4df5"
     },
     {
       "model_id": "quantbot.extreme_reversal.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "1df3654ea1fb404a28eb193aa7b14d034f40454562eff6b4bf647aaec22e9f1f"
+      "task_identity": "bc93f7ed5c03ee926b1da7c758088cc7b44f5ffcacbd140ba971450b50a7e3fe"
     },
     {
       "model_id": "quantbot.higher_high_lower_low.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "4d01495a6a2b2c15dc47bbccf5529fa291449941675266593408355c4985eb87"
+      "task_identity": "6f3a6a9fd325481a3a1034ac484e48cab3cec5272610ce1b377673a0e2bd7d81"
     },
     {
       "model_id": "quantbot.higher_high_lower_low.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "7928d9014ed5c90fa61c06a58088578aac9b51268dceb43f2a66eec46d1c1cbf"
+      "task_identity": "c2e1e03512bd75b7597ed523eb2b459be55a8b3b415e1450b22c5f2bb804ef52"
     },
     {
       "model_id": "quantbot.higher_high_lower_low.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "5f00a7cdf233489df29990d4884b37027e6d9424da529b2a4bab67e791a7e21d"
+      "task_identity": "9f5a3764d8d31e881f18b844f14a9d1c91e869444f15e2e1965ae490611c85e2"
     },
     {
       "model_id": "quantbot.higher_high_lower_low.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "04c95a87e33f8c9a731eee03c7967e13700b09f99d7da8e687d113b269da73c1"
+      "task_identity": "f353b55db046b957c4d36e6b087d1fb1e822254be9917460d9cacd6e9cc4a2a8"
     },
     {
       "model_id": "quantbot.higher_high_lower_low.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "b11753fee4891366e45cb08dfa7edf51fb95cf41c89fc8f1363fe322b8e40561"
+      "task_identity": "fff5bb4e079ca43f58f9411af9d63c3ac6aed5dd29e9e9f7b67b10dc19cd6d12"
     },
     {
       "model_id": "quantbot.higher_high_lower_low.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "e0ebb6f6443647a7977d578386fa8c8810cc34927057966fdd21baf885b37c31"
+      "task_identity": "735ea0a4f7ad0ba300228bbfb5dd95ae3ae80bb43a8ddc73656231b18a02265d"
     },
     {
       "model_id": "quantbot.inside_bar_breakout.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "2dfa1b4f4b38f7a26246e074b878e262515f45a589dd434891047f29585fa4a3"
+      "task_identity": "9832638839e5e635d94fa231e02815b6e61659d363f8d40a27c97f936b55b907"
     },
     {
       "model_id": "quantbot.inside_bar_breakout.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "34c702b52d913f84fccfabfc65ee4d77d72e2ec7797f2a480df996660a9149ee"
+      "task_identity": "9095412e5dc250f3b6434d5c766507634afbc9cc28c70fc5c1bf16696d2087e6"
     },
     {
       "model_id": "quantbot.inside_bar_breakout.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "1acf88dcabdbe643f8000c0977bee50a7e8857f82d8f4ed6adae94c348ac12e2"
+      "task_identity": "5c21b515df1d9d9fcf287f6edd9f454dcd747961bd9b63c84f4dab78720c3936"
     },
     {
       "model_id": "quantbot.inside_bar_breakout.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "214bc897b4c3e4c4475a3b9f2451e8c6cc36c1871d6f2ea7776d4d02041c2e33"
+      "task_identity": "27ed543b68e9e46fc5fa84c622a729893b811bdcb2ff2bae3e75505826831831"
     },
     {
       "model_id": "quantbot.inside_bar_breakout.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "10b7aab1c2770391c71de9764749fb02c8296fab44ec7e81e63a9d8836d46863"
+      "task_identity": "becac10af40de1bbb941c793cb8463dd4fbfb964874baedf4ddce408dd889d8e"
     },
     {
       "model_id": "quantbot.inside_bar_breakout.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "c5b569de304fb830c8de28c3750a0d3d3bf5a332a27154078cab8ec1066a2fe6"
+      "task_identity": "ccadb65bc20cb4f9cc8c591274d1e9164d123f9071e8661df4b033c413d06cfe"
     },
     {
       "model_id": "quantbot.low_volatility_breakout.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "abff7b7e38e1e56e4431d94d9fd7ac2ac8ca466f7ddc0adbbdd6d30e7424e33e"
+      "task_identity": "6aaf740988528744af71022e8c8652b20958dae4603136cb8aa2d7c145921a1f"
     },
     {
       "model_id": "quantbot.low_volatility_breakout.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "8251b7ac996c47ea77a7a77835b8e803ec6bec4a40e9ceeaefea9529063f612f"
+      "task_identity": "39b28e0a82dce55606b649d12521ecf15baab7d71aa7af8275be67379144ba84"
     },
     {
       "model_id": "quantbot.low_volatility_breakout.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "334eb2dc028ff09106b9f19c1ba549bf945ca174fa375feea9844411ac5f5e57"
+      "task_identity": "ec130acd98c11c8ed7afcd113b552804b1ae647f3c8d19f5f02390657fc2f6ba"
     },
     {
       "model_id": "quantbot.low_volatility_breakout.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "3be71c84628168c248458586f222f456ae49631269ab3d983dd174b0e225971c"
+      "task_identity": "1deb1b2bfc664b0f244cbbc9c2e7df4548097c10d12788e183ee3e563166461e"
     },
     {
       "model_id": "quantbot.low_volatility_breakout.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "f034768bf52b8cd258120171345fd68fc56378c87ac56137fda13d71ae47d105"
+      "task_identity": "e8f154efd68112df095e4e78fee6ab45a8898c2a97942f178e7596cdfb3c8b02"
     },
     {
       "model_id": "quantbot.low_volatility_breakout.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "2f877eb081b71e6dffc6bd4508227cb3ccd69563003b0ae557f13bdc5bdd8115"
+      "task_identity": "f6b93760df95905f1a25ecdb4049f2c442f1a6c3c4bb63e2057100757add3f29"
     },
     {
       "model_id": "quantbot.macd_momentum.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "affbd786d9aebc1efe8d689efe258b188161d0acad5c368250f165660ec32345"
+      "task_identity": "31e376f197af8c9431cbb2a1e7ad5084b08ddbb041c2f56aa087ec2835f9b4f9"
     },
     {
       "model_id": "quantbot.macd_momentum.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "43e32693c92ff76dc27912d487e951b92a01833d1a6b301e7638bb60f9bb1a74"
+      "task_identity": "088247ac914ce77507fe2fd96f2d6443ed0e361aeb640639d1d97d0dbd0770f8"
     },
     {
       "model_id": "quantbot.macd_momentum.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "cb6ec29e9efefd11a52dffa6f6af6f397900541bcb47b2cfd1fc456fbd4f92b6"
+      "task_identity": "a0064130f3fb4c490d657df27fc5ab39efc1d0778ecf2a31318e0daee64a7d03"
     },
     {
       "model_id": "quantbot.macd_momentum.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "ea0f9def2daa51a9229d3b367282ccc7bf8e12640efc40dcf75f77c6363541f1"
+      "task_identity": "0ce6c142aa202831181afeb678b32510f8a9032a1cb4068f60aaff0a25416e80"
     },
     {
       "model_id": "quantbot.macd_momentum.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "b2ab30288235032c9148769e600f6c77bf413d275372562f9abc52b7969c7a5f"
+      "task_identity": "8552d7b66340a21512e8f1eb3fd4270c483294225df487eb626d92e29550a0f3"
     },
     {
       "model_id": "quantbot.macd_momentum.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "409e286a9a00c3e191ce8eaf577ea9b8a8498b45713eed90f2ce532371bf3a06"
+      "task_identity": "6e7736aac2f9f2ab20400761d2eeb9edccfa9fb4eb3a569d142f637a6edf0474"
     },
     {
       "model_id": "quantbot.macd_trend.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "d9854cadf36cce2c658bba45f6f20f1e327676e763c42f64712526a6be57f6a7"
+      "task_identity": "02770a1c87d368461ea898568a5f32e53b2ca3fb882a396b26ff3dcc2094db19"
     },
     {
       "model_id": "quantbot.macd_trend.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "0cd14154a8cf63a40944ef88775538d81ebbe514122625f6604bd3d1d4926686"
+      "task_identity": "107901648b2e21a548a6fdbc24cbe06821ccb28ea83cf8a72b15d894874e17b8"
     },
     {
       "model_id": "quantbot.macd_trend.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "85251bb4fb3a27c3009e58fc29d061f3b92be61f17b572afc55e8adb2bf9ff77"
+      "task_identity": "bfdfa41c15214f4eeca9d65dcc899dcda6126a5b2c610027c3fccea6f9405c00"
     },
     {
       "model_id": "quantbot.macd_trend.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "edbd3a515eccffe1fcd415ee5159325fe3745dbb3651a4bae4dc9b31c53d1398"
+      "task_identity": "e7fef04ca3ac144d1e8fc741ea227971228025916a4cb06c8564f74ea02dacf6"
     },
     {
       "model_id": "quantbot.macd_trend.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "ae92a00eebbbd90727eac7a47f683dedce19c1a5c83e94ccdaa5591c6e6d967f"
+      "task_identity": "8503fff8951b81a214fb736f6e8550e9d6047803f883bca9548258ab64ef9e19"
     },
     {
       "model_id": "quantbot.macd_trend.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "897eb79da27f3d83f11da90cd0f6fa4aaf5189bd83ce16bf5a36dccce404112f"
+      "task_identity": "394a1d461d789c596df511ebe0ad39dc7c69a73a1b53491fd98f393a835e38cd"
     },
     {
       "model_id": "quantbot.mean_reversion.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "26297b7335fe8cf719f9f77af775e425536198bdc29665437241f197f3ba864a"
+      "task_identity": "522f08e9e0a6bd2897b11587f77787910106e7a72dd6ea135874179927ce1186"
     },
     {
       "model_id": "quantbot.mean_reversion.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "1665ee1260c37575624364653ea30d09a9fb51f68015e6c39abf990036b43d03"
+      "task_identity": "60d82a7cbe2317e7a7a713dfeac456c0f3a2cc5397f0d22eda9bcd99ffd8950a"
     },
     {
       "model_id": "quantbot.mean_reversion.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "15cc276e0c395bccbec942622be2db00ac45bcba44d5435ff4102a6c4d6a3641"
+      "task_identity": "3167da3b89b6cf162413a4f74c9713f4e80d773b976f49994e45b5c6b4f576c2"
     },
     {
       "model_id": "quantbot.mean_reversion.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "64e15d10cb079c288b95ce071efc58204321d5377f6fa67ebab35d293ed7a2b7"
+      "task_identity": "277ede13e75e376f8527367710a07f8b20163c37a14838d2706a937fefcd0ca0"
     },
     {
       "model_id": "quantbot.mean_reversion.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "d110e979b89bc7921ecf19fdc76e21dc916bc0a4b02b2332430a0ec89251eb81"
+      "task_identity": "8111edb4642c96d69c27d5e4ea440987bf972b8c5824dbda95e9e625f2f921aa"
     },
     {
       "model_id": "quantbot.mean_reversion.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "6d740791471783f049a89e04ab557aeb0138e4fcb41052b57911b3e979babce6"
+      "task_identity": "f40e71a53faaa32e518e041f17b737ca84e8cb8eb3d32345ad63ea92b93eae4f"
     },
     {
       "model_id": "quantbot.multi_period_momentum.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "23e003e4927a4bd0646fc82c7ff81af413ad0432a1f8694fac019f8604ed71c4"
+      "task_identity": "96cebf82f7ddbe20029da2a1b4a27af15121b7dac07e521ff453e8cfd5673dfa"
     },
     {
       "model_id": "quantbot.multi_period_momentum.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "d74a32e17f371537ec265615c0d4908a967c2025e8225c608d6451355fa11c6b"
+      "task_identity": "5d7ae5f24d0d7ea0f08d8580d85474ca146d6e670bbca6a9959596c44ef5ae19"
     },
     {
       "model_id": "quantbot.multi_period_momentum.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "d40d8d5dae6e9a22972d3366fcefb936a41fd865dab1430771c615cb0e9e958e"
+      "task_identity": "be5483ae1661eed0687d5928def0dccdf9136a4d9ce93b011b4a782219f4d13e"
     },
     {
       "model_id": "quantbot.multi_period_momentum.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "e4d669267ce32aedd19c293fe6a7eea22f25d91420f2bbd8a5848f18862e81cc"
+      "task_identity": "72966fd4a56f82ca77fa9f35920e3b96656b3a03d03c835f847ea092397a994b"
     },
     {
       "model_id": "quantbot.multi_period_momentum.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "35aa23c6098b3d34dd05ee74511a48c4bbbd7aba7945324080e599d5e49028f7"
+      "task_identity": "3198c6885321072a8a24f0b3d8c2968b42ce618f54f9d280d95ee736f5be5c0d"
     },
     {
       "model_id": "quantbot.multi_period_momentum.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "fefc44e74297475701fd7d225569de21e598fcafe324c40514c88f2bd46b57a0"
+      "task_identity": "5242f9415f48ba28cf3348b50c9dbfa965aaa4db4dcfda8fea1bb727fb52bc0b"
     },
     {
       "model_id": "quantbot.pinbar.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "bacb4cfe5607b79fd3cf880e6adaa79d8ba529d596a91a4a7825bc94d6905f88"
+      "task_identity": "bbf56c71075be201c7945fc3c0abab827352e5399d596ce4b3c54dd1c71ee4cf"
     },
     {
       "model_id": "quantbot.pinbar.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "a3265e1bde201b619981079d28a633b8ac2249ecb565aded5e3d5068458ad426"
+      "task_identity": "b67fe861498a603982fc994433aea965bb9e9bf3b414de4240a91dac5d078e57"
     },
     {
       "model_id": "quantbot.pinbar.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "40c1c3251888c58b8d0702dc3d136421c0556f05ef630de2010e6abcea35ad2c"
+      "task_identity": "698e0f47744e9a04656df4a2203d544e4d3837b09763d877a0a5d35e3e76b127"
     },
     {
       "model_id": "quantbot.pinbar.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "3ee4edb1196086f4e5baf13691c60314a74f2e344951ec68a6ed8c105e8f1f9a"
+      "task_identity": "fd2650efd00fcb410fb17df8d5f0f44b8953d26f3cb4c3fba30b04449ecb9c0a"
     },
     {
       "model_id": "quantbot.pinbar.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "17320af1d600b11ed5b277b6bbe827f63156d6cc65389cd34a9a865f65391d0a"
+      "task_identity": "6ddb0d8e8cdddda3fd68eeec35a3c4e62e8f537f0c433d9d7ac9176aeea9582b"
     },
     {
       "model_id": "quantbot.pinbar.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "1737d13984e46233de1728e98dbc8364375689f96369fd3c47d251bed5f1f2e0"
+      "task_identity": "91476e9757f4e8c4d8b8e96815a2e943efdcd8d04bcc0185b7e8a053797759b3"
     },
     {
       "model_id": "quantbot.price_ema_momentum.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "0996f5969ebea6993af3afa4fdef0ef625b5b63f67cf66ccb2a766d49599c822"
+      "task_identity": "28540399c22f72330a2fcb87d1535902aa05c7fd038c9459939ec19920d8b822"
     },
     {
       "model_id": "quantbot.price_ema_momentum.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "b92e00562413a4cccd5b7cc6f9c6fd4242255d15b8716f13685bdab6b2e7093f"
+      "task_identity": "0b3a3123c94e3a4e794075841e71ff7aa5e66b30015f954e02a079db65a2070b"
     },
     {
       "model_id": "quantbot.price_ema_momentum.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "fd69c3bfcb319d6384cc328a813c393a4507aa4cecce66d711fb83d04c327abc"
+      "task_identity": "28a95ee8c2c88ddce22d52d15a3104a67bd343445ae5ea9aa3a5fcc4e9acd780"
     },
     {
       "model_id": "quantbot.price_ema_momentum.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "7a796a45d6a346fed03815f47a2603a5a564124304952cad103105f6758a4887"
+      "task_identity": "c8d680ff26995c72f561b9e75231a528f7fe2209270468449019333bd1b25ce9"
     },
     {
       "model_id": "quantbot.price_ema_momentum.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "23aea5659776669bbde70aabf74524f4bd2d5f0ded4b294708eac8568d074e3c"
+      "task_identity": "1714c715e5fc457acc1e6620a3fc9c910c96b4f5703f71efc93bf2ec28b59138"
     },
     {
       "model_id": "quantbot.price_ema_momentum.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "541d0dde28d5018f87ffb7996ebb1be05d10bd1f82ccd7c9cc532bb67da37c24"
+      "task_identity": "496410be0fe364d86081ff6286ecf14b06ed91ead0e8c53f1f657cdf04762007"
     },
     {
       "model_id": "quantbot.range_reversal.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "6b31a36ebce1cb092f139fb283b8c00688a5bd8354063e4958453f8ff0999507"
+      "task_identity": "94709262583d211ae4d6c744b0f8e3b338df7629d461b2963092f9b863f8fe93"
     },
     {
       "model_id": "quantbot.range_reversal.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "180ebcbfa3ab01fa42a59e12147c494b3298471b0af7d206df3ce2cd7cfee37a"
+      "task_identity": "24ad1136f998dff535e80afd4a8771660d12ee4057e41098b6e4c4b48cba30f0"
     },
     {
       "model_id": "quantbot.range_reversal.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "132c330ad4bce1047a4968545c2da6860545cf0a2cfc09ecad57365bef0a0ade"
+      "task_identity": "0a94b92f44a20f4c58441f75cff25679cc1b0e56f30fcba2ca3cc8ff3834633f"
     },
     {
       "model_id": "quantbot.range_reversal.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "39f04e044e06f6bceb9ec0b71913103119ca06fa53a07ffa852c4b16c5530b6b"
+      "task_identity": "658c4a5aaea8f899062cc27e4924c9592c784fb03fbc45e80cedb0155f09e06b"
     },
     {
       "model_id": "quantbot.range_reversal.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "eb8ad8ff5e4cda4ff7fcc2ff3a4ea1f0f70a884007c5029d867bb560d49253c6"
+      "task_identity": "e14bcb18ee984489e2c0742884e62fa1daa98e2ecbfe0bbc0a92099f77c6f6e2"
     },
     {
       "model_id": "quantbot.range_reversal.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "fd525f1c4abcff726eb1b398093f33233dc35385d65883219ae9429665510f8b"
+      "task_identity": "8859ee04ef7b4bc1f883556289f99a668a8413f45cce77f6b29ccba11343abe5"
     },
     {
       "model_id": "quantbot.roc_momentum.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "a02aa7ca5044c86f413d05f10eb8b29f25e03003c7c88c86e00f96b062009efa"
+      "task_identity": "1dd9125384c633c65238bc3edd5ebb6f6386757ba8ef9b29acc4aab40befb8db"
     },
     {
       "model_id": "quantbot.roc_momentum.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "1680e06c5452421a4373a9369f7af6cf8a0c5b61fcc695dde1e337aa0902da95"
+      "task_identity": "9004cf920d723f39e6f88f63990d024a3d900db90ee6856b2d43a5962f868013"
     },
     {
       "model_id": "quantbot.roc_momentum.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "99c15d6a543493b0b8885a1df7c28e51885b29419d3eee99c0b95598b00552a8"
+      "task_identity": "7e70bea029bf9e68266ff5cdccd1bc7f99f188312cd5d262d4acf520f48f008c"
     },
     {
       "model_id": "quantbot.roc_momentum.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "e42d5d3961faf15bd989b702d3782650d3c1a9c82bdc9515f6218b8461a8a5e8"
+      "task_identity": "2e18ab0d15e932195bc2be082489a8741b0dd8bbdbf3b54e00bfec580654239c"
     },
     {
       "model_id": "quantbot.roc_momentum.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "22103b4ecc65a149b06019b58d9c3afad22e99dc27ddc33739e1a88d55325e40"
+      "task_identity": "801822c9d38deac64148b01fbb6d9c101856519b65fb9770ac4c81df41dc4b2e"
     },
     {
       "model_id": "quantbot.roc_momentum.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "f97f76b94f99fb7cbae35268104cb825454029f88cd6ef1680809619796e6b7d"
+      "task_identity": "2f545fd273d39012f79d53e3af9fb7192bc4bf23f95ed47784194953ab87adcc"
     },
     {
       "model_id": "quantbot.rsi_momentum.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "9f87826d87ff9e52b866baa665de4456ee8b25ef0b733134bccff509802c67be"
+      "task_identity": "c37a03fd8725c27a6bb425b4205d1bdf88323014b1efaaf4cf34bbbcb394c4e8"
     },
     {
       "model_id": "quantbot.rsi_momentum.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "2578ce97db0169559c5216b5242fccf7977e08f58e2f28e9a1405986c6197474"
+      "task_identity": "8f6d816f5ee91ee73a16fbd33bfb5b0be759bab125e6c2e2e5b13e710cc5f3ef"
     },
     {
       "model_id": "quantbot.rsi_momentum.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "f2a5a1ff36eb26f72c4e6db0262abced71cdb408aa7bb10ea8b494f7cf61b110"
+      "task_identity": "3120cfa55a813e7f408b441a8bf266eb26c628efd1245a3b757e5be2d9817b90"
     },
     {
       "model_id": "quantbot.rsi_momentum.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "7cc4ba98852e52829f35d89cecc624596e0b896ec66cce187d83ef7d08e9fc0d"
+      "task_identity": "064f25edd6f489d80118a6ad385259c9f4c0acdeb67b3d506e9e496f0cf4ce14"
     },
     {
       "model_id": "quantbot.rsi_momentum.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "adeff5a8ffb930c841dba7f8190aa4fc00957408cee39a7118b10961584d3742"
+      "task_identity": "7d8f8cd7dae17b0dc0e97fbf93e423a1d89b9d9790cea017646a7d5baa9aaa06"
     },
     {
       "model_id": "quantbot.rsi_momentum.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "240a7dd3d6302a9d92b0cde305f5975d048df89948602ea0cdbfca794302b4a0"
+      "task_identity": "fb2dc117fb2dd96f2491e9e069352d09171648dd98c96006909572bfeea76b29"
     },
     {
       "model_id": "quantbot.rsi_reversal.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "50fa8b9835abbc24c5abe004598f160c5665846cb1aa58930a38a1c838e21388"
+      "task_identity": "fa4a939ff32a431044810a460d12773f68a778f55063e65c2ec10ba5a9502344"
     },
     {
       "model_id": "quantbot.rsi_reversal.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "63ab34c282c7e23621ea9e00e48130b2f425c878c9ec5d42007a4e5c9de4f5c5"
+      "task_identity": "2fd408910aa0ea56ddc5ae9d9ec89dbd86b946cb61067e1f73658221c0fe0774"
     },
     {
       "model_id": "quantbot.rsi_reversal.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "1c2a893e678703c41d2e3773bd1f278138a0fff99ace1d80d86b539f2a8ba190"
+      "task_identity": "18fd6a0147cea1934ca3147ec4f7d0cf708a362c5badb7fbfbdaf8613bd603dd"
     },
     {
       "model_id": "quantbot.rsi_reversal.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "d41fad01e8d3adf5d834344ef3720821b30d302d785d68ae7620cc408a3ef27a"
+      "task_identity": "a310ab0aa002057104e32e27c9503611051c5dc06d5abc48d50eea15ce44c1bb"
     },
     {
       "model_id": "quantbot.rsi_reversal.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "8ffaf7a1858c16690024daff1f83d9158db219a117ab2fb06646a2150cb56971"
+      "task_identity": "f835ad846e3194db105cc3fa39dcac5b3472f37cf236845058e572cea80332ce"
     },
     {
       "model_id": "quantbot.rsi_reversal.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "74572efb4178aab53724c8d5aaec1e455493463fda000a6cc57e87a4aed1cfa2"
+      "task_identity": "a33c7e1cc3d4669dcc090747ac88f6178329388adf93c17fbb7807b080baa8be"
     },
     {
       "model_id": "quantbot.short_term_reversal.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "808ee855d68634711610bcf240b35bc03f19ee14fb791b9a34cc691adad61e66"
+      "task_identity": "f1c3289eec50a8a72681634b878342a7df6936e54d6ec94251f03c983d78a8fe"
     },
     {
       "model_id": "quantbot.short_term_reversal.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "521bbf7e8dae430c2f12c652ce1f0d89470079def2fce8be17c24856b11eeddd"
+      "task_identity": "b770b2d7ef1a7e7dd555a011dfe09749b1cbfec8f3b3d0dccfb739ce1e61858c"
     },
     {
       "model_id": "quantbot.short_term_reversal.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "bdc3b76c6e6b5c554b59dbe6dcd218de593e3e257e41b0e9c3b18caed6ae40df"
+      "task_identity": "83d509fe5c32f93ed770e0e8e2f99a66185cbd4e9ec579b5ced61d6955f76a37"
     },
     {
       "model_id": "quantbot.short_term_reversal.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "61370e7863da59a97edd1de1c90e17f211cee39a2f6516f85b9c3f31d9897f22"
+      "task_identity": "4145f1ecdb8107c75c493a02cebd20b7bdf470aee89271e06a39f0b65d2b21ad"
     },
     {
       "model_id": "quantbot.short_term_reversal.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "da0a2161fbcf12f73b0976af1a95b095b6f074f0013f85fe0e2c17a6f4538277"
+      "task_identity": "fb46da06594d29d405b837ee796e8d6d24495f80b87e3d88b494cb64c89e58e3"
     },
     {
       "model_id": "quantbot.short_term_reversal.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "461a87c24333110def95a2f33c7c4c130f0da5656411b3c2cbeaadee2e8e1f62"
+      "task_identity": "8edf01709dd0da46aae5340f26107d00f08b724e720723df2a340ad168397252"
     },
     {
       "model_id": "quantbot.three_bar_momentum.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "4c9c781babcc4b6b34a1c11f81c8b66c3cbc8e9a3af054633db701954338f4fa"
+      "task_identity": "33e0a96d30ad4963e625250dc34629076e60d4bb6dc7206cf82fa43f9e48f9c7"
     },
     {
       "model_id": "quantbot.three_bar_momentum.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "12da43d6c869e4fbf2def59ca89695f92e6e96a3716b949f7f9d2288a2ec3f6c"
+      "task_identity": "135ddcc53ada7d55876265da047616acc750ac8bd021a5c15aaee1ef4fd560cd"
     },
     {
       "model_id": "quantbot.three_bar_momentum.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "0828b3073d5dc49dd1bf615253098d3af81681adc33feb7566350e86e8eac41d"
+      "task_identity": "1842f4642ed632054eeff25678e46e1f828318636e0ddd42c21ea7adcbfa3e75"
     },
     {
       "model_id": "quantbot.three_bar_momentum.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "385c8167b2ed18a0056df1de8ad707177334f44b8843624ea4e9b5684695c540"
+      "task_identity": "b07a49c6e0b95134f95319e245d5877b685ee43d346e9bd5d4eb46556f1a6591"
     },
     {
       "model_id": "quantbot.three_bar_momentum.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "eb8ac8325804c6932104ec5e0d27525f467de288240cc629a1b55fc8a260a2a6"
+      "task_identity": "74f20c03a1873decb146cdb05fbf045e665dba59a67189bcac36f7373aa69a6e"
     },
     {
       "model_id": "quantbot.three_bar_momentum.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "1a876e0f9170c61211cb80c68f502410525e76230b4f15185d8bfea468c0720e"
+      "task_identity": "7cfe1192f4862f439dae1ce22c0f84db7824fdea0572cf5fd10e59854eba2138"
     },
     {
       "model_id": "quantbot.trend_breakout.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "6b142694827e193fe5969490f3a12a2df25b544bdf77fdbde1fd9039efef435f"
+      "task_identity": "ee1017ac9e1b5ff2f4ca61058debfbd67fe40bd95599f4cad9101563d75875dd"
     },
     {
       "model_id": "quantbot.trend_breakout.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "5190656d8d8c5cb2785aabf502c2ae4450fafdec1fd721bcfe9fd834c2722697"
+      "task_identity": "299feeea716b8cdf9d53a7707b6923216b14de353d45ef5b8d0c09f1f5cfee91"
     },
     {
       "model_id": "quantbot.trend_breakout.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "6db2151fbf6223a8a31a6257d21b156db838a33b262e8041f5b0095ae0485270"
+      "task_identity": "b3c45b49cbc49b3d89ba7c36bd5e24f8a8dc0c6c2dcca6c741b896af76d9f6b3"
     },
     {
       "model_id": "quantbot.trend_breakout.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "fb9c5579fc6b9b25bc23831b32e22d794edb5e87ef6ecadaa13215a94775f0eb"
+      "task_identity": "b3627599bc72f23384dc66b39c12985767ba9bd83f4ecde64ea8bfc9fe02e517"
     },
     {
       "model_id": "quantbot.trend_breakout.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "404208025ed5bd330adba175a9818f1dbca1956f95ac42e1bd2d149bcfd036e9"
+      "task_identity": "3ed1133f05b78bfda4444200930dcd3d572e2dd8f500d2ae0a12c5545639f882"
     },
     {
       "model_id": "quantbot.trend_breakout.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "a96c49ee5fb7668f7cfe8efdcad0ba3dec4de53e1a1618ffa1c0cbe62e531b4e"
+      "task_identity": "f3bc4e478ffa35d82490cd9ae8381b163245e69665142b5e16692c64127d2c77"
     },
     {
       "model_id": "quantbot.trend_pullback.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "f5128cb1f55e7c036aaf6400b1a752817231dd56ec9d155edd52e6c22fac45e0"
+      "task_identity": "8a01c660ed45cf6d6f8c5c4d9c05554d03bd62a918bb6aa539da4ea56d61c052"
     },
     {
       "model_id": "quantbot.trend_pullback.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "5be4a41ec0f3a801dfd792f23aacbacdf624d5209780f9c4a1693d4bd45cb70d"
+      "task_identity": "4453547055125195724c3e57ea35de415d8be2eda053b19145b7f4b42c87048a"
     },
     {
       "model_id": "quantbot.trend_pullback.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "39a8baf08b860f93d828a9c590f4d2bbdadd7fa1c8d5a7e50f6394093e062877"
+      "task_identity": "583c708a5f502671bcb7eecdc57fbb02b27fbcafa9a8492fa09e2a19b9cbbe05"
     },
     {
       "model_id": "quantbot.trend_pullback.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "9dd44017e02442c10ed7bd9047bd4a8b1996856d673c5ae701c4d4244adb8d6f"
+      "task_identity": "9243e075adb4d1c9dcead92ffa9a23c49089a4179bba8f1c82d2ca4a3a1e1904"
     },
     {
       "model_id": "quantbot.trend_pullback.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "a12ea6fadeb9b9b2d13dfbc6454a48d0914d459a40f1978bd5519e54a0ea6e62"
+      "task_identity": "fe161b13554fe53138cb08aa008f1ea14f5ae86cbc935fb41f4f930d771b3b82"
     },
     {
       "model_id": "quantbot.trend_pullback.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "9854d47c973d23f30a2a33fa9d5dd599bba194ff6ba701064263a6be224f74ad"
+      "task_identity": "609da7df341101c5d9abd3784dce609936e464bf7acc713c794769c01b5f56e3"
     },
     {
       "model_id": "quantbot.trend_strength.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "6492b05c6ab8f55239bb239004c46e5a8f0343fd2275417e8ec89e7f847b2388"
+      "task_identity": "e8dd5e665f9a39db680858a9d2569634ce2fb97f7a6b1fd8296fbeea81e21506"
     },
     {
       "model_id": "quantbot.trend_strength.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "0847ec79879526cfba53690a02760132e6f0cbb79125575d3113c6f7b1140a7b"
+      "task_identity": "5edf5194733fcafa1af700dceac0a736d090a76a436bf47121c9d4ce5a0feb82"
     },
     {
       "model_id": "quantbot.trend_strength.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "89490cfb813f3bc8d7ab2b8e2f16978bf26bd645b3f87769ccc612bc1af2bcec"
+      "task_identity": "ff533f42546f16dff62d357f7472588fdd2f16e14c6d0b56ca00515578bb7752"
     },
     {
       "model_id": "quantbot.trend_strength.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "ea9eaddd751eb9343de1cb1eba095ed76154a3997270f1379fda7d22b02892c9"
+      "task_identity": "e409478eae954125e920a3d1f1912e6c9b7207bbe43b3f766e2875e10d0accdf"
     },
     {
       "model_id": "quantbot.trend_strength.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "4323da5189c06f1e39482b7a5eae2871a42247774a1f6c7c3de989d5a65f1f33"
+      "task_identity": "92c7d7fc8949162edaad5ff516ded83cc0df15ef6498b9c69ba07b2137ea56df"
     },
     {
       "model_id": "quantbot.trend_strength.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "13e22ef51f31f6fd69e314dec0e0c7485d889da8778544678dfdd7e6abda1e5c"
+      "task_identity": "ad47f998affc7a2a5822df9963fdc65577ece9c18657fe47a4a06f30ce2ef67c"
     },
     {
       "model_id": "quantbot.volatility_breakout.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "7b876ce6bf6ecb29510e5f9a2b91fac59db13bcda095d9b6ca70eef701b10985"
+      "task_identity": "aa8488fa87fc52aac36b1f16e0eb78734af6ac6f8f02a9a0ca0766430a952ee1"
     },
     {
       "model_id": "quantbot.volatility_breakout.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "4c171ddd2922f9980d0bdfca2c900b23304541fb8896744590ba7dcbcd2c5a2a"
+      "task_identity": "23ba544b7ea460b614577d9ee4c69fdc4288707a1b46b9d51f8e86c58f0ca0e6"
     },
     {
       "model_id": "quantbot.volatility_breakout.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "f61896dc94600a6dd188486844beee54b6345dee21857d5b98881d71442b56d0"
+      "task_identity": "6b68d84a65a8ae81a8f184509ec2c31c2181cf6f2c2f674c4518968ff378c997"
     },
     {
       "model_id": "quantbot.volatility_breakout.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "c8745959cf1359a6ec35ed723fb40ca86b1bf6ef22c92dd12f5cd5eca5242abb"
+      "task_identity": "50073d38bf0118f9cbe8a83dd662a9b47f366276e6758fefea2c09b35b9e2a4a"
     },
     {
       "model_id": "quantbot.volatility_breakout.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "ef6f2c03245cf51099d97065ad98d8a5fe2a5ad018f68fccbdcb39035d9c899b"
+      "task_identity": "0107669d40095561709e15bfaf9b56e3f6780b5c1b89b0abc7a0d1208c4e93b6"
     },
     {
       "model_id": "quantbot.volatility_breakout.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "ce8ea605fb8a4571c46f3520501537aa0ef4a566bbc805b7f8f9254dfe0ac706"
+      "task_identity": "c426b510484a7cffebe1318c682ed68ece72ef80b19858f434d8099f470215d9"
     },
     {
       "model_id": "quantbot.volatility_regime_trend.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "2da43791b1c29161e93b94d6ce58e0b13604ffc856dbc242aa4d6ed5c914f3b5"
+      "task_identity": "fff12ba9daea47a2dd9cf5412f257244674ddb91fede8bc8234af08e5fcb0db4"
     },
     {
       "model_id": "quantbot.volatility_regime_trend.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "29bbe93029248b29c3edc62badf12cd2a7f8549ede84ea858d1cccd9c8b4f086"
+      "task_identity": "63c0e3a5c3074dedceac191bce2f52dc3b0979f49271396be36654c4110e05d5"
     },
     {
       "model_id": "quantbot.volatility_regime_trend.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "f6cca8285910b41e8a7cec8676b7be76e47c94e8f2d29c4bed9e8e7a7aec2119"
+      "task_identity": "f6627fe71e4f178193ae1717b5a3c58856905d7fcd29271981aae508637a7362"
     },
     {
       "model_id": "quantbot.volatility_regime_trend.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "258aed7b498c2bd80b8717775a6e32eacc21f29686ad93e15b2cffe7e6d3f24f"
+      "task_identity": "92e8b8f4b747785c5c5cf6d9e1dc27663913ae9654ebd4fd736784eff083088e"
     },
     {
       "model_id": "quantbot.volatility_regime_trend.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "36bae7fd9d25854dc79bc6475f63b01946f534dadda3ddf47559a1c8ba847542"
+      "task_identity": "a52d39d33784e15026b4750472da806c1d7fc0b61c87e6917bf70875e9edf2cc"
     },
     {
       "model_id": "quantbot.volatility_regime_trend.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "a312e6b9d8ed43b129b37c4fefe7b16d325760737cd90f4e442a20694b8d3454"
+      "task_identity": "29bbea4da49d2cb11bd1ddcb83bb6ad752655c17fea19ad6c8e8a658e9fbec38"
     },
     {
       "model_id": "quantbot.volume_breakout.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "bc80134a923a68c5ccc02dc56b774165a81f26703dc8e613e722844d0b35338d"
+      "task_identity": "7c0b9e31067f3e2e54116f35d7288497a21b1da52c7aa5a3df711cecc605fb0b"
     },
     {
       "model_id": "quantbot.volume_breakout.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "bb627b0a8c93aca108a6411ba30c899f562b93c02244eafd1819d2c3889fab13"
+      "task_identity": "f193dca762865737c17c5ad37a7d8a6c0233426b96fdbdeee22076286ab11b8a"
     },
     {
       "model_id": "quantbot.volume_breakout.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "e7a87779308cc25d3d9e4c3d2e3761b137e0cb9b1b4ba46e69a202ce69abbd05"
+      "task_identity": "30f6c7b17f576553e6b3d90d1ed19978bd05d8f9ef1ca0b7108431e45039b1bf"
     },
     {
       "model_id": "quantbot.volume_breakout.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "3931d5414f8ca98e1639d7b7a7184451b5700da5dcfe1552408afd77520ed91f"
+      "task_identity": "0466da3891c26b3be0db9f35d2083552c53bb572b0d6bc4e29d1d72c95f7c043"
     },
     {
       "model_id": "quantbot.volume_breakout.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "f2df0b091e03aa06b355c31d6f0ade0d9fee0eb4efe63b88e0c8d8cbae08912d"
+      "task_identity": "e45f4cd9520c0fa3b9f69b0a7178fa0f607059e3cd365d3283ac62156eb4a2c7"
     },
     {
       "model_id": "quantbot.volume_breakout.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "721ad63ffcd4118fc0ac18c92b83c7877c70f4cc8d5ca2ba887db984a0a3d62a"
+      "task_identity": "11b39ed3d11a1489e436bd7cc01e77af27c422cfa8372a01d6fda00909f1b303"
     },
     {
       "model_id": "quantbot.volume_trend.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "7e82969179e1aca222996dc0dfa444fdf04f8053e587075a5342fc26b7b83239"
+      "task_identity": "4110b3a2f3146018144bb2af3046bff9d14d858bd048819bec9cbd5c02be49e7"
     },
     {
       "model_id": "quantbot.volume_trend.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "41b92f5f4c360dc7758d0d183849dccd9beacbb7571335e8d5562e1769bfe0e8"
+      "task_identity": "3ed7e99ccc6cea2556f56bf9af748747ec21d4fc68f017c4767d295a3fcd46cb"
     },
     {
       "model_id": "quantbot.volume_trend.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "a888d2054df03fb1892c6dfba01658a568ed0d84103cc850f06040ff71077f2a"
+      "task_identity": "819036ef37d181fd72b832fcdfacef433319c9e0f0548173fd556064ba2a72ef"
     },
     {
       "model_id": "quantbot.volume_trend.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "19c4533356299205521fac018a8f16bcb64ea0000cd1e5344fc4a657efbeef35"
+      "task_identity": "092c2cade83ada10ebaf986bd185d149c7a0db28baa352ff966aaa9b2b8197cc"
     },
     {
       "model_id": "quantbot.volume_trend.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "940d14b26476ac0d4ca3941deb89a074bfeaec4f31ee05ee178fd2d0b8fd925a"
+      "task_identity": "d01169f599d1b150ed7add901c07e9b98349762d49621000f63f63c6e5a60f8d"
     },
     {
       "model_id": "quantbot.volume_trend.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "2a593634547c7f59ffc807e256c0949bd8badad46b74048b2cc11e48af1704be"
+      "task_identity": "28e2ef10acfd34122adcaea8ff54299dcb5e603609c6542bb2cdbe8d939a4923"
     },
     {
       "model_id": "quantbot.zscore_reversion.v1",
       "symbol": "BTCUSDT",
-      "task_identity": "8dda65ac81ca301c64d7475e668328184078adab35eb53a732f07661fc7ba6e3"
+      "task_identity": "c6047ce1c81cd5d00ddc497a64bc774323c7cc01eb3f85db534dc8046bc08742"
     },
     {
       "model_id": "quantbot.zscore_reversion.v1",
       "symbol": "ETHUSDT",
-      "task_identity": "fd053cb1b9d33f2471b7cc4d357c7905b13ff922f69a9646f762062ce5d26e49"
+      "task_identity": "c44c1a2fc6851c990f462f6fab1e3fddcc340269f202a644ed0b43e9fcb51640"
     },
     {
       "model_id": "quantbot.zscore_reversion.v1",
       "symbol": "BNBUSDT",
-      "task_identity": "e9acf4cc5fdb9c6d6d22a6dbff9f48f81cf025670a4dc5e33c1f6305ae1a9aea"
+      "task_identity": "284fc9b25272670642aa33f08eafb849d5fbfcd784a9d906d22da95889c8d2b9"
     },
     {
       "model_id": "quantbot.zscore_reversion.v1",
       "symbol": "SOLUSDT",
-      "task_identity": "f76ddc00bc74b064c96dc6153ecc0d35f401cdc394531183bf3acc1f2436a711"
+      "task_identity": "919b413dbb12d90600a2f18bd5a8a23f69c664695a224b3fded79b5e876629f7"
     },
     {
       "model_id": "quantbot.zscore_reversion.v1",
       "symbol": "XRPUSDT",
-      "task_identity": "d42e8d52fcac290aa94df53e0364bba1cb52bebf380af3673bb40aa0e880decf"
+      "task_identity": "8fd439a484b8ffd68a47f17e1c31b034c18560b47e44f9b3806d7fb1e04f2d6f"
     },
     {
       "model_id": "quantbot.zscore_reversion.v1",
       "symbol": "DOGEUSDT",
-      "task_identity": "02933cc2d27ebb6ff3b204a003143ec58920434d86919be30c4aa4fa7e7ccff2"
+      "task_identity": "8a822eadc7ca042faa3395e2562e7bc8a85e735596319c9b0cf017a27717886d"
     }
   ],
   "counts": {
@@ -1837,5 +1836,6 @@
     "model_symbol_cells": 216,
     "train_evaluations": 14184,
     "validation_evaluations_max": 1080
-  }
+  },
+  "research_plan_identity": "6cf38b06d364f1eefb02efed156e96d371eb14f58305c29aba47af4d2fa297d9"
 }
