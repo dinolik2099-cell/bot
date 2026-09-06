@@ -1,4 +1,5 @@
 {
+  "schema_version": "quantbot-research-plan-n5-v1",
   "research_freeze_identity": "4e1a66757a152af47dc7ba045ce64e97d1005711c5274c451827b68d07c5d9f1",
   "candidate_universe_hash": "9c1892e0e31a028060515b0dea4d1706305846f3476444812a1ce01bd9b68ffd",
   "protocol_scope": {
@@ -16,6 +17,7 @@
     "cost_model_identity": "quantbot.backtest.costs.CostModel",
     "causal_execution_policy": "intent at T-1 may be considered no earlier than T"
   },
+  "protocol_scope_hash": "529598752b3bcf83596b88d07a15290240715cc9cfae653f054e6ce54da0bca2",
   "boundary": {
     "dataset_id": "UM_1H_6DC48D541517",
     "market": "um",
@@ -40,6 +42,7 @@
     "oos_status": "SEALED",
     "lock_status": "LOCKED"
   },
+  "boundary_identity_hash": "fdd0ed8b2a0f723115ba738c8e85768bcac891d83db9532a05f789bbeabc0fa4",
   "models": [
     {
       "model_id": "quantbot.atr_compression_breakout.v1",
@@ -745,8 +748,7 @@
   },
   "oos_status": "SEALED",
   "oos_authorization": "NOT_AUTHORIZED",
-  "research_plan_identity": "dbd9ecc6cbaab3acd6efaf52a74c32b1ea9818c6182aa4b956389293d17f05a4",
-  "schema_version": "quantbot-research-plan-n5-v1",
+  "research_plan_identity": "57ff7a1e6395bd65636982b84c7d437d2a9c7d9f78ef8632aede13228992b771",
   "tasks": [
     {
       "model_id": "quantbot.atr_compression_breakout.v1",
