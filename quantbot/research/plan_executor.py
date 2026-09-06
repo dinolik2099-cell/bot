@@ -67,7 +67,11 @@ def execute_verified_plan(plan, entries, evaluator):
     for task in sorted(plan['tasks'],key=lambda x:x['task_identity']):
         entry=by_id.get(task['model_id'])
         if entry is None: raise PlanExecutionError('task_model_missing')
-        cell=execute_synthetic_cell(entry,task,evaluator,top_k=plan['top_k_train'])
-        cell.update({'research_plan_identity':plan['research_plan_identity'],'research_freeze_identity':plan['research_freeze_identity'],'parameter_grid_hash':entry.parameter_grid_hash})
+        provenance={'research_plan_identity':plan['research_plan_identity'],'research_freeze_identity':plan['research_freeze_identity'],'parameter_grid_hash':entry.parameter_grid_hash}
+        try:
+            cell=execute_synthetic_cell(entry,task,evaluator,top_k=plan['top_k_train'])
+            cell.update(provenance);cell['status']='COMPLETED'
+        except Exception as exc:
+            cell={'task_identity':task['task_identity'],'model_id':task['model_id'],'symbol':task['symbol'],**provenance,'status':'FAILED','error_type':type(exc).__name__,'error_message':str(exc)}
         outputs.append(cell)
     return outputs

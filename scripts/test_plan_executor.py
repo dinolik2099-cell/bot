@@ -34,5 +34,8 @@ def main():
  subset=dict(plan);subset['tasks']=plan['tasks'][:2]
  outputs=execute_verified_plan(subset,entries,ev)
  assert [x['task_identity'] for x in outputs]==sorted(x['task_identity'] for x in outputs) and all(x['research_plan_identity']==plan['research_plan_identity'] for x in outputs)
+ def broken(*args):raise ValueError('synthetic evaluator failure')
+ failed=execute_verified_plan(subset,entries,broken)
+ assert all(x['status']=='FAILED' and x['research_freeze_identity']==plan['research_freeze_identity'] for x in failed)
  print('PLAN_EXECUTOR_SYNTHETIC_TEST_OK')
 if __name__=='__main__':main()
