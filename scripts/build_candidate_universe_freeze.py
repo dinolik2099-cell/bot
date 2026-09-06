@@ -1,7 +1,8 @@
 """Write a versioned N3 manifest from metadata only; never loads research data."""
+import argparse
 from datetime import datetime, timezone
 from pathlib import Path
-import json, subprocess, sys
+import json, sys
 ROOT = Path(__file__).resolve().parents[1]; sys.path.insert(0, str(ROOT))
 from quantbot.research.candidate_universe import CURRENT_PROTOCOL_SCOPE, build_candidate_universe
 from quantbot.research.freeze_manifest import build_freeze_manifest
@@ -9,13 +10,16 @@ from quantbot.research.model_registry import register_existing_models, validate_
 from quantbot.strategies.model_pool import register_model_pool
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--source-git-commit", required=True,
+                        help="accepted semantic candidate/model baseline being frozen")
+    args = parser.parse_args()
     lock = json.loads((ROOT / "data/reports/research_boundary_lock.json").read_text(encoding="utf-8"))
     register_existing_models(); register_model_pool(); validate_registry()
-    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
     # This is the accepted semantic model-metadata baseline, not this packaging
     # commit.  Keeping it separate avoids circular self-provenance.
     manifest = build_freeze_manifest(
-        build_candidate_universe(), CURRENT_PROTOCOL_SCOPE, lock, commit,
+        build_candidate_universe(), CURRENT_PROTOCOL_SCOPE, lock, args.source_git_commit,
         created_at=datetime.now(timezone.utc).isoformat(),
     )
     output = ROOT / "docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json"
