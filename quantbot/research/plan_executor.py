@@ -126,10 +126,12 @@ def execute_verified_plan(plan, entries, evaluator, accepted_freeze_manifest):
         except Exception as exc:
             cell={'task_identity':task['task_identity'],'model_id':task['model_id'],'symbol':task['symbol'],**provenance,'status':'FAILED','error_type':type(exc).__name__,'error_message':str(exc)}
         outputs.append(cell)
+    validate_execution_outputs(plan,outputs,entries)
     return outputs
 
-def execution_audit(plan, outputs):
-    """Deterministic, result-free execution accounting for audit transport."""
+def execution_audit(plan, outputs, expected_entries):
+    """Produce accounting only after freeze-bound output validation succeeds."""
+    validate_execution_outputs(plan,outputs,expected_entries)
     completed=sum(row.get('status')=='COMPLETED' for row in outputs)
     return {'research_plan_identity':plan['research_plan_identity'],'research_freeze_identity':plan['research_freeze_identity'],
             'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED','tasks_total':len(outputs),
@@ -137,8 +139,22 @@ def execution_audit(plan, outputs):
             'train_evaluations':sum(len(row.get('train',[])) for row in outputs),
             'validation_evaluations':sum(len(row.get('validation',[])) for row in outputs)}
 
-def validate_execution_outputs(plan, outputs):
+def _params_key(params):
+    if not isinstance(params,dict): raise PlanExecutionError('output_params_invalid')
+    return json.dumps(params,sort_keys=True,separators=(',',':'))
+
+def validate_execution_outputs(plan, outputs, expected_entries):
+    """Fail closed unless every output is a complete frozen-plan cell.
+
+    ``expected_entries`` is the independently reconstructed accepted candidate
+    universe.  The plan's own model rows are evidence, not the authority for a
+    parameter grid.
+    """
+    if not isinstance(outputs,list): raise PlanExecutionError('output_list_required')
     expected={task['task_identity']:task for task in plan['tasks']}
+    plan_models={model['model_id']:model for model in plan['models']}
+    entries={entry.model_id:entry for entry in expected_entries}
+    if set(entries)!=set(plan_models): raise PlanExecutionError('output_entry_set_mismatch')
     actual_ids=[row.get('task_identity') for row in outputs]
     if len(actual_ids)!=len(expected) or set(actual_ids)!=set(expected) or len(set(actual_ids))!=len(actual_ids):
         raise PlanExecutionError('output_task_set_mismatch')
@@ -146,5 +162,30 @@ def validate_execution_outputs(plan, outputs):
         task=expected.get(row.get('task_identity'))
         if task is None or row.get('model_id')!=task['model_id'] or row.get('symbol')!=task['symbol']: raise PlanExecutionError('output_task_provenance_mismatch')
         if row.get('research_plan_identity')!=plan['research_plan_identity'] or row.get('research_freeze_identity')!=plan['research_freeze_identity']: raise PlanExecutionError('output_freeze_provenance_mismatch')
-        if row.get('status')=='COMPLETED' and any(item.get('oos_authorized') is not False for item in row.get('validation',[])): raise PlanExecutionError('output_oos_authorization_violation')
+        entry=entries[task['model_id']]; model=plan_models[task['model_id']]
+        if row.get('parameter_grid_hash')!=model.get('parameter_grid_hash') or row.get('parameter_grid_hash')!=entry.parameter_grid_hash:
+            raise PlanExecutionError('output_parameter_grid_hash_mismatch')
+        status=row.get('status')
+        if status not in {'COMPLETED','FAILED'}: raise PlanExecutionError('output_status_invalid')
+        if status=='FAILED':
+            if not isinstance(row.get('error_type'),str) or not row['error_type']: raise PlanExecutionError('failed_error_type_required')
+            if 'error_message' not in row or not isinstance(row['error_message'],str): raise PlanExecutionError('failed_error_message_required')
+            if 'train' in row or 'validation' in row: raise PlanExecutionError('failed_output_contains_results')
+            continue
+        if row.get('error_type') or row.get('error_message'): raise PlanExecutionError('completed_output_contains_error')
+        train=row.get('train'); validation=row.get('validation')
+        if not isinstance(train,list) or not isinstance(validation,list): raise PlanExecutionError('completed_output_results_required')
+        grid=frozen_grid(entry); grid_keys={_params_key(params) for params in grid}
+        train_keys=[_params_key(item.get('params')) if isinstance(item,dict) else None for item in train]
+        if len(train)!=model.get('grid_combinations') or len(train)!=len(grid) or len(set(train_keys))!=len(train) or set(train_keys)!=grid_keys:
+            raise PlanExecutionError('completed_train_grid_mismatch')
+        for item in train: validate_metrics(item)
+        expected_top=rank_train(train)[:min(plan['top_k_train'],len(grid))]
+        expected_top_keys={_params_key(item['params']) for item in expected_top}
+        validation_keys=[_params_key(item.get('params')) if isinstance(item,dict) else None for item in validation]
+        if len(validation)!=len(expected_top) or len(set(validation_keys))!=len(validation) or set(validation_keys)!=expected_top_keys:
+            raise PlanExecutionError('completed_validation_top_k_mismatch')
+        for item in validation:
+            validate_metrics(item)
+            if item.get('oos_authorized') is not False: raise PlanExecutionError('output_oos_authorization_violation')
     return True

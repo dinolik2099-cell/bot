@@ -57,8 +57,46 @@ def main():
  entries=verified_entries
  outputs=execute_verified_plan(plan,entries,ev,freeze)
  assert [x['task_identity'] for x in outputs]==sorted(x['task_identity'] for x in outputs) and all(x['research_plan_identity']==plan['research_plan_identity'] for x in outputs)
- audit=execution_audit(plan,outputs);assert audit['tasks_completed']==len(plan['tasks']) and audit['oos_authorization']=='NOT_AUTHORIZED'
- assert validate_execution_outputs(plan,outputs)
+ audit=execution_audit(plan,outputs,entries);assert audit['tasks_completed']==len(plan['tasks']) and audit['oos_authorization']=='NOT_AUTHORIZED'
+ assert validate_execution_outputs(plan,outputs,entries)
+ # N6 output tamper matrix: each mutation must be rejected without any data access.
+ def clone(): return json.loads(json.dumps(outputs))
+ def rejected(mutator):
+  candidate=clone();mutator(candidate)
+  try:validate_execution_outputs(plan,candidate,entries)
+  except PlanExecutionError:return
+  raise AssertionError('tampered execution output unexpectedly accepted')
+ rejected(lambda rows:rows[0].__setitem__('parameter_grid_hash','x'*64))
+ rejected(lambda rows:rows[0]['train'].pop())
+ rejected(lambda rows:rows[0]['validation'].pop())
+ rejected(lambda rows:rows[0].__setitem__('status','PENDING'))
+ def failed_with_results(rows):rows[0]['status']='FAILED';rows[0]['error_type']='Synthetic';rows[0]['error_message']='failure'
+ rejected(failed_with_results)
+ rejected(lambda rows:rows[0]['train'][1].__setitem__('params',dict(rows[0]['train'][0]['params'])))
+ def extra_train(rows):rows[0]['train'].append(dict(rows[0]['train'][0]))
+ rejected(extra_train)
+ rejected(lambda rows:rows[0]['train'][0].__setitem__('params',{'not_frozen':1}))
+ def non_top_validation(rows):
+  selected={json.dumps(x['params'],sort_keys=True) for x in rows[0]['validation']}
+  source=next(x for x in rows[0]['train'] if json.dumps(x['params'],sort_keys=True) not in selected)
+  rows[0]['validation'][0]['params']=dict(source['params'])
+ rejected(non_top_validation)
+ rejected(lambda rows:rows[0]['validation'][1].__setitem__('params',dict(rows[0]['validation'][0]['params'])))
+ rejected(lambda rows:rows[0].__setitem__('error_message','unexpected'))
+ def failed_without_type(rows):
+  row=rows[0];row['status']='FAILED';row.pop('train');row.pop('validation');row['error_message']='failure';row.pop('error_type',None)
+ rejected(failed_without_type)
+ def failed_with_train(rows):
+  row=rows[0];row['status']='FAILED';row['error_type']='Synthetic';row['error_message']='failure';row.pop('validation')
+ rejected(failed_with_train)
+ def failed_with_validation(rows):
+  row=rows[0];row['status']='FAILED';row['error_type']='Synthetic';row['error_message']='failure';row.pop('train')
+ rejected(failed_with_validation)
+ def audit_rejects(rows):
+  rows[0]['status']='UNKNOWN';execution_audit(plan,rows,entries)
+ try:audit_rejects(clone())
+ except PlanExecutionError:pass
+ else:raise AssertionError('audit must reject invalid outputs')
  def broken(*args):raise ValueError('synthetic evaluator failure')
  failed=execute_verified_plan(plan,entries,broken,freeze)
  assert all(x['status']=='FAILED' and x['research_freeze_identity']==plan['research_freeze_identity'] for x in failed)
