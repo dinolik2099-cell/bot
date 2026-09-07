@@ -1050,6 +1050,8 @@ N9 的所有授权均绑定已接受的 N3 冻结、N5 研究计划与 N6/N7/N8 
    `135b4362e44683715a3c0faf567312593595ca35`
    `fix: preserve N9 Windows outline compatibility`
 
+> 文档路径修复说明：N9 文档提交最初误写入一个 mojibake Windows 路径；服务器审计发现大纲分叉后，已将该追加内容恢复到本 UTF-8 canonical 路径。此问题仅为文档/路径处理错误，不是 N9 研究引擎、冻结身份或研究纪律失败。
+
 ## 19.3 最终接受的 N9 保护
 
 - 使用正确 UTF-8 大纲路径处理；Windows 兼容别名只在 Windows 上生效且仅匹配一个完整精确路径；
