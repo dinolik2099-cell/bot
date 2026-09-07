@@ -1120,10 +1120,28 @@ runtime=29.162s
 
 ---
 
-# 二十、N10 工程修复状态（等待独立服务器审计）
+# 二十、N10 已接受状态：可恢复执行状态与结果证据链
 
-N9 已接受。N10 的 recoverable execution state 工程修复已实现，当前状态为：`ENGINEERING FIX IMPLEMENTED / PENDING INDEPENDENT SERVER ACCEPTANCE`。
+N9 已接受。N10 的 recoverable execution state 已完成独立服务器审计，当前状态为：`N10 = ACCEPTED`。
 
-N10 尚未被独立服务器接受；N11 未授权。正式 TRAIN / VALIDATION 研究未授权，OOS 仍为 `SEALED / NOT_AUTHORIZED`。
+N10 已接受；N11 尚未授权。正式 TRAIN / VALIDATION 研究仍未授权，OOS 仍为 `SEALED / NOT_AUTHORIZED`。
 
 本轮 N10 工程修复包含 crash-recoverable advisory locking、attempt fencing、执行时 N9 authority 重验证、持锁 torn-commit reconciliation、FAILED retry attempt history，以及冻结 TRAIN 参数结果到 ranking/Top-K/Validation 证据链的完整性校验。仅运行 synthetic / metadata-only 测试；未读取真实市场数据，未读取 OOS，未运行正式研究或 Monte Carlo。
+
+## 20.1 独立服务器最终验收
+
+- N10 full synthetic: PASS，RC=0，runtime=296s，`RECOVERABLE_EXECUTION_SYNTHETIC_TEST_OK`。
+- N3→N9 chain regression: ALL PASS。
+- B1 stale lock recovery: PASS。
+- B1 active lock exclusion: PASS。
+- B2 stale attempt fencing: PASS。
+- B3 HEAD drift rejection: PASS。
+- B3 dirty tree rejection: PASS。
+- B4 forged Top-K / Validation binding rejection: PASS。
+- B5 torn reconciliation: PASS。
+- `N10_INDEPENDENT_ADVERSARIAL_AUDIT_OK`。
+- `git diff --check`: PASS。
+
+本轮仅运行 synthetic / metadata-only / temporary-repository 测试；未运行正式 TRAIN / VALIDATION，未读取真实市场数据，未读取 OOS，未运行 D1 / D2 / D3 或 Monte Carlo。
+
+最终状态：`N10 = ACCEPTED`。`N11 = NOT AUTHORIZED`。`OOS = SEALED / NOT_AUTHORIZED`。

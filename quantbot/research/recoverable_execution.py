@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Mapping
 
-SCHEMA='quantbot-recoverable-execution-n10-v1'
+SCHEMA='quantbot-recoverable-execution-n10-v2'
 TASK_STATES={'PENDING','RUNNING','COMPLETED','FAILED'}
 class RecoverableExecutionError(RuntimeError): pass
 def authorize_execution_context(manifest,*,n7,n8,repo_root,requested_windows,output_path,requested_workers):
@@ -102,7 +102,7 @@ def initialize_run(root,manifest,plan,*,n7,n8,repo_root):
  except Exception as exc: raise RecoverableExecutionError('n9_preflight_not_authorized') from exc
  tasks=_task_index(plan);rid=_hash(binding)
  state={'schema_version':SCHEMA,'run_id':rid,'revision':0,'binding':binding,'expected_task_count':len(tasks),'tasks':{key:{'status':'PENDING','attempts':[]} for key in sorted(tasks)},'created_at':time.time()};_refresh_accounting(state,plan)
- _write_new(Path(root)/'run_state.json',state)
+ with _run_lock(root): _write_new(Path(root)/'run_state.json',state)
  return state
 def _validate_state(state,manifest,plan):
  binding=execution_binding(manifest,plan)
@@ -115,7 +115,8 @@ def _validate_state(state,manifest,plan):
  expected={'tasks':json.loads(_canon(records))};_refresh_accounting(expected,plan)
  if state.get('accounting')!=expected['accounting']: raise RecoverableExecutionError('run_accounting_drift')
  return tasks
-def load_run(root,manifest,plan):
+def _load_run_locked(root,manifest,plan):
+ """Load/validate and reconcile torn state. Caller MUST hold _run_lock(root)."""
  state=_read(Path(root)/'run_state.json');tasks=_validate_state(state,manifest,plan);reconciled=False
  for task_identity,record in state['tasks'].items():
   path=_task_path(root,task_identity)
@@ -129,6 +130,10 @@ def load_run(root,manifest,plan):
   elif path.exists(): raise RecoverableExecutionError('noncompleted_task_has_artifact')
  if reconciled: _refresh_accounting(state,plan);_bump(state);_replace(Path(root)/'run_state.json',state)
  return state
+
+def load_run(root,manifest,plan):
+ """Public load is serialized because validation may reconcile a torn commit."""
+ with _run_lock(root): return _load_run_locked(root,manifest,plan)
 def unfinished_task_ids(root,manifest,plan):
  state=load_run(root,manifest,plan)
  return [key for key in sorted(state['tasks']) if state['tasks'][key]['status']!='COMPLETED']
@@ -138,7 +143,7 @@ def claim_task(root,manifest,plan,task_identity,*,owner='local',lease_seconds=30
  authorize_execution_context(manifest,n7=authority.get('n7'),n8=authority.get('n8'),repo_root=authority.get('repo_root'),requested_windows=authority.get('requested_windows'),output_path=authority.get('output_path'),requested_workers=authority.get('requested_workers'))
  with _run_lock(root): return _claim_task(root,manifest,plan,task_identity,owner,lease_seconds)
 def _claim_task(root,manifest,plan,task_identity,owner,lease_seconds):
- state=load_run(root,manifest,plan);tasks=_validate_state(state,manifest,plan)
+ state=_load_run_locked(root,manifest,plan);tasks=_validate_state(state,manifest,plan)
  if task_identity not in tasks: raise RecoverableExecutionError('unknown_task')
  record=state['tasks'][task_identity]
  if record['status']=='COMPLETED': raise RecoverableExecutionError('completed_task_cannot_recompute')
@@ -151,39 +156,86 @@ def _model(plan,model_id):
  rows=[row for row in plan.get('models',[]) if row.get('model_id')==model_id]
  if len(rows)!=1: raise RecoverableExecutionError('task_model_not_frozen')
  return rows[0]
-def task_result_payload(state,plan,task_identity,*,status,train_evaluations=0,validation_evaluations=0,train_result_identities=(),selected_train_top_k=(),validation_result_identities=(),error_type=None,error_message=None):
+def _params_key(params):
+ if not isinstance(params,dict): raise RecoverableExecutionError('result_params_invalid')
+ return _canon(params)
+def _result_metrics(row):
+ try:
+  from .plan_executor import validate_metrics
+  validate_metrics(row)
+ except Exception as exc: raise RecoverableExecutionError('result_metrics_invalid') from exc
+ return {key:row[key] for key in ('total_return','max_drawdown','profit_factor','trades')}
+def _train_result_identity(state,task,row):
+ model=_model_from_state_task(state,task)
+ return _hash({'task_identity':task['task_identity'],'parameter_grid_hash':model['parameter_grid_hash'],'params':row['params'],'metrics':_result_metrics(row)})
+def _ranked_train(state,task,train_results):
+ try:
+  from .plan_executor import rank_train
+  ranked=rank_train(train_results)
+ except Exception as exc: raise RecoverableExecutionError('train_ranking_invalid') from exc
+ return ranked
+def _validation_result_identity(state,task,selected_train_id,row):
+ return _hash({'task_identity':task['task_identity'],'selected_train_result_identity':selected_train_id,'params':row['params'],'metrics':_result_metrics(row)})
+def _derive_completed_evidence(state,task,train_results,validation_results):
+ model=_model_from_state_task(state,task);grid=state['binding'].get('parameter_grids',{}).get(task['model_id'])
+ if not isinstance(train_results,list) or not isinstance(validation_results,list) or not isinstance(grid,dict) or not grid: raise RecoverableExecutionError('completed_task_result_evidence_missing')
+ keys=sorted(grid);expected_params=[dict(zip(keys,values)) for values in product(*(grid[key] for key in keys))]
+ expected_keys=[_params_key(row) for row in expected_params];train_keys=[]
+ for row in train_results:
+  if not isinstance(row,dict) or 'params' not in row: raise RecoverableExecutionError('completed_train_result_invalid')
+  _result_metrics(row);train_keys.append(_params_key(row['params']))
+ if len(train_results)!=model['grid_combinations'] or len(train_keys)!=len(set(train_keys)) or set(train_keys)!=set(expected_keys): raise RecoverableExecutionError('completed_train_grid_mismatch')
+ train_ids=[_train_result_identity(state,task,row) for row in train_results]
+ if len(train_ids)!=len(set(train_ids)): raise RecoverableExecutionError('completed_train_identity_duplicate')
+ id_by_params={_params_key(row['params']):rid for row,rid in zip(train_results,train_ids)}
+ ranked=_ranked_train(state,task,train_results);k=min(state['binding']['top_k_train'],len(expected_params));selected=ranked[:k]
+ selected_ids=[id_by_params[_params_key(row['params'])] for row in selected]
+ if len(validation_results)!=k: raise RecoverableExecutionError('completed_validation_count_mismatch')
+ validation_ids=[]
+ for index,row in enumerate(validation_results):
+  if not isinstance(row,dict) or 'params' not in row: raise RecoverableExecutionError('completed_validation_result_invalid')
+  _result_metrics(row)
+  if _params_key(row['params'])!=_params_key(selected[index]['params']): raise RecoverableExecutionError('completed_validation_top_k_mismatch')
+  validation_ids.append(_validation_result_identity(state,task,selected_ids[index],row))
+ if len(validation_ids)!=len(set(validation_ids)): raise RecoverableExecutionError('completed_validation_identity_duplicate')
+ return train_ids,selected_ids,validation_ids
+
+def task_result_payload(state,plan,task_identity,*,status,train_results=(),validation_results=(),error_type=None,error_message=None):
  tasks=_task_index(plan);task=tasks.get(task_identity)
  if task is None: raise RecoverableExecutionError('unknown_task')
  model=_model(plan,task['model_id']);expected_train=model.get('grid_combinations');expected_validation=min(plan['top_k_train'],expected_train)
  if status not in {'COMPLETED','FAILED'}: raise RecoverableExecutionError('task_terminal_state_invalid')
- body={'schema_version':SCHEMA,'run_id':state['run_id'],'attempt_id':state['tasks'][task_identity].get('attempt_id'),'research_freeze_identity':plan['research_freeze_identity'],'research_plan_identity':plan['research_plan_identity'],'manifest_identity':state['binding']['manifest_identity'],'task_identity':task_identity,'model_id':task['model_id'],'symbol':task['symbol'],'parameter_grid_hash':model['parameter_grid_hash'],'expected_train_evaluations':expected_train,'actual_train_evaluations':train_evaluations,'train_result_identities':list(train_result_identities),'selected_train_top_k':list(selected_train_top_k),'expected_validation_evaluations':expected_validation,'actual_validation_evaluations':validation_evaluations,'validation_result_identities':list(validation_result_identities),'status':status,'error_type':error_type,'error_message':error_message,'started_at':state['tasks'][task_identity].get('started_at'),'ended_at':time.time()}
+ train_results=list(train_results);validation_results=list(validation_results)
+ train_ids=[];top_ids=[];validation_ids=[]
+ if status=='COMPLETED': train_ids,top_ids,validation_ids=_derive_completed_evidence(state,task,train_results,validation_results)
+ body={'schema_version':SCHEMA,'run_id':state['run_id'],'attempt_id':state['tasks'][task_identity].get('attempt_id'),'research_freeze_identity':plan['research_freeze_identity'],'research_plan_identity':plan['research_plan_identity'],'manifest_identity':state['binding']['manifest_identity'],'task_identity':task_identity,'model_id':task['model_id'],'symbol':task['symbol'],'parameter_grid_hash':model['parameter_grid_hash'],'expected_train_evaluations':expected_train,'actual_train_evaluations':len(train_results),'train_results':train_results,'train_result_identities':train_ids,'selected_train_top_k':top_ids,'expected_validation_evaluations':expected_validation,'actual_validation_evaluations':len(validation_results),'validation_results':validation_results,'validation_result_identities':validation_ids,'status':status,'error_type':error_type,'error_message':error_message,'started_at':state['tasks'][task_identity].get('started_at'),'ended_at':time.time()}
  body['result_hash']=_hash({key:value for key,value in body.items() if key not in {'started_at','ended_at','result_hash'}})
  return body
+
 def validate_task_artifact(artifact,state,task):
  model=_model_from_state_task(state,task)
  required={'schema_version':SCHEMA,'run_id':state['run_id'],'attempt_id':state['tasks'][task['task_identity']].get('attempt_id'),'research_freeze_identity':state['binding']['research_freeze_identity'],'research_plan_identity':state['binding']['research_plan_identity'],'manifest_identity':state['binding']['manifest_identity'],'task_identity':task['task_identity'],'model_id':task['model_id'],'symbol':task['symbol'],'parameter_grid_hash':model['parameter_grid_hash']}
  if any(artifact.get(key)!=value for key,value in required.items()): raise RecoverableExecutionError('task_artifact_provenance_mismatch')
  status=artifact.get('status');expected_train=model['grid_combinations'];expected_validation=min(state['binding']['top_k_train'],expected_train)
  if status=='COMPLETED':
-  train_ids=artifact.get('train_result_identities');top_ids=artifact.get('selected_train_top_k');validation_ids=artifact.get('validation_result_identities')
-  expected_ids=_expected_train_ids(state,task)
-  if artifact.get('actual_train_evaluations')!=expected_train or artifact.get('expected_train_evaluations')!=expected_train or artifact.get('actual_validation_evaluations')!=expected_validation or artifact.get('expected_validation_evaluations')!=expected_validation or not all(isinstance(rows,list) for rows in (train_ids,top_ids,validation_ids)) or set(train_ids)!=set(expected_ids) or len(train_ids)!=len(set(train_ids)) or len(top_ids)!=expected_validation or len(set(top_ids))!=expected_validation or not set(top_ids)<=set(train_ids) or len(validation_ids)!=expected_validation or len(set(validation_ids))!=expected_validation or artifact.get('error_type') or artifact.get('error_message'): raise RecoverableExecutionError('completed_task_result_incomplete')
+  train=artifact.get('train_results');validation=artifact.get('validation_results')
+  expected_train_ids,expected_top_ids,expected_validation_ids=_derive_completed_evidence(state,task,train,validation)
+  if artifact.get('actual_train_evaluations')!=expected_train or artifact.get('expected_train_evaluations')!=expected_train or artifact.get('actual_validation_evaluations')!=expected_validation or artifact.get('expected_validation_evaluations')!=expected_validation or artifact.get('train_result_identities')!=expected_train_ids or artifact.get('selected_train_top_k')!=expected_top_ids or artifact.get('validation_result_identities')!=expected_validation_ids or artifact.get('error_type') or artifact.get('error_message'): raise RecoverableExecutionError('completed_task_result_incomplete')
  elif status=='FAILED':
-  if not isinstance(artifact.get('error_type'),str) or not artifact['error_type'] or not isinstance(artifact.get('error_message'),str) or artifact.get('actual_train_evaluations') or artifact.get('actual_validation_evaluations') or artifact.get('train_result_identities') or artifact.get('selected_train_top_k') or artifact.get('validation_result_identities'): raise RecoverableExecutionError('failed_task_result_invalid')
+  if not isinstance(artifact.get('error_type'),str) or not artifact['error_type'] or not isinstance(artifact.get('error_message'),str) or artifact.get('actual_train_evaluations') or artifact.get('actual_validation_evaluations') or artifact.get('train_results') or artifact.get('validation_results') or artifact.get('train_result_identities') or artifact.get('selected_train_top_k') or artifact.get('validation_result_identities'): raise RecoverableExecutionError('failed_task_result_invalid')
  else: raise RecoverableExecutionError('task_artifact_state_invalid')
  payload={key:value for key,value in artifact.items() if key not in {'started_at','ended_at','result_hash'}}
  if artifact.get('result_hash')!=_hash(payload): raise RecoverableExecutionError('task_result_hash_mismatch')
  return True
+
 def _model_from_state_task(state,task):
- # The immutable binding carries the exact plan task universe but models are
- # supplied by the caller only when creating an artifact; this helper uses its
- # embedded per-task frozen grid count established during initialization.
  models=state['binding'].get('models')
  if not isinstance(models,list): raise RecoverableExecutionError('run_model_binding_missing')
  rows=[row for row in models if row.get('model_id')==task['model_id']]
  if len(rows)!=1: raise RecoverableExecutionError('task_model_not_frozen')
  return rows[0]
 def _expected_train_ids(state,task):
+ """Legacy helper: frozen parameter identities only, not completed result identities."""
  model=_model_from_state_task(state,task);grid=state['binding'].get('parameter_grids',{}).get(task['model_id'])
  if not isinstance(grid,dict) or not grid: raise RecoverableExecutionError('frozen_parameter_grid_missing')
  keys=sorted(grid);params=[dict(zip(keys,values)) for values in product(*(grid[key] for key in keys))]
@@ -193,7 +245,7 @@ def complete_task(root,manifest,plan,artifact,*,authority=None):
  authorize_execution_context(manifest,n7=authority.get('n7'),n8=authority.get('n8'),repo_root=authority.get('repo_root'),requested_windows=authority.get('requested_windows'),output_path=authority.get('output_path'),requested_workers=authority.get('requested_workers'))
  with _run_lock(root): return _complete_task(root,manifest,plan,artifact)
 def _complete_task(root,manifest,plan,artifact):
- state=load_run(root,manifest,plan);tasks=_validate_state(state,manifest,plan);task=tasks.get(artifact.get('task_identity'))
+ state=_load_run_locked(root,manifest,plan);tasks=_validate_state(state,manifest,plan);task=tasks.get(artifact.get('task_identity'))
  if task is None: raise RecoverableExecutionError('unknown_task')
  if state['tasks'][task['task_identity']]['status']!='RUNNING': raise RecoverableExecutionError('task_not_running')
  validate_task_artifact(artifact,state,task)
@@ -204,7 +256,7 @@ def fail_task(root,manifest,plan,task_identity,error_type,error_message,*,author
  authorize_execution_context(manifest,n7=authority.get('n7'),n8=authority.get('n8'),repo_root=authority.get('repo_root'),requested_windows=authority.get('requested_windows'),output_path=authority.get('output_path'),requested_workers=authority.get('requested_workers'))
  with _run_lock(root): return _fail_task(root,manifest,plan,task_identity,error_type,error_message)
 def _fail_task(root,manifest,plan,task_identity,error_type,error_message):
- state=load_run(root,manifest,plan);tasks=_validate_state(state,manifest,plan)
+ state=_load_run_locked(root,manifest,plan);tasks=_validate_state(state,manifest,plan)
  if task_identity not in tasks or state['tasks'][task_identity]['status']!='RUNNING': raise RecoverableExecutionError('task_not_running')
  artifact=task_result_payload(state,plan,task_identity,status='FAILED',error_type=error_type,error_message=error_message)
  validate_task_artifact(artifact,state,tasks[task_identity]);record=state['tasks'][task_identity];record.setdefault('attempts',[]).append({'attempt_id':record.get('attempt_id'),'status':'FAILED','owner':record.get('owner'),'error_type':error_type,'error_message':error_message,'ended_at':time.time()});record.update({'status':'FAILED','error_type':error_type,'error_message':error_message,'ended_at':time.time()});_refresh_accounting(state,plan);_bump(state);_replace(Path(root)/'run_state.json',state)
