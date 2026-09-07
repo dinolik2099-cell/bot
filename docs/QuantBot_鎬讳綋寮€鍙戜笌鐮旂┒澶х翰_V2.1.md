@@ -1005,3 +1005,113 @@ Phase 2.3 当前结果：
 9. 能被简单模型解释时，不优先使用复杂模型。
 10. 最终目标是找到能够长期运行的系统，而不是历史上最漂亮的曲线。
 
+---
+
+# 十九、N9 已接受状态：正式非 OOS 执行授权清单与预检
+
+## 19.1 目的与边界
+
+N9 建立正式、非 OOS 研究执行的不可变授权清单（Formal Execution Manifest）及 fail-closed 预检授权层。它只授权未来的 TRAIN / VALIDATION 执行工程路径；N9 本身未运行正式 TRAIN / VALIDATION，也没有读取任何真实 TRAIN、VALIDATION 或 OOS 市场数据。
+
+N9 的所有授权均绑定已接受的 N3 冻结、N5 研究计划与 N6/N7/N8 执行/数据保护链。OOS 始终为 `SEALED / NOT_AUTHORIZED`。
+
+## 19.2 实际提交与审计历史
+
+1. 初始 N9 提交：
+
+   `619ed58fd1ce7b5355580fcb4ef15761650736ba`
+   `feat: add N9 formal execution authorization manifest`
+
+2. 首次服务器审计拒绝的真实问题：
+
+   - `run_n9_execution_preflight.py` 没有调用 `preflight_authorize()`，会产生错误的 `N9_PREFLIGHT_OK`；
+   - `source_git_commit` 被硬编码为旧 N8 提交；
+   - 篡改测试没有重算 `manifest_identity`，不能证明语义篡改会被拒绝；
+   - TRAIN / VALIDATION 窗口缺少完整的语义绑定；
+   - `source_tree_policy`、`worker_config`、`output` 是自声明值；
+   - engine causal policy 未完成语义验证；
+   - adapter provenance 强度不足；
+   - source-tree 状态来自调用者输入，不能作为可信 Git 状态。
+
+3. 第二次 N9 修订：
+
+   `3878a1a4c7bfa632a639706addab874b5353d4a0`
+   `fix: complete N9 authorization preflight`
+
+4. 第二次服务器审计拒绝的真实问题：
+
+   - `TRUSTED_TREE_POLICY` 包含由 Windows 错误解码生成的损坏文件名；Linux 服务器的 `repository_state.clean = False`，实际预检以 `FormalAuthorizationError: source_tree_not_clean` 失败；
+   - 输出位置只是字符串前缀检查，存在目录穿越风险；
+   - 输出碰撞检查依赖调用时当前工作目录；
+   - `overwrite` 和 `mode` 未被严格绑定为授权策略。
+
+5. 最终 N9 修订：
+
+   `135b4362e44683715a3c0faf567312593595ca35`
+   `fix: preserve N9 Windows outline compatibility`
+
+## 19.3 最终接受的 N9 保护
+
+- 使用正确 UTF-8 大纲路径处理；Windows 兼容别名只在 Windows 上生效且仅匹配一个完整精确路径；
+- 从实际 Git 仓库推导 source-tree 状态，并绑定实际 source commit；
+- 精确绑定 TRAIN / VALIDATION 的具体起止窗口；
+- OOS 保持 `SEALED / NOT_AUTHORIZED`；
+- worker 数受可信最大值约束；
+- 输出路径相对 `repo_root` 解析，必须位于授权输出命名空间内，目录穿越被拒绝；
+- 已有输出文件的碰撞被拒绝；`overwrite` 必须严格为 `False`，`mode` 必须严格为 `TRAIN_VALIDATION_ONLY`；
+- engine causal-policy、CostModel、canonical adapter 实现哈希均被语义绑定；
+- manifest 篡改后即使重算身份哈希，仍被语义验证拒绝；
+- 所有拒绝路径均证明零市场数据读取器调用。
+
+## 19.4 独立服务器审计结果
+
+```text
+REAL N9 PREFLIGHT = PASS
+N9 SYNTHETIC = PASS
+CWD_INDEPENDENT_PREFLIGHT=PASS
+
+ENGINE_CAUSAL_POLICY=REJECTED_OK
+OUTPUT_OVERWRITE=REJECTED_OK
+OUTPUT_MODE=REJECTED_OK
+WORKER_LIMIT=REJECTED_OK
+ADAPTER_HASH=REJECTED_OK
+TREE_POLICY=REJECTED_OK
+
+WRONG_TRAIN_WINDOW=REJECTED_OK
+REQUESTED_WORKERS_OVER_LIMIT=REJECTED_OK
+SOURCE_COMMIT_DRIFT=REJECTED_OK
+OUTPUT_TRAVERSAL=REJECTED_OK
+
+FULL_READER_CALLS=0
+WINDOW_READER_CALLS=0
+CSV_READER_CALLS=0
+
+ZERO_READ_REJECTION_MATRIX=PASS
+ISOLATED_CWD_PREFLIGHT=PASS
+EXISTING_OUTPUT_COLLISION=REJECTED_OK
+N9_INDEPENDENT_ADVERSARIAL_AUDIT=PASS
+```
+
+## 19.5 状态与研究纪律
+
+`N9 = ACCEPTED`。
+
+- 未运行正式 TRAIN / VALIDATION；
+- 未读取真实 TRAIN / VALIDATION / OOS 市场数据；
+- 未运行 D1 / D2 / D3、Monte Carlo、实盘 / 交易所 / API；
+- OOS 仍为 `SEALED / NOT_AUTHORIZED`；
+- N3 / N5 冻结工件未改变。
+
+## 19.6 15 小时耐久记录
+
+原始耐久 harness 的 `FINAL_STATUS=FAIL`，原因是最后一次 N7 调用在仅剩 29 秒时启动，并以超时 `rc=124` 结束。此前 N7 已完成 1031 个完整周期。
+
+独立 N7 复现结果：
+
+```text
+N7_FORMAL_RUNNER_SYNTHETIC_TEST_OK
+RC=0
+runtime=29.162s
+```
+
+分类：这是 harness 硬截止时间产生的工件，不是 QuantBot 功能性失败。
