@@ -4,7 +4,7 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from quantbot.research.formal_runner import load_n7_context
 from quantbot.research.canonical_data_adapter import load_n8_data_context
-from quantbot.research.formal_execution_manifest import build_manifest,validate_manifest,preflight_authorize,FormalAuthorizationError,identity_payload,_hash
+from quantbot.research.formal_execution_manifest import build_manifest,validate_manifest,preflight_authorize,repository_state,FormalAuthorizationError,identity_payload,_hash
 LOCK=json.loads((ROOT/'data/reports/research_boundary_lock.json').read_text());PLAN=ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json';FREEZE=ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json'
 def clone(v):return json.loads(json.dumps(v))
 def make_clean_repo(path):
@@ -12,7 +12,9 @@ def make_clean_repo(path):
  subprocess.check_call(['git','-C',str(path),'config','user.email','n9-test@example.invalid'])
  subprocess.check_call(['git','-C',str(path),'config','user.name','N9 Test'])
  (path/'README').write_text('metadata-only test\n')
+ (path/'docs').mkdir();(path/'docs'/'.keep').write_text('tracked directory\n')
  subprocess.check_call(['git','-C',str(path),'add','README'])
+ subprocess.check_call(['git','-C',str(path),'add','docs/.keep'])
  subprocess.check_call(['git','-C',str(path),'commit','-q','-m','test'])
  return subprocess.check_output(['git','-C',str(path),'rev-parse','HEAD'],text=True).strip()
 def main():
@@ -26,15 +28,26 @@ def main():
    raise AssertionError('unexpectedly accepted')
   def semantic_bad(key,value):
    bad=clone(one);bad[key]=value;bad['manifest_identity']=_hash(identity_payload(bad));return bad
+  def nested_bad(key,path,value):
+   bad=clone(one);node=bad[key]
+   for part in path[:-1]:node=node[part]
+   node[path[-1]]=value;bad['manifest_identity']=_hash(identity_payload(bad));return bad
   for key in ('candidate_universe_hash','research_freeze_identity','research_plan_identity','dataset_id','boundary_identity_hash','symbols','tasks','counts','ranking','top_k_train','viability','engine','cost_model','adapter','train_window','validation_window','source_tree_policy','worker_config','output','oos_status'):
    reject(lambda b=semantic_bad(key,'bad'):validate_manifest(b,n7,n8))
   bad=clone(one);bad['manifest_identity']='x'*64;reject(lambda:validate_manifest(bad,n7,n8))
   bad=clone(one);bad['schema_version']='unknown';reject(lambda:validate_manifest(bad,n7,n8))
   repo=Path(td)/'repo';repo.mkdir();commit=make_clean_repo(repo)
+  outline=repo/bytes.fromhex('646f63732f5175616e74426f745fe680bbe4bd93e5bc80e58f91e4b88ee7a094e7a9b6e5a4a7e7bab25f56322e312e6d64').decode('utf-8');outline.parent.mkdir(exist_ok=True);outline.write_text('untracked outline')
+  assert repository_state(repo)['clean']
+  unexpected=repo/'unexpected.txt';unexpected.write_text('not permitted');assert not repository_state(repo)['clean'];unexpected.unlink()
   authorized=build_manifest(n7,n8,source_git_commit=commit,worker_config={'workers':2},output_destination=out,created_at='test')
   assert preflight_authorize(authorized,n7,n8,repo_root=repo,requested_windows={'TRAIN':authorized['train_window'],'VALIDATION':authorized['validation_window']},output_path=out,requested_workers=1)['market_data_reads']==0
   wrong_windows={'TRAIN':dict(authorized['train_window'],start='1900-01-01T00:00:00+00:00'),'VALIDATION':authorized['validation_window']}
   reject(lambda:preflight_authorize(authorized,n7,n8,repo_root=repo,requested_windows=wrong_windows,output_path=out,requested_workers=1))
+  for key,path,value in (('engine',('causal_policy',),'tampered'),('output',('overwrite',),True),('output',('mode',),'OOS'),('worker_config',('workers',),TRUSTED_WORKERS:=5),('source_tree_policy',('permitted_known_exception_path_utf8_hex',),'00'),('adapter',('implementation_hash',),'0'*64)):
+   reject(lambda b=nested_bad(key,path,value):validate_manifest(b,n7,n8))
+  traversal=clone(authorized);traversal['output']['destination']='data/reports/formal_runs/../../other/result.json';traversal['manifest_identity']=_hash(identity_payload(traversal))
+  reject(lambda:preflight_authorize(traversal,n7,n8,repo_root=repo,requested_windows={'TRAIN':traversal['train_window'],'VALIDATION':traversal['validation_window']},output_path=traversal['output']['destination'],requested_workers=1))
   source_tamper=semantic_bad('source_git_commit','0'*40)
   with patch('quantbot.data.load.load_symbol') as full_reader,patch('quantbot.data.load.load_symbol_window') as window_reader,patch('pandas.read_csv') as csv_reader:
    reject(lambda:preflight_authorize(source_tamper,n7,n8,repo_root=repo,requested_windows={'TRAIN':source_tamper['train_window'],'VALIDATION':source_tamper['validation_window']},output_path=out,requested_workers=1))

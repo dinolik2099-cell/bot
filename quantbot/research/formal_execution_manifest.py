@@ -13,7 +13,7 @@ from .canonical_data_adapter import N8DataContext
 
 SCHEMA='quantbot-formal-execution-manifest-n9-v1'
 ADAPTER={'module':'quantbot.research.canonical_data_adapter','constructor':'make_n8_canonical_window_loader','reader':'quantbot.data.load.load_symbol_window','source_policy':'canonical_raw_windowed_no_fallback'}
-TRUSTED_TREE_POLICY={'clean_required':True,'permitted_known_exception_path_hex':'646f63732f5175616e74426f745fe996b9ee8483ee868ae7bc8de5acaaee87a3e988a7ee8484e5b4a3e98eb4e6bb85e791a2e996bbee86bde6a2bbe988b9e68e93e5be84e8a48fe7bc88e799ac56322e312e6d64'}
+TRUSTED_TREE_POLICY={'clean_required':True,'permitted_known_exception_path_utf8_hex':'646f63732f5175616e74426f745fe680bbe4bd93e5bc80e58f91e4b88ee7a094e7a9b6e5a4a7e7bab25f56322e312e6d64'}
 TRUSTED_MAX_WORKERS=4
 TRUSTED_OUTPUT_PREFIX='data/reports/formal_runs/'
 class FormalAuthorizationError(RuntimeError): pass
@@ -23,13 +23,20 @@ def _module_hash(module):return hashlib.sha256(Path(module.__file__).read_bytes(
 def trusted_adapter():
  from . import canonical_data_adapter
  data=dict(ADAPTER);data['implementation_hash']=_module_hash(canonical_data_adapter);return data
+def _authorized_output_path(repo_root,value):
+ root=Path(repo_root).resolve();base=(root/'data'/'reports'/'formal_runs').resolve();candidate=Path(value)
+ if candidate.is_absolute(): raise FormalAuthorizationError('output_destination_not_relative')
+ resolved=(root/candidate).resolve()
+ try: resolved.relative_to(base)
+ except ValueError as exc: raise FormalAuthorizationError('output_destination_outside_authorized_namespace') from exc
+ return resolved
 def repository_state(repo_root):
  root=Path(repo_root)
  def git(*args):return subprocess.check_output(['git','-C',str(root),*args],stderr=subprocess.STDOUT).decode().strip()
  try:
   commit=git('rev-parse','HEAD');raw=subprocess.check_output(['git','-C',str(root),'status','--porcelain','-z']);raw_items=[part[3:] for part in raw.split(b'\0') if part];items=[part.decode('utf-8','surrogateescape') for part in raw_items]
  except Exception as exc: raise FormalAuthorizationError('repository_state_unavailable') from exc
- permitted=bytes.fromhex(TRUSTED_TREE_POLICY['permitted_known_exception_path_hex'])
+ permitted=bytes.fromhex(TRUSTED_TREE_POLICY['permitted_known_exception_path_utf8_hex'])
  unexpected=[item for item in raw_items if item!=permitted]
  return {'commit':commit,'clean':not unexpected,'untracked':items}
 def identity_payload(manifest):return {k:manifest[k] for k in ('schema_version','candidate_universe_hash','research_freeze_identity','research_plan_identity','dataset_id','boundary','boundary_identity_hash','train_window','validation_window','oos_status','oos_authorization','engine','cost_model','adapter','symbols','tasks','counts','ranking','top_k_train','viability','source_git_commit','source_tree_policy','worker_config','output')}
@@ -58,7 +65,7 @@ def validate_manifest(manifest:Mapping[str,Any],n7:N7Context,n8:N8DataContext)->
  engine=manifest.get('engine');cost=manifest.get('cost_model')
  if not isinstance(engine,Mapping) or not isinstance(cost,Mapping) or engine.get('identity')!=n7.freeze['protocol_scope']['engine_identity'] or engine.get('causal_policy')!=n7.freeze['protocol_scope']['causal_execution_policy'] or cost.get('identity')!=n7.freeze['protocol_scope']['cost_model_identity'] or cost.get('config')!=asdict(CostModel()) or manifest.get('adapter')!=trusted_adapter(): raise FormalAuthorizationError('manifest_runtime_provenance_mismatch')
  worker_policy=manifest.get('worker_config');output_policy=manifest.get('output')
- if manifest.get('source_tree_policy')!=TRUSTED_TREE_POLICY or not isinstance(worker_policy,Mapping) or not isinstance(output_policy,Mapping) or worker_policy.get('workers',0)>TRUSTED_MAX_WORKERS or not str(output_policy.get('destination','')).startswith(TRUSTED_OUTPUT_PREFIX): raise FormalAuthorizationError('manifest_trusted_policy_mismatch')
+ if manifest.get('source_tree_policy')!=TRUSTED_TREE_POLICY or not isinstance(worker_policy,Mapping) or not isinstance(output_policy,Mapping) or worker_policy.get('workers',0)>TRUSTED_MAX_WORKERS or not isinstance(output_policy.get('destination'),str) or output_policy.get('overwrite') is not False or output_policy.get('mode')!='TRAIN_VALIDATION_ONLY': raise FormalAuthorizationError('manifest_trusted_policy_mismatch')
  workers=manifest.get('worker_config',{}).get('workers')
  if type(workers) is not int or workers<1: raise FormalAuthorizationError('manifest_worker_config_invalid')
  return True
@@ -71,6 +78,7 @@ def preflight_authorize(manifest,n7,n8,*,repo_root,requested_windows,output_path
  if not state['clean']: raise FormalAuthorizationError('source_tree_not_clean')
  if not isinstance(requested_windows,Mapping) or set(requested_windows)!={'TRAIN','VALIDATION'} or requested_windows['TRAIN']!=manifest['train_window'] or requested_windows['VALIDATION']!=manifest['validation_window']: raise FormalAuthorizationError('execution_windows_not_authorized')
  if type(requested_workers) is not int or requested_workers<1 or requested_workers>manifest['worker_config']['workers']: raise FormalAuthorizationError('requested_workers_not_authorized')
- target=Path(output_path)
- if target.as_posix()!=manifest['output']['destination'] or target.exists(): raise FormalAuthorizationError('output_collision_or_destination_mismatch')
+ destination=_authorized_output_path(repo_root,manifest['output']['destination'])
+ target=_authorized_output_path(repo_root,output_path)
+ if target!=destination or target.exists(): raise FormalAuthorizationError('output_collision_or_destination_mismatch')
  return {'manifest_identity':manifest['manifest_identity'],'research_plan_identity':manifest['research_plan_identity'],'research_freeze_identity':manifest['research_freeze_identity'],'authorized_windows':requested_windows,'market_data_reads':0}
