@@ -13,7 +13,7 @@ from .canonical_data_adapter import N8DataContext
 
 SCHEMA='quantbot-formal-execution-manifest-n9-v1'
 ADAPTER={'module':'quantbot.research.canonical_data_adapter','constructor':'make_n8_canonical_window_loader','reader':'quantbot.data.load.load_symbol_window','source_policy':'canonical_raw_windowed_no_fallback'}
-TRUSTED_TREE_POLICY={'clean_required':True,'permitted_known_exceptions':['docs/QuantBot_总体开发与研究大纲_V2.1.md']}
+TRUSTED_TREE_POLICY={'clean_required':True,'permitted_known_exception_path_hex':'646f63732f5175616e74426f745fe996b9ee8483ee868ae7bc8de5acaaee87a3e988a7ee8484e5b4a3e98eb4e6bb85e791a2e996bbee86bde6a2bbe988b9e68e93e5be84e8a48fe7bc88e799ac56322e312e6d64'}
 TRUSTED_MAX_WORKERS=4
 TRUSTED_OUTPUT_PREFIX='data/reports/formal_runs/'
 class FormalAuthorizationError(RuntimeError): pass
@@ -27,9 +27,10 @@ def repository_state(repo_root):
  root=Path(repo_root)
  def git(*args):return subprocess.check_output(['git','-C',str(root),*args],stderr=subprocess.STDOUT).decode().strip()
  try:
-  commit=git('rev-parse','HEAD');raw=subprocess.check_output(['git','-C',str(root),'status','--porcelain','-z']);items=[part.decode('utf-8','surrogateescape')[3:] for part in raw.split(b'\0') if part]
+  commit=git('rev-parse','HEAD');raw=subprocess.check_output(['git','-C',str(root),'status','--porcelain','-z']);raw_items=[part[3:] for part in raw.split(b'\0') if part];items=[part.decode('utf-8','surrogateescape') for part in raw_items]
  except Exception as exc: raise FormalAuthorizationError('repository_state_unavailable') from exc
- unexpected=[item for item in items if item not in TRUSTED_TREE_POLICY['permitted_known_exceptions']]
+ permitted=bytes.fromhex(TRUSTED_TREE_POLICY['permitted_known_exception_path_hex'])
+ unexpected=[item for item in raw_items if item!=permitted]
  return {'commit':commit,'clean':not unexpected,'untracked':items}
 def identity_payload(manifest):return {k:manifest[k] for k in ('schema_version','candidate_universe_hash','research_freeze_identity','research_plan_identity','dataset_id','boundary','boundary_identity_hash','train_window','validation_window','oos_status','oos_authorization','engine','cost_model','adapter','symbols','tasks','counts','ranking','top_k_train','viability','source_git_commit','source_tree_policy','worker_config','output')}
 
