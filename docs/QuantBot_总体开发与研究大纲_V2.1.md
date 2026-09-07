@@ -1117,3 +1117,13 @@ runtime=29.162s
 ```
 
 分类：这是 harness 硬截止时间产生的工件，不是 QuantBot 功能性失败。
+
+---
+
+# 二十、N10 工程修复状态（等待独立服务器审计）
+
+N9 已接受。N10 的 recoverable execution state 工程修复已实现，当前状态为：`ENGINEERING FIX IMPLEMENTED / PENDING INDEPENDENT SERVER ACCEPTANCE`。
+
+N10 尚未被独立服务器接受；N11 未授权。正式 TRAIN / VALIDATION 研究未授权，OOS 仍为 `SEALED / NOT_AUTHORIZED`。
+
+本轮 N10 工程修复包含 crash-recoverable advisory locking、attempt fencing、执行时 N9 authority 重验证、持锁 torn-commit reconciliation、FAILED retry attempt history，以及冻结 TRAIN 参数结果到 ranking/Top-K/Validation 证据链的完整性校验。仅运行 synthetic / metadata-only 测试；未读取真实市场数据，未读取 OOS，未运行正式研究或 Monte Carlo。

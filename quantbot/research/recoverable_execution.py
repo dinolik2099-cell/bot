@@ -13,6 +13,13 @@ from typing import Mapping
 SCHEMA='quantbot-recoverable-execution-n10-v1'
 TASK_STATES={'PENDING','RUNNING','COMPLETED','FAILED'}
 class RecoverableExecutionError(RuntimeError): pass
+def authorize_execution_context(manifest,*,n7,n8,repo_root,requested_windows,output_path,requested_workers):
+ """Revalidate current N9 authority before any execution-capable transition."""
+ try:
+  from .formal_execution_manifest import validate_manifest,preflight_authorize
+  validate_manifest(manifest,n7,n8)
+  return preflight_authorize(manifest,n7,n8,repo_root=repo_root,requested_windows=requested_windows,output_path=output_path,requested_workers=requested_workers)
+ except Exception as exc: raise RecoverableExecutionError('current_n9_authority_not_authorized') from exc
 def _canon(value): return json.dumps(value,sort_keys=True,separators=(',',':'))
 def _hash(value): return hashlib.sha256(_canon(value).encode()).hexdigest()
 def _write_new(path,value):
@@ -30,13 +37,28 @@ def _replace(path,value):
  temp.write_text(_canon(value)+'\n',encoding='utf-8');os.replace(temp,path)
 @contextmanager
 def _run_lock(root):
- """Exclusive lock prevents two workers from replacing the same state revision."""
+ """Kernel-backed advisory lock; ownership dies with the process descriptor."""
  lock=Path(root)/'.n10-state.lock';lock.parent.mkdir(parents=True,exist_ok=True)
+ handle=lock.open('a+b')
  try:
-  fd=os.open(lock,os.O_CREAT|os.O_EXCL|os.O_WRONLY);os.write(fd,str(os.getpid()).encode());os.close(fd)
- except FileExistsError as exc: raise RecoverableExecutionError('run_state_lock_held') from exc
+  if os.name=='nt':
+   import msvcrt
+   handle.seek(0);handle.write(b'0');handle.flush();handle.seek(0);msvcrt.locking(handle.fileno(),msvcrt.LK_NBLCK,1)
+  else:
+   import fcntl
+   fcntl.flock(handle.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+ except OSError as exc:
+  handle.close();raise RecoverableExecutionError('run_state_lock_held') from exc
  try: yield
- finally: lock.unlink(missing_ok=True)
+ finally:
+  try:
+   if os.name=='nt':
+    import msvcrt
+    handle.seek(0);msvcrt.locking(handle.fileno(),msvcrt.LK_UNLCK,1)
+   else:
+    import fcntl
+    fcntl.flock(handle.fileno(),fcntl.LOCK_UN)
+  finally: handle.close()
 def _bump(state): state['revision']=int(state.get('revision',0))+1;return state
 def _read(path):
  try:return json.loads(Path(path).read_text(encoding='utf-8'))
@@ -76,8 +98,7 @@ def initialize_run(root,manifest,plan,*,n7,n8,repo_root):
  """Create one immutable 216-task run state; never overwrite an existing run."""
  binding=execution_binding(manifest,plan,n7=n7,n8=n8)
  try:
-  from .formal_execution_manifest import preflight_authorize
-  preflight_authorize(manifest,n7,n8,repo_root=repo_root,requested_windows={'TRAIN':manifest['train_window'],'VALIDATION':manifest['validation_window']},output_path=manifest['output']['destination'],requested_workers=manifest['worker_config']['workers'])
+  authorize_execution_context(manifest,n7=n7,n8=n8,repo_root=repo_root,requested_windows={'TRAIN':manifest['train_window'],'VALIDATION':manifest['validation_window']},output_path=manifest['output']['destination'],requested_workers=manifest['worker_config']['workers'])
  except Exception as exc: raise RecoverableExecutionError('n9_preflight_not_authorized') from exc
  tasks=_task_index(plan);rid=_hash(binding)
  state={'schema_version':SCHEMA,'run_id':rid,'revision':0,'binding':binding,'expected_task_count':len(tasks),'tasks':{key:{'status':'PENDING','attempts':[]} for key in sorted(tasks)},'created_at':time.time()};_refresh_accounting(state,plan)
@@ -111,8 +132,10 @@ def load_run(root,manifest,plan):
 def unfinished_task_ids(root,manifest,plan):
  state=load_run(root,manifest,plan)
  return [key for key in sorted(state['tasks']) if state['tasks'][key]['status']!='COMPLETED']
-def claim_task(root,manifest,plan,task_identity,*,owner='local',lease_seconds=300):
+def claim_task(root,manifest,plan,task_identity,*,owner='local',lease_seconds=300,authority=None):
  if not isinstance(owner,str) or not owner or type(lease_seconds) is not int or lease_seconds<1: raise RecoverableExecutionError('claim_metadata_invalid')
+ if not isinstance(authority,Mapping): raise RecoverableExecutionError('execution_authority_required')
+ authorize_execution_context(manifest,n7=authority.get('n7'),n8=authority.get('n8'),repo_root=authority.get('repo_root'),requested_windows=authority.get('requested_windows'),output_path=authority.get('output_path'),requested_workers=authority.get('requested_workers'))
  with _run_lock(root): return _claim_task(root,manifest,plan,task_identity,owner,lease_seconds)
 def _claim_task(root,manifest,plan,task_identity,owner,lease_seconds):
  state=load_run(root,manifest,plan);tasks=_validate_state(state,manifest,plan)
@@ -133,12 +156,12 @@ def task_result_payload(state,plan,task_identity,*,status,train_evaluations=0,va
  if task is None: raise RecoverableExecutionError('unknown_task')
  model=_model(plan,task['model_id']);expected_train=model.get('grid_combinations');expected_validation=min(plan['top_k_train'],expected_train)
  if status not in {'COMPLETED','FAILED'}: raise RecoverableExecutionError('task_terminal_state_invalid')
- body={'schema_version':SCHEMA,'run_id':state['run_id'],'research_freeze_identity':plan['research_freeze_identity'],'research_plan_identity':plan['research_plan_identity'],'manifest_identity':state['binding']['manifest_identity'],'task_identity':task_identity,'model_id':task['model_id'],'symbol':task['symbol'],'parameter_grid_hash':model['parameter_grid_hash'],'expected_train_evaluations':expected_train,'actual_train_evaluations':train_evaluations,'train_result_identities':list(train_result_identities),'selected_train_top_k':list(selected_train_top_k),'expected_validation_evaluations':expected_validation,'actual_validation_evaluations':validation_evaluations,'validation_result_identities':list(validation_result_identities),'status':status,'error_type':error_type,'error_message':error_message,'started_at':state['tasks'][task_identity].get('started_at'),'ended_at':time.time()}
+ body={'schema_version':SCHEMA,'run_id':state['run_id'],'attempt_id':state['tasks'][task_identity].get('attempt_id'),'research_freeze_identity':plan['research_freeze_identity'],'research_plan_identity':plan['research_plan_identity'],'manifest_identity':state['binding']['manifest_identity'],'task_identity':task_identity,'model_id':task['model_id'],'symbol':task['symbol'],'parameter_grid_hash':model['parameter_grid_hash'],'expected_train_evaluations':expected_train,'actual_train_evaluations':train_evaluations,'train_result_identities':list(train_result_identities),'selected_train_top_k':list(selected_train_top_k),'expected_validation_evaluations':expected_validation,'actual_validation_evaluations':validation_evaluations,'validation_result_identities':list(validation_result_identities),'status':status,'error_type':error_type,'error_message':error_message,'started_at':state['tasks'][task_identity].get('started_at'),'ended_at':time.time()}
  body['result_hash']=_hash({key:value for key,value in body.items() if key not in {'started_at','ended_at','result_hash'}})
  return body
 def validate_task_artifact(artifact,state,task):
  model=_model_from_state_task(state,task)
- required={'schema_version':SCHEMA,'run_id':state['run_id'],'research_freeze_identity':state['binding']['research_freeze_identity'],'research_plan_identity':state['binding']['research_plan_identity'],'manifest_identity':state['binding']['manifest_identity'],'task_identity':task['task_identity'],'model_id':task['model_id'],'symbol':task['symbol'],'parameter_grid_hash':model['parameter_grid_hash']}
+ required={'schema_version':SCHEMA,'run_id':state['run_id'],'attempt_id':state['tasks'][task['task_identity']].get('attempt_id'),'research_freeze_identity':state['binding']['research_freeze_identity'],'research_plan_identity':state['binding']['research_plan_identity'],'manifest_identity':state['binding']['manifest_identity'],'task_identity':task['task_identity'],'model_id':task['model_id'],'symbol':task['symbol'],'parameter_grid_hash':model['parameter_grid_hash']}
  if any(artifact.get(key)!=value for key,value in required.items()): raise RecoverableExecutionError('task_artifact_provenance_mismatch')
  status=artifact.get('status');expected_train=model['grid_combinations'];expected_validation=min(state['binding']['top_k_train'],expected_train)
  if status=='COMPLETED':
@@ -165,7 +188,9 @@ def _expected_train_ids(state,task):
  if not isinstance(grid,dict) or not grid: raise RecoverableExecutionError('frozen_parameter_grid_missing')
  keys=sorted(grid);params=[dict(zip(keys,values)) for values in product(*(grid[key] for key in keys))]
  return [_hash({'task_identity':task['task_identity'],'parameter_grid_hash':model['parameter_grid_hash'],'params':row}) for row in params]
-def complete_task(root,manifest,plan,artifact):
+def complete_task(root,manifest,plan,artifact,*,authority=None):
+ if not isinstance(authority,Mapping): raise RecoverableExecutionError('execution_authority_required')
+ authorize_execution_context(manifest,n7=authority.get('n7'),n8=authority.get('n8'),repo_root=authority.get('repo_root'),requested_windows=authority.get('requested_windows'),output_path=authority.get('output_path'),requested_workers=authority.get('requested_workers'))
  with _run_lock(root): return _complete_task(root,manifest,plan,artifact)
 def _complete_task(root,manifest,plan,artifact):
  state=load_run(root,manifest,plan);tasks=_validate_state(state,manifest,plan);task=tasks.get(artifact.get('task_identity'))
@@ -174,7 +199,9 @@ def _complete_task(root,manifest,plan,artifact):
  validate_task_artifact(artifact,state,task)
  if artifact['status']!='COMPLETED': raise RecoverableExecutionError('complete_requires_completed_artifact')
  _write_new(_task_path(root,task['task_identity']),artifact);state['tasks'][task['task_identity']].update({'status':'COMPLETED','result_hash':artifact['result_hash'],'actual_train_evaluations':artifact['actual_train_evaluations'],'actual_validation_evaluations':artifact['actual_validation_evaluations'],'ended_at':time.time()});_refresh_accounting(state,plan);_bump(state);_replace(Path(root)/'run_state.json',state)
-def fail_task(root,manifest,plan,task_identity,error_type,error_message):
+def fail_task(root,manifest,plan,task_identity,error_type,error_message,*,authority=None):
+ if not isinstance(authority,Mapping): raise RecoverableExecutionError('execution_authority_required')
+ authorize_execution_context(manifest,n7=authority.get('n7'),n8=authority.get('n8'),repo_root=authority.get('repo_root'),requested_windows=authority.get('requested_windows'),output_path=authority.get('output_path'),requested_workers=authority.get('requested_workers'))
  with _run_lock(root): return _fail_task(root,manifest,plan,task_identity,error_type,error_message)
 def _fail_task(root,manifest,plan,task_identity,error_type,error_message):
  state=load_run(root,manifest,plan);tasks=_validate_state(state,manifest,plan)
