@@ -72,5 +72,5 @@ def preflight_authorize(manifest,n7,n8,*,repo_root,requested_windows,output_path
  if not isinstance(requested_windows,Mapping) or set(requested_windows)!={'TRAIN','VALIDATION'} or requested_windows['TRAIN']!=manifest['train_window'] or requested_windows['VALIDATION']!=manifest['validation_window']: raise FormalAuthorizationError('execution_windows_not_authorized')
  if type(requested_workers) is not int or requested_workers<1 or requested_workers>manifest['worker_config']['workers']: raise FormalAuthorizationError('requested_workers_not_authorized')
  target=Path(output_path)
- if str(target)!=manifest['output']['destination'] or target.exists(): raise FormalAuthorizationError('output_collision_or_destination_mismatch')
+ if target.as_posix()!=manifest['output']['destination'] or target.exists(): raise FormalAuthorizationError('output_collision_or_destination_mismatch')
  return {'manifest_identity':manifest['manifest_identity'],'research_plan_identity':manifest['research_plan_identity'],'research_freeze_identity':manifest['research_freeze_identity'],'authorized_windows':requested_windows,'market_data_reads':0}
