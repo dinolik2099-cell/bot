@@ -4,8 +4,8 @@ import json,sys
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from quantbot.research.formal_runner import load_n7_context
 from quantbot.research.canonical_data_adapter import load_n8_data_context
-from quantbot.research.formal_execution_manifest import build_manifest
+from quantbot.research.formal_execution_manifest import build_manifest,preflight_authorize,repository_state
 def main():
- lock=json.loads((ROOT/'data/reports/research_boundary_lock.json').read_text());n7=load_n7_context(ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json',ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json',lock);n8=load_n8_data_context(n7,ROOT/'data/reports/research_boundary_lock.json');m=build_manifest(n7,n8,source_git_commit='143ebbab0b657646a8c59d55aad7099b9ea0eaf1',worker_config={'workers':1},output_destination='data/reports/N9_FORMAL_RESULT.json',created_at='runtime')
- print('N9_PREFLIGHT_OK');print(f"manifest_identity={m['manifest_identity']}");print(f"market_data_reads=0");print(f"oos_status={m['oos_status']}");print(f"oos_authorization={m['oos_authorization']}")
+ lock=json.loads((ROOT/'data/reports/research_boundary_lock.json').read_text());n7=load_n7_context(ROOT/'docs/handoff/FROZEN_RESEARCH_PLAN_N5.json',ROOT/'docs/handoff/CANDIDATE_UNIVERSE_FREEZE_N3.json',lock);n8=load_n8_data_context(n7,ROOT/'data/reports/research_boundary_lock.json');state=repository_state(ROOT);destination='data/reports/formal_runs/N9_FORMAL_RESULT.json';m=build_manifest(n7,n8,source_git_commit=state['commit'],worker_config={'workers':1},output_destination=destination,created_at='runtime');auth=preflight_authorize(m,n7,n8,repo_root=ROOT,requested_windows={'TRAIN':m['train_window'],'VALIDATION':m['validation_window']},output_path=destination,requested_workers=1)
+ print('N9_PREFLIGHT_OK');print(f"manifest_identity={m['manifest_identity']}");print(f"market_data_reads={auth['market_data_reads']}");print(f"oos_status={m['oos_status']}");print(f"oos_authorization={m['oos_authorization']}")
 if __name__=='__main__':main()
