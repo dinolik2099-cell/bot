@@ -40,7 +40,7 @@ def main():
  # B1: stale lock pathname does not block; active advisory lock does.
  with tempfile.TemporaryDirectory() as td:
   root=Path(td)/'run';root.mkdir();(root/'.n10-state.lock').write_text('stale-file')
-  with _run_lock(root): rejected(lambda: _run_lock(root).__enter__(),'run_state_lock_held')
+  with _run_lock(root): rejected(lambda: _run_lock(root, wait_seconds=0.05).__enter__(),'run_state_lock_timeout')
   with _run_lock(root): pass
  # Core recovery/fencing/selection/authority matrix.
  with tempfile.TemporaryDirectory() as td:
