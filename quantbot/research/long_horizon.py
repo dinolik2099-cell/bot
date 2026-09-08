@@ -6,6 +6,8 @@ future, separately authorized evaluator supplies a sealed result package.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
+from typing import Mapping
 
 
 WINDOW_DAYS = (180, 200, 240)
@@ -25,3 +27,14 @@ class LongHorizonProtocol:
 
     def require_authorization(self) -> None:
         raise PermissionError("long_horizon_formal_execution_not_authorized")
+
+class LongHorizonState(str, Enum): PENDING="PENDING"; RUNNING="RUNNING"; INTERRUPTED="INTERRUPTED"; FAILED="FAILED"; COMPLETED="COMPLETED"
+@dataclass(frozen=True)
+class LongHorizonCheckpoint:
+    window_days: int; session: int; state: LongHorizonState; progress_days: int = 0; error: str | None = None
+    def resume(self) -> "LongHorizonCheckpoint":
+        if self.state not in {LongHorizonState.INTERRUPTED, LongHorizonState.FAILED}: raise ValueError("checkpoint_not_resumable")
+        return LongHorizonCheckpoint(self.window_days, self.session + 1, LongHorizonState.RUNNING, self.progress_days)
+    def advance(self, observed_days: int) -> "LongHorizonCheckpoint":
+        if self.state != LongHorizonState.RUNNING or observed_days <= self.progress_days or observed_days > self.window_days: raise ValueError("invalid_observed_progress")
+        return LongHorizonCheckpoint(self.window_days, self.session, LongHorizonState.COMPLETED if observed_days == self.window_days else LongHorizonState.RUNNING, observed_days)

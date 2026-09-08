@@ -1179,3 +1179,12 @@ N10 已接受；N11 尚未授权。正式 TRAIN / VALIDATION 研究仍未授权�
 ## 21.5 当前纪律
 
 此轮只运行 synthetic / metadata-only 合同测试。未运行正式 TRAIN / VALIDATION、D1 / D2 / D3、OOS、Monte Carlo、overnight torture 或任何交易所/API/实盘操作。N3 / N5 冻结工件及其身份未修改；所有 P0—P3 功能均为 built-but-locked，须经未来独立授权和审计后才能打开。
+
+## 21.6 后半程工程深化状态
+
+本节记录的是工程实现状态，不是任何研究通过状态。
+
+- **ENGINEERING IMPLEMENTED / SYNTHETICALLY TESTED**：N11 v2 evidence package 绑定 N9 manifest、N10 run/recovery、任务 checksum、环境与创建时间；N12 diagnostics artifact 绑定显式 policy identity；N13 包含 `SEALED → PRECHECK_FAILED / ELIGIBLE_BUT_NOT_AUTHORIZED → AUTHORIZED → OPENED` 的状态词汇、完整 Pre-OOS checklist 和单向 opening evidence 结构。
+- **ENGINEERING IMPLEMENTED / SYNTHETICALLY TESTED**：组合权重、family/symbol/model 约束、成本/滑点情景、Failure Supervisor 持久决策证据、PIT regime composite、180/200/240 checkpoint、tiny synthetic MC interface、Paper/Fake exchange 生命周期、checkpoint/restart 及 runtime supervisor 基础。
+- **BUILT BUT LOCKED**：真实 OOS execution / walk-forward request、Monte Carlo、长周期正式执行、LIVE adapter 和 live authorization transition。它们在 API 层 fail-closed，不能仅凭调用方标记或描述性字符串打开。
+- **NOT EXECUTED / NOT AUTHORIZED**：任何正式 TRAIN / VALIDATION、OOS、真实 MC、交易所网络、API 凭据、Paper 实时轮询和 Live 订单。当前 OOS 仍为 `SEALED / NOT_AUTHORIZED`；MC 与 Live 均为 `NOT_AUTHORIZED`。
