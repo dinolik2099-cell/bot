@@ -44,7 +44,7 @@ def main():
   assert preflight_authorize(authorized,n7,n8,repo_root=repo,requested_windows={'TRAIN':authorized['train_window'],'VALIDATION':authorized['validation_window']},output_path=out,requested_workers=1)['market_data_reads']==0
   wrong_windows={'TRAIN':dict(authorized['train_window'],start='1900-01-01T00:00:00+00:00'),'VALIDATION':authorized['validation_window']}
   reject(lambda:preflight_authorize(authorized,n7,n8,repo_root=repo,requested_windows=wrong_windows,output_path=out,requested_workers=1))
-  for key,path,value in (('engine',('causal_policy',),'tampered'),('output',('overwrite',),True),('output',('mode',),'OOS'),('worker_config',('workers',),TRUSTED_WORKERS:=5),('source_tree_policy',('permitted_known_exception_path_utf8_hex',),'00'),('adapter',('implementation_hash',),'0'*64)):
+  for key,path,value in (('engine',('causal_policy',),'tampered'),('output',('overwrite',),True),('output',('mode',),'OOS'),('worker_config',('workers',),TRUSTED_WORKERS:=17),('source_tree_policy',('permitted_known_exception_path_utf8_hex',),'00'),('adapter',('implementation_hash',),'0'*64)):
    reject(lambda b=nested_bad(key,path,value):validate_manifest(b,n7,n8))
   traversal=clone(authorized);traversal['output']['destination']='data/reports/formal_runs/../../other/result.json';traversal['manifest_identity']=_hash(identity_payload(traversal))
   reject(lambda:preflight_authorize(traversal,n7,n8,repo_root=repo,requested_windows={'TRAIN':traversal['train_window'],'VALIDATION':traversal['validation_window']},output_path=traversal['output']['destination'],requested_workers=1))

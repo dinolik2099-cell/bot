@@ -8,6 +8,8 @@ OOS is not an accepted execution window.
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing
 import json
 import platform
 import sys
@@ -54,6 +56,12 @@ from quantbot.research.recoverable_execution import (
 from quantbot.research.result_package import (
     build_evidence_package,
     validate_evidence_package,
+)
+from quantbot.research.formal_parallel import (
+    apply_worker_thread_limits,
+    execute_formal_task_payload,
+    frozen_worker_config,
+    resolve_workers,
 )
 
 PLAN = ROOT / "docs/handoff/FROZEN_RESEARCH_PLAN_N5.json"
@@ -307,7 +315,7 @@ def build_authority(manifest, n7, n8):
             "VALIDATION": manifest["validation_window"],
         },
         "output_path": manifest["output"]["destination"],
-        "requested_workers": 1,
+        "requested_workers": manifest["worker_config"]["workers"],
     }
 
 
@@ -318,7 +326,7 @@ def load_formal_context():
     return n7, n8
 
 
-def build_current_manifest(n7, n8):
+def build_current_manifest(n7, n8, worker_config):
     repo = repository_state(ROOT)
     if not repo["clean"]:
         raise RuntimeError("formal_source_tree_not_clean")
@@ -327,7 +335,7 @@ def build_current_manifest(n7, n8):
         n7,
         n8,
         source_git_commit=repo["commit"],
-        worker_config={"workers": 1},
+        worker_config=worker_config,
         output_destination=formal_output_destination(),
         created_at=utc_now(),
     )
@@ -343,7 +351,7 @@ def authorize_manifest(manifest, n7, n8):
         repo_root=ROOT,
         requested_windows=authority["requested_windows"],
         output_path=authority["output_path"],
-        requested_workers=1,
+        requested_workers=manifest["worker_config"]["workers"],
     )
 
     if result.get("market_data_reads") != 0:
@@ -453,7 +461,8 @@ def finalize_n11(run_root, manifest, n7, n8):
             "python": sys.version,
             "platform": platform.platform(),
             "runner": "scripts/run_formal_train_validation.py",
-            "workers": 1,
+            "workers": manifest["worker_config"]["workers"],
+            "worker_config": manifest["worker_config"],
             "engine": "quantbot.backtest.engine_v2.BacktestEngine",
             "cost_model": "quantbot.backtest.costs.CostModel",
             "data_adapter": "quantbot.research.canonical_data_adapter",
@@ -496,7 +505,13 @@ def finalize_n11(run_root, manifest, n7, n8):
     }
 
 
-def run_formal_train_validation():
+def run_formal_train_validation(*, requested_workers=None):
+    # Freeze resource resolution once, before manifest construction or any
+    # possible data-loader creation.  Child workers inherit only this frozen
+    # serializable policy and independently rebuild canonical N7/N8 contexts.
+    resolution=resolve_workers(requested_cap=requested_workers)
+    worker_config=frozen_worker_config(resolution)
+    apply_worker_thread_limits()
     n7, n8 = load_formal_context()
 
     if (
@@ -505,7 +520,7 @@ def run_formal_train_validation():
     ):
         raise RuntimeError("formal_oos_not_sealed")
 
-    manifest = build_current_manifest(n7, n8)
+    manifest = build_current_manifest(n7, n8, worker_config)
     authority = authorize_manifest(manifest, n7, n8)
 
     run_root = runtime_root_for(manifest)
@@ -528,52 +543,30 @@ def run_formal_train_validation():
     print(f"N10_RUN_ROOT={run_root}")
     print(f"TASKS_TOTAL={len(n7.plan['tasks'])}")
     print(f"TASKS_UNFINISHED_AT_START={len(initial_unfinished)}")
-    print("WORKERS=1")
+    print(f"RESOLVED_WORKERS={worker_config['workers']}")
+    print(f"WORKER_CONFIG={json.dumps(worker_config, sort_keys=True)}")
     print("WINDOWS=TRAIN,VALIDATION")
     print("OOS_STATUS=SEALED")
     print("OOS_AUTHORIZATION=NOT_AUTHORIZED")
 
+    task_rows={row["task_identity"]:row for row in n7.plan["tasks"]}
+    payloads=[]
     for task_identity in initial_unfinished:
-        task = next(
-            row
-            for row in n7.plan["tasks"]
-            if row["task_identity"] == task_identity
-        )
-
-        print(
-            "TASK_START="
-            f"{task_identity} "
-            f"{task['model_id']} "
-            f"{task['symbol']}",
-            flush=True,
-        )
-
-        execute_one_task(
-            run_root=run_root,
-            manifest=manifest,
-            n7=n7,
-            n8=n8,
-            task_identity=task_identity,
-            authority=authority,
-            owner="formal-train-validation",
-            lease_seconds=3600,
-        )
-
-        state = load_run(
-            run_root,
-            manifest,
-            n7.plan,
-        )
-
-        accounting = state["accounting"]
-
-        print(
-            "TASK_COMPLETE="
-            f"{task_identity} "
-            f"completed={accounting['completed_count']}/216 "
-            f"failed={accounting['failed_count']}",
-            flush=True,
-        )
+        task=task_rows[task_identity]
+        print(f"TASK_QUEUED={task_identity} {task['model_id']} {task['symbol']}",flush=True)
+        payloads.append({"repo_root":str(ROOT),"run_root":str(run_root),"manifest":manifest,"task_identity":task_identity,"owner":"formal-train-validation","lease_seconds":3600})
+    # ProcessPoolExecutor is used deliberately: BacktestEngine CPU work is not
+    # run in a thread pool. Spawn keeps child state independent/picklable.
+    if payloads:
+        context=multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(max_workers=worker_config["workers"],mp_context=context) as pool:
+            futures={pool.submit(execute_formal_task_payload,payload):payload["task_identity"] for payload in payloads}
+            for future in as_completed(futures):
+                task_identity=futures[future]
+                try: result=future.result()
+                except Exception as exc: raise RuntimeError(f"formal_worker_failed:{task_identity}") from exc
+                state=load_run(run_root,manifest,n7.plan); accounting=state["accounting"]
+                print(f"TASK_COMPLETE={result['task_identity']} completed={accounting['completed_count']}/216 failed={accounting['failed_count']} worker_pid={result['worker_pid']}",flush=True)
 
     remaining = unfinished_task_ids(
         run_root,
@@ -621,6 +614,7 @@ def main():
         action="store_true",
         help="explicitly authorize this CLI invocation to execute TRAIN/VALIDATION",
     )
+    parser.add_argument("--workers",type=int,default=None,help="optional bounded cap; resolver still applies CPU/RAM budgets and hard cap 16")
     args = parser.parse_args()
 
     if not args.execute:
@@ -628,7 +622,7 @@ def main():
         print("Pass --execute only after the committed clean launch audit.")
         return 2
 
-    run_formal_train_validation()
+    run_formal_train_validation(requested_workers=args.workers)
     return 0
 
 

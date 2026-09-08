@@ -35,20 +35,31 @@ def _write_new(path,value):
 def _replace(path,value):
  path=Path(path);temp=path.with_name(path.name+'.tmp-'+str(os.getpid()))
  temp.write_text(_canon(value)+'\n',encoding='utf-8');os.replace(temp,path)
+LOCK_WAIT_SECONDS=30.0
 @contextmanager
-def _run_lock(root):
- """Kernel-backed advisory lock; ownership dies with the process descriptor."""
+def _run_lock(root, wait_seconds=LOCK_WAIT_SECONDS):
+ """Kernel-backed advisory lock with bounded retry/backoff.
+
+ Normal worker contention waits for the state serializer rather than being
+ misclassified as a task failure.  A missing/held lock still fails closed after
+ a bounded deadline; fencing and immutable artifacts remain unchanged.
+ """
  lock=Path(root)/'.n10-state.lock';lock.parent.mkdir(parents=True,exist_ok=True)
  handle=lock.open('a+b')
- try:
-  if os.name=='nt':
-   import msvcrt
-   handle.seek(0);handle.write(b'0');handle.flush();handle.seek(0);msvcrt.locking(handle.fileno(),msvcrt.LK_NBLCK,1)
-  else:
-   import fcntl
-   fcntl.flock(handle.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
- except OSError as exc:
-  handle.close();raise RecoverableExecutionError('run_state_lock_held') from exc
+ deadline=time.monotonic()+float(wait_seconds);delay=.01
+ while True:
+  try:
+   if os.name=='nt':
+    import msvcrt
+    handle.seek(0);handle.write(b'0');handle.flush();handle.seek(0);msvcrt.locking(handle.fileno(),msvcrt.LK_NBLCK,1)
+   else:
+    import fcntl
+    fcntl.flock(handle.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+   break
+  except OSError as exc:
+   if time.monotonic()>=deadline:
+    handle.close();raise RecoverableExecutionError('run_state_lock_timeout') from exc
+   time.sleep(delay);delay=min(delay*2,.25)
  try: yield
  finally:
   try:

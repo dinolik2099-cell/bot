@@ -18,7 +18,10 @@ TRUSTED_TREE_POLICY={'clean_required':True,'permitted_known_exception_path_utf8_
 # console rendering.  This is an exact, Windows-only compatibility alias, not a
 # prefix or glob; every non-matching worktree item still makes preflight fail.
 WINDOWS_LEGACY_OUTLINE_PATH_HEX='646f63732f5175616e74426f745fe996b9ee8483ee868ae7bc8de5acaaee87a3e988a7ee8484e5b4a3e98eb4e6bb85e791a2e996bbee86bde6a2bbe988b9e68e93e5be84e8a48fe7bc88e799ac56322e312e6d64'
-TRUSTED_MAX_WORKERS=4
+# First-generation parallel formal execution remains explicitly bounded: 16 is
+# large enough to use a half-host budget while preventing accidental 36/72-way
+# fanout.  The manifest freezes the resolved value before launch.
+TRUSTED_MAX_WORKERS=16
 TRUSTED_OUTPUT_PREFIX='data/reports/formal_runs/'
 class FormalAuthorizationError(RuntimeError): pass
 def _canon(v):return json.dumps(v,sort_keys=True,separators=(',',':'))

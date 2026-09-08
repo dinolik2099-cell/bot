@@ -1196,3 +1196,12 @@ N10 已接受；N11 尚未授权。正式 TRAIN / VALIDATION 研究仍未授权�
 - **Portfolio / Stress / Failure**：已补 portfolio artifact、correlation/diversification 约束、rebalance 输入身份；stress scenario identity；failure event/category/severity/retry/terminal/persistent decision evidence。仍复用既有 shared-capital 与 canonical CostModel。
 - **Persistent Paper / Runtime**：已补 durable PaperLedger snapshot/rebuild、startup reconciliation、跨重启 order id protection、single-writer runtime lock、heartbeat、reconciliation gate 和 emergency-stop lifecycle。全部为 temporary-file synthetic 测试；没有实时轮询或外部订单。
 - **最终不变边界**：正式研究、真实 OOS、真实 Monte Carlo、交易所网络与 Live 均没有被执行或授权。后半程所有未来执行入口保持 build-but-locked / fail-closed。
+
+## 21.8 Formal TRAIN / VALIDATION 资源自适应并行执行（工程已实现，未启动）
+
+- 正式 runner 的 worker 数在启动前由逻辑 CPU 约 50%、可用 RAM 约 50% 和每 worker 保守 RAM 预算共同解析；结果为 `min(cpu_limit, ram_limit, hard_cap=16)`，并始终至少为 1。
+- `resolved_workers`、CPU/RAM 输入限制、hard cap 和数值库线程限制均进入 N9 `worker_config`，所以会改变 manifest identity，并顺序绑定 N10 execution binding、N11 environment/provenance。启动后没有运行时调节路径。
+- 正式 CPU work 使用 spawned `ProcessPoolExecutor`，不是线程池。每个子进程设置 `OMP_NUM_THREADS=1`、`OPENBLAS_NUM_THREADS=1`、`MKL_NUM_THREADS=1`、`NUMEXPR_NUM_THREADS=1`，并独立重建 N7/N8 canonical context、N8 bounded loader、BacktestEngine 和 CostModel；没有 evaluator/loader/engine injection bypass。
+- N10 state lock 改为 bounded retry/backoff：正常多 worker contention 等待序列化锁，不被错误记为 task failure；超时仍 fail-closed。attempt fencing、stale lease recovery、immutable task artifacts、主进程唯一 finalization 和 N11 create-only 均保持。
+- `TRUSTED_MAX_WORKERS` 提升为 16 的理由是第一版显式硬安全上限；不会随机器 CPU 无界上升，也不直接允许 36 / 72 worker。
+- 本轮只运行 synthetic multiprocessing、temporary repository 与 metadata-only 检查；没有启动正式 TRAIN / VALIDATION、没有读取 OOS，OOS 仍为 `SEALED / NOT_AUTHORIZED`。
