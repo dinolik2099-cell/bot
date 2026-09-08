@@ -294,7 +294,7 @@ from datetime import datetime, timezone
 from quantbot.research.canonical_data_adapter import (
     make_n8_canonical_window_loader,
 )
-from quantbot.research.artifact_store import write_named_new_json
+from quantbot.research.artifact_store import read_verified_json, seal, write_named_new_json
 
 
 def utc_now():
@@ -303,6 +303,57 @@ def utc_now():
 
 def formal_output_destination():
     return "data/reports/formal_runs/N11_FORMAL_TRAIN_VALIDATION_RESULT.json"
+
+
+def formal_launch_destination():
+    return "data/reports/formal_runs/N11_FORMAL_TRAIN_VALIDATION_LAUNCH.json"
+
+
+def formal_launch_path():
+    return ROOT / formal_launch_destination()
+
+
+def load_or_create_launch_manifest(n7, n8, requested_workers=None):
+    launch_path = formal_launch_path()
+
+    if launch_path.exists():
+        descriptor = read_verified_json(launch_path)
+        if descriptor.get("schema_version") != "quantbot-formal-launch-v1":
+            raise RuntimeError("formal_launch_schema_invalid")
+
+        manifest = descriptor.get("manifest")
+        if not isinstance(manifest, dict):
+            raise RuntimeError("formal_launch_manifest_invalid")
+
+        frozen_workers = manifest.get("worker_config", {}).get("workers")
+        if type(frozen_workers) is not int or frozen_workers < 1:
+            raise RuntimeError("formal_launch_worker_config_invalid")
+
+        if requested_workers is not None and requested_workers != frozen_workers:
+            raise RuntimeError("formal_frozen_worker_request_mismatch")
+
+        authority = authorize_manifest(manifest, n7, n8)
+        return manifest, authority
+
+    resolution = resolve_workers(requested_cap=requested_workers)
+    worker_config = frozen_worker_config(resolution)
+    manifest = build_current_manifest(n7, n8, worker_config)
+    authority = authorize_manifest(manifest, n7, n8)
+
+    descriptor = seal(
+        {
+            "schema_version": "quantbot-formal-launch-v1",
+            "manifest": manifest,
+        }
+    )
+
+    relative = Path(formal_launch_destination())
+    write_named_new_json(
+        ROOT / relative.parent,
+        relative.name,
+        descriptor,
+    )
+    return manifest, authority
 
 
 def build_authority(manifest, n7, n8):
@@ -506,11 +557,9 @@ def finalize_n11(run_root, manifest, n7, n8):
 
 
 def run_formal_train_validation(*, requested_workers=None):
-    # Freeze resource resolution once, before manifest construction or any
-    # possible data-loader creation.  Child workers inherit only this frozen
-    # serializable policy and independently rebuild canonical N7/N8 contexts.
-    resolution=resolve_workers(requested_cap=requested_workers)
-    worker_config=frozen_worker_config(resolution)
+    # Thread limits are process-local.  Formal worker-count/resource policy is
+    # frozen by the immutable launch descriptor on first execution and reused
+    # verbatim on every recovery invocation.
     apply_worker_thread_limits()
     n7, n8 = load_formal_context()
 
@@ -520,8 +569,12 @@ def run_formal_train_validation(*, requested_workers=None):
     ):
         raise RuntimeError("formal_oos_not_sealed")
 
-    manifest = build_current_manifest(n7, n8, worker_config)
-    authority = authorize_manifest(manifest, n7, n8)
+    manifest, authority = load_or_create_launch_manifest(
+        n7,
+        n8,
+        requested_workers=requested_workers,
+    )
+    worker_config = manifest["worker_config"]
 
     run_root = runtime_root_for(manifest)
 
