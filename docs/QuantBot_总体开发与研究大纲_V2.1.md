@@ -1145,3 +1145,37 @@ N10 已接受；N11 尚未授权。正式 TRAIN / VALIDATION 研究仍未授权�
 本轮仅运行 synthetic / metadata-only / temporary-repository 测试；未运行正式 TRAIN / VALIDATION，未读取真实市场数据，未读取 OOS，未运行 D1 / D2 / D3 或 Monte Carlo。
 
 最终状态：`N10 = ACCEPTED`。`N11 = NOT AUTHORIZED`。`OOS = SEALED / NOT_AUTHORIZED`。
+
+---
+
+# 二十一、后半程工程骨架：P0—P3（已构建，默认锁定）
+
+本节只记录工程能力与未来授权门，不记录、更不宣称任何正式研究、OOS、Monte Carlo、Paper 交易结果或实盘结论。
+
+## 21.1 P0：统一工件、证据与关闭授权门
+
+- N11 的不可变研究结果包已建立为 JSON canonical-identity 工件：绑定 run、冻结/计划/候选身份、数据/边界、Git 提交、恢复状态、任务、TRAIN、Top-K、VALIDATION 证据；写入采用 create-only 原子提交，重复写入、截断、部分任务和身份替换均拒绝。
+- N12 已提供只消费已提供工件记录的确定性稳定性/失败诊断摘要；它不加载市场数据。
+- N13 已提供 OOS 开放协议对象，但 OOS 请求默认拒绝，状态持续为 `SEALED / NOT_AUTHORIZED`。
+- 授权词汇统一为 capability + evidence；OOS、Monte Carlo、LIVE 均为 deny-by-default 的硬关闭门。
+
+## 21.2 P1：组合、成本、失败与市场状态（仅契约）
+
+- 组合研究控制层明确复用现有 `quantbot.portfolio.shared_capital.shared_backtest`，不复制或改变 shared-capital 语义。
+- 成本压力场景由原始 `CostModel` 派生且只允许成本上调；未执行任何压力研究。
+- 已建立确定性失败监督器、固定权重辅助契约；现有因果 regime 标签继续作为可审计输入。
+
+## 21.3 P2：长周期、Monte Carlo 与持久 Paper（已建但不可执行）
+
+- 180 / 200 / 240 天协议固定为：每个窗口从 10,000U 重置，目标 90,000U；其正式执行入口当前固定拒绝。
+- Monte Carlo 仅有协议 schema，执行固定拒绝。
+- Paper runtime 仅增加身份绑定 checkpoint 元数据，不重写既有 paper runtime / ledger，也不触发订单或外部连接。
+
+## 21.4 P3：交易所和实盘分层（只有 Paper 可构造）
+
+- 交易所边界仅能构造 in-memory Paper adapter；Live adapter 在构造时即被授权门拒绝。
+- 实盘授权状态机固定为 `LOCKED`；没有 API key、网络、交易所或真实订单路径。
+
+## 21.5 当前纪律
+
+此轮只运行 synthetic / metadata-only 合同测试。未运行正式 TRAIN / VALIDATION、D1 / D2 / D3、OOS、Monte Carlo、overnight torture 或任何交易所/API/实盘操作。N3 / N5 冻结工件及其身份未修改；所有 P0—P3 功能均为 built-but-locked，须经未来独立授权和审计后才能打开。
