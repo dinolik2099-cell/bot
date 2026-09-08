@@ -58,6 +58,32 @@ def write_new_json(root: str | Path, prefix: str, payload: Mapping[str, Any]) ->
     return path
 
 
+def resolve_artifact_path(root: str | Path, relative_name: str) -> Path:
+    """Resolve only one safe relative artifact name inside ``root``."""
+    base = Path(root).resolve()
+    requested = Path(relative_name)
+    if requested.is_absolute() or ".." in requested.parts or requested.name != relative_name:
+        raise ArtifactError("artifact_path_traversal")
+    target = (base / requested).resolve()
+    if target.parent != base:
+        raise ArtifactError("artifact_path_outside_root")
+    return target
+
+
+def write_named_new_json(root: str | Path, relative_name: str, payload: Mapping[str, Any]) -> Path:
+    validate_seal(payload)
+    target = resolve_artifact_path(root, relative_name)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists(): raise ArtifactError("immutable_artifact_exists")
+    temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+    try:
+        with temporary.open("x", encoding="utf-8") as handle: handle.write(canonical_json(payload) + "\n")
+        os.replace(temporary, target)
+    except Exception:
+        temporary.unlink(missing_ok=True); raise
+    return target
+
+
 def read_verified_json(path: str | Path) -> dict[str, Any]:
     try:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))

@@ -1188,3 +1188,11 @@ N10 已接受；N11 尚未授权。正式 TRAIN / VALIDATION 研究仍未授权�
 - **ENGINEERING IMPLEMENTED / SYNTHETICALLY TESTED**：组合权重、family/symbol/model 约束、成本/滑点情景、Failure Supervisor 持久决策证据、PIT regime composite、180/200/240 checkpoint、tiny synthetic MC interface、Paper/Fake exchange 生命周期、checkpoint/restart 及 runtime supervisor 基础。
 - **BUILT BUT LOCKED**：真实 OOS execution / walk-forward request、Monte Carlo、长周期正式执行、LIVE adapter 和 live authorization transition。它们在 API 层 fail-closed，不能仅凭调用方标记或描述性字符串打开。
 - **NOT EXECUTED / NOT AUTHORIZED**：任何正式 TRAIN / VALIDATION、OOS、真实 MC、交易所网络、API 凭据、Paper 实时轮询和 Live 订单。当前 OOS 仍为 `SEALED / NOT_AUTHORIZED`；MC 与 Live 均为 `NOT_AUTHORIZED`。
+
+## 21.7 最终完整性收口
+
+- **N11**：artifact store 额外具备路径包含检查、create-only 原子写入、重载身份校验、损坏/截断/覆盖/目录穿越拒绝；N11 evidence package v2 额外绑定 N9 authority、N10 run/recovery、task checksum 与 environment metadata，防止跨 run 或 stale authority 替换。
+- **N13 / Walk-Forward**：已补 fold identity、request identity、aggregate identity、resume state；所有真实 OOS authorization 仍在入口处拒绝，未构造也未读取任何 OOS frame。
+- **Portfolio / Stress / Failure**：已补 portfolio artifact、correlation/diversification 约束、rebalance 输入身份；stress scenario identity；failure event/category/severity/retry/terminal/persistent decision evidence。仍复用既有 shared-capital 与 canonical CostModel。
+- **Persistent Paper / Runtime**：已补 durable PaperLedger snapshot/rebuild、startup reconciliation、跨重启 order id protection、single-writer runtime lock、heartbeat、reconciliation gate 和 emergency-stop lifecycle。全部为 temporary-file synthetic 测试；没有实时轮询或外部订单。
+- **最终不变边界**：正式研究、真实 OOS、真实 Monte Carlo、交易所网络与 Live 均没有被执行或授权。后半程所有未来执行入口保持 build-but-locked / fail-closed。

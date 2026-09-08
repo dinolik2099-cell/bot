@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json, os
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
@@ -43,3 +44,42 @@ def load_checkpoint(path: str | Path) -> dict[str, object]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if payload.get("status") != "PAPER_ONLY" or not payload.get("checkpoint_identity"): raise ValueError("checkpoint_invalid")
     return payload
+
+@contextmanager
+def single_writer(root: str | Path):
+    """Portable process lock for the synthetic/Paper supervisor lifecycle."""
+    lock=Path(root)/".paper-runtime.lock"; lock.parent.mkdir(parents=True,exist_ok=True)
+    handle=lock.open("a+b")
+    try:
+        if os.name=="nt":
+            import msvcrt
+            handle.write(b"0");handle.flush();handle.seek(0);msvcrt.locking(handle.fileno(),msvcrt.LK_NBLCK,1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except OSError as exc:
+        handle.close();raise RuntimeError("runtime_single_writer_held") from exc
+    try: yield
+    finally:
+        try:
+            if os.name=="nt":
+                import msvcrt
+                handle.seek(0);msvcrt.locking(handle.fileno(),msvcrt.LK_UNLCK,1)
+            else:
+                import fcntl
+                fcntl.flock(handle.fileno(),fcntl.LOCK_UN)
+        finally: handle.close()
+
+@dataclass(frozen=True)
+class RuntimeLifecycle:
+    state: RuntimeSupervisorState
+    reconciled: bool = False
+    emergency_stopped: bool = False
+    def startup(self, *, reconciled: bool) -> "RuntimeLifecycle":
+        if not reconciled: raise RuntimeError("runtime_reconciliation_required")
+        return RuntimeLifecycle(self.state,reconciled=True)
+    def beat(self) -> "RuntimeLifecycle":
+        if not self.reconciled or self.emergency_stopped: raise RuntimeError("runtime_not_operational")
+        return RuntimeLifecycle(RuntimeSupervisorState(self.state.session_identity,self.state.sequence,self.state.heartbeat+1,self.state.status),True)
+    def emergency_stop(self) -> "RuntimeLifecycle":
+        return RuntimeLifecycle(self.state,self.reconciled,True)
