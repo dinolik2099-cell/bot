@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Any, Mapping, Sequence
-from .artifact_store import seal, validate_seal
+from .artifact_store import seal, validate_seal, write_new_json
 from .authorization import AuthorizationError, Capability, locked_evidence
 
 class StageState(str, Enum): PENDING="PENDING"; RUNNING="RUNNING"; INTERRUPTED="INTERRUPTED"; FAILED="FAILED"; COMPLETE="COMPLETE"
@@ -139,6 +139,49 @@ def validate_future_stage_execution_plan(plan: Mapping[str, Any], *, protocol: M
     actual=[row.get("chunk_identity") for row in chunks]
     if actual!=expected or len(actual)!=len(set(actual)): raise ValueError("future_stage_chunk_identity_invalid")
     return True
+
+def build_future_stage_result(plan: Mapping[str, Any], *, protocol: Mapping[str, Any],
+                              accepted_input_identity: str, state: ResumableStageState,
+                              chunk_results: Sequence[Mapping[str, Any]], source_git_commit: str) -> dict[str, Any]:
+    """Package a completed future stage without allowing silent partial success.
+
+    The actual evaluator is intentionally outside this builder.  Once a future
+    authorization exists, it must return one result for every predeclared
+    chunk; this function enforces exact identity coverage and emits immutable
+    provenance only after the coordinator has reached ``COMPLETE``.
+    """
+    validate_future_stage_execution_plan(plan,protocol=protocol,accepted_input_identity=accepted_input_identity)
+    if state.protocol_identity != protocol.get("artifact_identity") or state.state != StageState.COMPLETE or state.failed_chunks:
+        raise ValueError("future_stage_result_not_complete")
+    expected=[row["chunk_identity"] for row in plan["chunks"]]
+    rows=sorted((dict(row) for row in chunk_results),key=lambda row:row.get("chunk_identity",""))
+    actual=[row.get("chunk_identity") for row in rows]
+    if set(actual)!=set(expected) or len(actual)!=len(expected) or len(actual)!=len(set(actual)):
+        raise ValueError("future_stage_result_chunk_set_invalid")
+    for row in rows:
+        if row.get("status")!="COMPLETED" or row.get("window")!="TRAIN_VALIDATION" or not isinstance(row.get("result_identity"),str) or len(row["result_identity"])!=64:
+            raise ValueError("future_stage_result_row_invalid")
+    return seal({"schema_version":"quantbot-future-stage-result-v1","protocol_identity":protocol["artifact_identity"],
+                 "execution_plan_identity":plan["artifact_identity"],"input_identity":accepted_input_identity,
+                 "source_git_commit":source_git_commit,"chunks":rows,"counts":{"chunks":len(rows)},
+                 "oos_status":"SEALED","oos_authorization":"NOT_AUTHORIZED"})
+
+def validate_future_stage_result(result: Mapping[str, Any], *, plan: Mapping[str, Any], protocol: Mapping[str, Any],
+                                 accepted_input_identity: str) -> bool:
+    validate_seal(result); validate_future_stage_execution_plan(plan,protocol=protocol,accepted_input_identity=accepted_input_identity)
+    if result.get("schema_version")!="quantbot-future-stage-result-v1" or result.get("protocol_identity")!=protocol.get("artifact_identity") or result.get("execution_plan_identity")!=plan.get("artifact_identity") or result.get("input_identity")!=accepted_input_identity:
+        raise ValueError("future_stage_result_binding_invalid")
+    if result.get("oos_status")!="SEALED" or result.get("oos_authorization")!="NOT_AUTHORIZED": raise ValueError("future_stage_result_oos_violation")
+    expected={row["chunk_identity"] for row in plan["chunks"]}; rows=result.get("chunks")
+    if not isinstance(rows,list) or result.get("counts",{}).get("chunks")!=len(expected) or {row.get("chunk_identity") for row in rows}!=expected or len(rows)!=len(expected):
+        raise ValueError("future_stage_result_coverage_invalid")
+    if any(row.get("status")!="COMPLETED" or row.get("window")!="TRAIN_VALIDATION" for row in rows): raise ValueError("future_stage_result_rows_invalid")
+    return True
+
+def write_future_stage_result(root: str, result: Mapping[str, Any]):
+    """Create-only output writer; accepted artifacts can never be overwritten."""
+    validate_seal(result)
+    return write_new_json(root,"FUTURE_STAGE_RESULT",result)
 
 def validate_stage_protocol(artifact: Mapping[str, Any], *, accepted_input_identity: str) -> bool:
     validate_seal(artifact)

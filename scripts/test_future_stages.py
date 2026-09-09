@@ -1,10 +1,11 @@
 from __future__ import annotations
-from quantbot.research.artifact_store import seal
+import tempfile
+from quantbot.research.artifact_store import ArtifactError, seal
 from quantbot.research.future_stages import *
 from quantbot.research.authorization import Capability
 def blocked(fn):
  try:fn()
- except (ValueError,PermissionError):return
+ except (ValueError,PermissionError,ArtifactError):return
  raise AssertionError('fail_open')
 def main():
  n12=seal({'schema_version':'n12','input_n11_artifact_identity':'n'*64,'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'})
@@ -25,6 +26,16 @@ def main():
  bad_chunk=seal({**{key:value for key,value in execution.items() if key!='artifact_identity'},'chunks':[dict(row) for row in execution['chunks']]})
  bad_chunk['chunks'][1]['chunk_identity']='0'*64; bad_chunk=seal({key:value for key,value in bad_chunk.items() if key!='artifact_identity'})
  blocked(lambda:validate_future_stage_execution_plan(bad_chunk,protocol=stage,accepted_input_identity=protocol['artifact_identity']))
+ complete=ResumableStageState(stage['artifact_identity']).resume()
+ for chunk_id in chunk_ids: complete=complete.record(chunk_id,succeeded=True)
+ complete=complete.finish(chunk_ids)
+ rows=[{'chunk_identity':chunk_id,'status':'COMPLETED','window':'TRAIN_VALIDATION','result_identity':str(index)*64} for index,chunk_id in enumerate(chunk_ids,1)]
+ result=build_future_stage_result(execution,protocol=stage,accepted_input_identity=protocol['artifact_identity'],state=complete,chunk_results=rows,source_git_commit='g'*40)
+ assert validate_future_stage_result(result,plan=execution,protocol=stage,accepted_input_identity=protocol['artifact_identity'])
+ with tempfile.TemporaryDirectory() as root:
+  write_future_stage_result(root,result); blocked(lambda:write_future_stage_result(root,result))
+ truncated=seal({**{key:value for key,value in result.items() if key!='artifact_identity'},'chunks':result['chunks'][:-1],'counts':{'chunks':2}})
+ blocked(lambda:validate_future_stage_result(truncated,plan=execution,protocol=stage,accepted_input_identity=protocol['artifact_identity']))
  assert pre_oos_gate({'n11':'x'},required=('n11','n12'))==PreOOSStatus.RESEARCH_NOT_YET_COMPLETE
  assert pre_oos_gate({'n11':'x','n12':'y'},required=('n11','n12'))==PreOOSStatus.OOS_NOT_AUTHORIZED
  blocked(lambda:require_future_stage(Capability.OOS));blocked(lambda:require_future_stage(Capability.MONTE_CARLO));blocked(lambda:require_future_stage(Capability.LIVE))
