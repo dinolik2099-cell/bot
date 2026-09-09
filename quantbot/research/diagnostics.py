@@ -2,10 +2,25 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+import math
 from dataclasses import dataclass, asdict
 from typing import Mapping, Sequence
 from .artifact_store import seal, validate_seal
-from .result_package import validate_result_package
+from .result_package import (
+    SCHEMA_VERSION as N11_V1_SCHEMA_VERSION,
+    EVIDENCE_SCHEMA_VERSION as N11_V2_SCHEMA_VERSION,
+    validate_result_package,
+    validate_evidence_package,
+)
+
+def _validate_supported_n11_package(package: Mapping[str, object]) -> bool:
+    schema = package.get("schema_version")
+    if schema == N11_V1_SCHEMA_VERSION:
+        return validate_result_package(package)
+    if schema == N11_V2_SCHEMA_VERSION:
+        return validate_evidence_package(package)
+    raise ValueError("diagnostics_input_schema_invalid")
+
 
 
 @dataclass(frozen=True)
@@ -41,7 +56,7 @@ def summarize_stability(tasks: Sequence[Mapping[str, object]]) -> dict[str, obje
 
 def build_diagnostics(package: Mapping[str, object], *, policy: DiagnosticsPolicy = DiagnosticsPolicy()) -> dict[str, object]:
     """Derive deterministic diagnostics from a validated N11 package only."""
-    validate_result_package(package)
+    _validate_supported_n11_package(package)
     policy.validate()
     tasks = package["tasks"]
     by_model: dict[str, list[Mapping[str, object]]] = defaultdict(list)
@@ -58,6 +73,7 @@ def build_diagnostics(package: Mapping[str, object], *, policy: DiagnosticsPolic
         returns = [float(row.get("total_return", 0.0)) for row in validations if isinstance(row, Mapping)]
         trades = [int(row.get("trades", 0)) for row in validations if isinstance(row, Mapping)]
         pfs = [float(row.get("profit_factor", 0.0)) for row in validations if isinstance(row, Mapping)]
+        finite_pfs = [value for value in pfs if math.isfinite(value)]
         dds = [float(row.get("max_drawdown", 0.0)) for row in validations if isinstance(row, Mapping)]
         train_params = {str(row.get("params")) for row in trains if isinstance(row, Mapping)}
         validation_params = {str(row.get("params")) for row in validations if isinstance(row, Mapping)}
@@ -66,7 +82,11 @@ def build_diagnostics(package: Mapping[str, object], *, policy: DiagnosticsPolic
                      "validation_survival": sum(value > 0 for value in returns) / max(1, len(returns)),
                      "trade_count_adequate": sum(trades) >= policy.min_trade_count,
                      "turnover": sum(trades), "return": sum(returns) / max(1, len(returns)),
-                     "profit_factor": sum(pfs) / max(1, len(pfs)), "max_drawdown": max(dds, default=0.0),
+                     "profit_factor": sum(pfs) / max(1, len(pfs)),
+                   "profit_factor_finite_mean": sum(finite_pfs) / len(finite_pfs) if finite_pfs else None,
+                   "profit_factor_finite_count": len(finite_pfs),
+                   "profit_factor_nonfinite_count": len(pfs) - len(finite_pfs),
+                   "max_drawdown": max(dds, default=0.0),
                      "degenerate": len(train_params) < 2 or not returns,
                      "insufficient_sample": sum(trades) < policy.min_trade_count})
     total = len(tasks)
@@ -81,7 +101,7 @@ def build_diagnostics(package: Mapping[str, object], *, policy: DiagnosticsPolic
 
 
 def validate_diagnostics(artifact: Mapping[str, object], package: Mapping[str, object]) -> bool:
-    validate_result_package(package); validate_seal(artifact)
+    _validate_supported_n11_package(package); validate_seal(artifact)
     if artifact.get("schema_version") != "quantbot-diagnostics-n12-v2": raise ValueError("diagnostics_schema_invalid")
     for key in ("research_freeze_identity", "research_plan_identity"):
         if artifact.get(key) != package.get(key): raise ValueError("diagnostics_binding_mismatch")
