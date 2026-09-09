@@ -1,6 +1,6 @@
 """Synthetic-only closed-door integration from evidence through paper runtime."""
 from __future__ import annotations
-from quantbot.research.result_package import build_result_package
+from quantbot.research.result_package import build_result_package, validate_result_package
 from quantbot.research.diagnostics import build_diagnostics, validate_diagnostics
 from quantbot.research.oos_protocol import OOSOpeningProtocol, PreOOSChecklist
 from quantbot.research.monte_carlo_protocol import MonteCarloProtocol
@@ -23,6 +23,10 @@ def main():
     tasks=[{"task_identity":"1"*64,"status":"COMPLETED","actual_train_evaluations":2,"actual_validation_evaluations":1,"model_id":"m1","symbol":"BTC","family":"trend","train":[{"params":{"x":1}}],"validation":[{"total_return":.1,"profit_factor":1.2,"max_drawdown":.02,"trades":12,"params":{"x":1}}]},
            {"task_identity":"2"*64,"status":"COMPLETED","actual_train_evaluations":2,"actual_validation_evaluations":1,"model_id":"m2","symbol":"ETH","family":"mean","train":[{"params":{"x":1}},{"params":{"x":2}}],"validation":[{"total_return":-.01,"profit_factor":.9,"max_drawdown":.03,"trades":11,"params":{"x":1}}]}]
     package=build_result_package(run_id="r"*64,execution_binding=binding,task_artifacts=tasks,recovery_state={"revision":1},source_git_commit="g"*40)
+    altered={key:value for key,value in package.items() if key!="artifact_identity"};altered["counts"]=dict(altered["counts"]);altered["counts"]["validation"]=999
+    try: validate_result_package(seal(altered))
+    except Exception: pass
+    else: raise AssertionError("n11_v1_count_tamper_accepted")
     with tempfile.TemporaryDirectory() as directory:
         stored=write_named_new_json(directory,"n11.json",package); assert read_verified_json(stored)["artifact_identity"]==package["artifact_identity"]
     diagnostics=build_diagnostics(package); assert validate_diagnostics(diagnostics,package)

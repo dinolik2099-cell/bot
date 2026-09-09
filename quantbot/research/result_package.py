@@ -56,6 +56,9 @@ def validate_result_package(package: Mapping[str, Any], *, binding: Mapping[str,
         raise ArtifactError("result_package_task_count_mismatch")
     if len({row.get("task_identity") for row in tasks}) != len(tasks) or any(row.get("status") != "COMPLETED" for row in tasks):
         raise ArtifactError("result_package_tasks_invalid")
+    counts=package.get("counts",{})
+    if counts.get("train") != sum(row.get("actual_train_evaluations",0) for row in tasks) or counts.get("validation") != sum(row.get("actual_validation_evaluations",0) for row in tasks):
+        raise ArtifactError("result_package_counts_mismatch")
     if binding is not None:
         for key in ("research_freeze_identity", "research_plan_identity", "candidate_universe_hash", "dataset_id", "boundary_identity_hash"):
             if package.get(key) != binding.get(key):
