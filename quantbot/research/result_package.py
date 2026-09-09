@@ -138,4 +138,7 @@ def validate_evidence_package(package: Mapping[str, Any], *, expected_run_id: st
             raise ArtifactError("evidence_task_checksum_mismatch")
         if row.get("run_id") != package.get("run_id") or row.get("manifest_identity") != package.get("n9_manifest_identity"):
             raise ArtifactError("evidence_cross_run_substitution")
+    counts=package.get("counts",{})
+    if counts.get("train") != sum(row.get("actual_train_evaluations",0) for row in tasks) or counts.get("validation") != sum(row.get("actual_validation_evaluations",0) for row in tasks):
+        raise ArtifactError("evidence_counts_mismatch")
     return True
