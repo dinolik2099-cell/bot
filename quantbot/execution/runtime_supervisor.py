@@ -31,7 +31,13 @@ class RuntimeSupervisorState:
 
 def write_checkpoint_new(path: str | Path, state: RuntimeSupervisorState, *, provenance: Mapping[str, object]) -> Path:
     target = Path(path)
-    payload = checkpoint_payload(PaperRuntimeCheckpoint(state.session_identity, state.sequence), provenance=provenance) | {"heartbeat": state.heartbeat}
+    # Heartbeat is part of the persisted state and therefore must be inside the
+    # identity body.  Appending it after checkpoint_payload() would produce an
+    # artifact whose newly written bytes could never validate on reload.
+    body = {"schema_version": "quantbot-paper-runtime-checkpoint-p2-v1",
+            "ledger_identity": state.session_identity, "sequence": state.sequence,
+            "status": "PAPER_ONLY", "provenance": dict(provenance), "heartbeat": state.heartbeat}
+    payload = body | {"checkpoint_identity": artifact_identity(body, identity_key="checkpoint_identity")}
     if target.exists(): raise ValueError("checkpoint_overwrite_forbidden")
     target.parent.mkdir(parents=True, exist_ok=True); temporary = target.with_suffix(target.suffix + ".tmp")
     try:
@@ -42,7 +48,10 @@ def write_checkpoint_new(path: str | Path, state: RuntimeSupervisorState, *, pro
 
 def load_checkpoint(path: str | Path) -> dict[str, object]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    if payload.get("status") != "PAPER_ONLY" or not payload.get("checkpoint_identity"): raise ValueError("checkpoint_invalid")
+    claimed=payload.get("checkpoint_identity")
+    body={key:value for key,value in payload.items() if key!="checkpoint_identity"}
+    if payload.get("schema_version") != "quantbot-paper-runtime-checkpoint-p2-v1" or payload.get("status") != "PAPER_ONLY" or not isinstance(claimed,str) or claimed != artifact_identity(body,identity_key="checkpoint_identity"):
+        raise ValueError("checkpoint_invalid")
     return payload
 
 @contextmanager
