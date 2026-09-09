@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass, asdict
 from typing import Mapping
 from quantbot.backtest.costs import CostModel
+from quantbot.research.artifact_store import seal, validate_seal
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,18 @@ def scenario_identity(scenario: CostStressScenario) -> str:
 def build_stress_artifact(scenario: CostStressScenario, base: CostModel, *, input_identity: str, synthetic: bool = True) -> dict[str, object]:
     stressed = scenario.stressed_cost_model(base)
     payload = {"schema_version": "quantbot-cost-stress-v1", "scenario": asdict(scenario), "scenario_identity": scenario_identity(scenario),
-               "input_identity": input_identity, "cost_model": asdict(stressed), "synthetic": synthetic, "oos_read": False}
-    payload["artifact_identity"] = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    return payload
+               "input_identity": input_identity, "base_cost_model": asdict(base), "cost_model": asdict(stressed), "synthetic": synthetic, "oos_read": False}
+    return seal(payload)
+
+def validate_stress_artifact(artifact: Mapping[str, object]) -> bool:
+    """Recompute the declared adverse CostModel rather than trusting JSON."""
+    validate_seal(artifact)
+    if artifact.get("schema_version")!="quantbot-cost-stress-v1" or artifact.get("oos_read") is not False or not isinstance(artifact.get("synthetic"),bool) or not isinstance(artifact.get("input_identity"),str) or not artifact["input_identity"]:
+        raise ValueError("stress_artifact_invalid")
+    try:
+        scenario=CostStressScenario(**dict(artifact["scenario"]))
+        base=CostModel(**dict(artifact["base_cost_model"]))
+    except (KeyError,TypeError,ValueError) as exc: raise ValueError("stress_artifact_inputs_invalid") from exc
+    if artifact.get("scenario_identity")!=scenario_identity(scenario) or artifact.get("cost_model")!=asdict(scenario.stressed_cost_model(base)):
+        raise ValueError("stress_artifact_derivation_mismatch")
+    return True
