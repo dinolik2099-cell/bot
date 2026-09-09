@@ -32,6 +32,13 @@ class LongHorizonState(str, Enum): PENDING="PENDING"; RUNNING="RUNNING"; INTERRU
 @dataclass(frozen=True)
 class LongHorizonCheckpoint:
     window_days: int; session: int; state: LongHorizonState; progress_days: int = 0; error: str | None = None
+    def __post_init__(self) -> None:
+        if self.window_days not in WINDOW_DAYS or not isinstance(self.session,int) or self.session < 1 or not isinstance(self.progress_days,int) or not 0 <= self.progress_days <= self.window_days:
+            raise ValueError("long_horizon_checkpoint_invalid")
+        if self.state == LongHorizonState.COMPLETED and self.progress_days != self.window_days:
+            raise ValueError("long_horizon_completed_progress_invalid")
+        if self.state != LongHorizonState.FAILED and self.error is not None:
+            raise ValueError("long_horizon_error_state_invalid")
     def resume(self) -> "LongHorizonCheckpoint":
         if self.state not in {LongHorizonState.INTERRUPTED, LongHorizonState.FAILED}: raise ValueError("checkpoint_not_resumable")
         return LongHorizonCheckpoint(self.window_days, self.session + 1, LongHorizonState.RUNNING, self.progress_days)
