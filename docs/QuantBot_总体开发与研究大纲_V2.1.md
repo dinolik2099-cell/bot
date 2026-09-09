@@ -1205,3 +1205,9 @@ N10 已接受；N11 尚未授权。正式 TRAIN / VALIDATION 研究仍未授权�
 - N10 state lock 改为 bounded retry/backoff：正常多 worker contention 等待序列化锁，不被错误记为 task failure；超时仍 fail-closed。attempt fencing、stale lease recovery、immutable task artifacts、主进程唯一 finalization 和 N11 create-only 均保持。
 - `TRUSTED_MAX_WORKERS` 提升为 16 的理由是第一版显式硬安全上限；不会随机器 CPU 无界上升，也不直接允许 36 / 72 worker。
 - 本轮只运行 synthetic multiprocessing、temporary repository 与 metadata-only 检查；没有启动正式 TRAIN / VALIDATION、没有读取 OOS，OOS 仍为 `SEALED / NOT_AUTHORIZED`。
+
+## 21.9 已接受 N11/N12 后的 canonical forward path
+
+N11 formal non-OOS evidence 和 N12 retained-candidate/series diagnostics 已由独立服务器接受。后续 canonical portfolio 输入不再允许回退为历史 D1/Phase2.4 的 72 sleeves：必须由 N11 identity、N12 identity、exact candidate identity、validation/train result identity、correlation SHA、dataset/boundary、freeze/plan、canonical engine/cost 共同构成冻结 portfolio protocol，并调用既有 `shared_capital.shared_backtest` 作为唯一共享资金执行真相。
+
+完整 capability 分类、canonical runner 和锁定原因见 `docs/handoff/FINAL_BACKHALF_ENGINEERING_AUDIT.md`。工程完成不等于研究授权：OOS、正式 MC/long-horizon、persistent Paper、exchange credentials/network 与 Live 均继续禁用。
