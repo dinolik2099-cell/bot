@@ -25,6 +25,7 @@ from quantbot.research.recoverable_execution import validate_task_artifact
 from quantbot.research.result_package import validate_evidence_package
 
 SCHEMA_VERSION = "quantbot-non-oos-series-n12-v1"
+MANIFEST_SCHEMA_VERSION = "quantbot-non-oos-series-manifest-n12-v1"
 DIAGNOSTIC_SCHEMA_VERSION = "quantbot-non-oos-homogeneity-n12-v1"
 RETAINED_STATE = "RETAINED_FOR_FUTURE_REVIEW"
 ALLOWED_WINDOWS = ("TRAIN", "VALIDATION")
@@ -393,7 +394,7 @@ def validate_external_n12_anchor(diagnostic: Mapping[str, Any], manifest: Mappin
     supplies those trusted values after independently reading its artifacts.
     """
     validate_diagnostic_artifact(diagnostic); validate_seal(manifest)
-    if manifest.get("schema_version") != SCHEMA_VERSION or manifest.get("input_n11_artifact_identity") != expected_n11_identity or diagnostic.get("input_n11_artifact_identity") != expected_n11_identity:
+    if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION or manifest.get("input_n11_artifact_identity") != expected_n11_identity or diagnostic.get("input_n11_artifact_identity") != expected_n11_identity:
         raise NonOOSSeriesError("n12_external_n11_binding_invalid")
     if not isinstance(expected_candidate_count,int) or expected_candidate_count < 1 or manifest.get("candidate_count") != expected_candidate_count or diagnostic.get("candidate_count") != expected_candidate_count or manifest.get("series_count") != 2*expected_candidate_count:
         raise NonOOSSeriesError("n12_external_count_invalid")
