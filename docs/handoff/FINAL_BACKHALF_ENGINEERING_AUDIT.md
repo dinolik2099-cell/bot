@@ -34,6 +34,28 @@ Baseline audited: `e80bba04833c637dc06911f7ade780a18a13e895` (plus subsequent en
 
 OOS is `SEALED / NOT_AUTHORIZED`. No OOS data, formal Monte Carlo, formal long-horizon study, persistent Paper, exchange connection, credential read, or Live order is authorized by this document or any engineering artifact.
 
+## Post-N12 integrity hardening baseline
+
+The current engineering baseline additionally requires semantic revalidation,
+not merely a recomputed outer JSON hash, for the following chain:
+
+1. N11 evidence packages recompute aggregate TRAIN and VALIDATION evaluation
+   counts from their exact task artifacts.
+2. N12 diagnostics rebuild their complete payload from the accepted N11 package
+   and frozen diagnostics policy before acceptance.
+3. Portfolio artifacts rebuild deterministic weights, exposure, diversification
+   and correlation constraints from the declared candidate/policy inputs.
+4. Stress artifacts retain the base `CostModel` and rederive the stressed model.
+5. Future-stage plans/results bind every declared chunk, complete state and
+   create-only output to their frozen protocol/input identities.
+6. Walk-forward fold results bind to the exact frozen fold request; Monte Carlo
+   and long-horizon checkpoints reject protocol/state drift.
+7. Persistent Paper checkpoints recompute their persisted identity, including
+   heartbeat, before reload.
+
+These are integrity and audit controls only.  They grant no research, OOS,
+Paper, exchange, or Live authority.
+
 ## Local verification limit
 
 The local checkout used for engineering does not contain the server-produced N11/N12 report directory. Therefore real-artifact replay is not rerun locally; only synthetic provenance/wiring tests are run. The accepted server artifact remains the authority and must not be regenerated locally.
