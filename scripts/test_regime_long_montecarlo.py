@@ -8,7 +8,7 @@ def main():
     left=classify_point_in_time(frame); changed=frame.copy(); changed.iloc[-1,changed.columns.get_loc("close")]=999999; right=classify_point_in_time(changed)
     assert left.iloc[:-1].equals(right.iloc[:-1])
     checkpoint=LongHorizonCheckpoint(180,1,LongHorizonState.RUNNING).advance(10); assert checkpoint.progress_days==10 and LongHorizonProtocol().validate()
-    for bad in (lambda:LongHorizonCheckpoint(181,1,LongHorizonState.RUNNING),lambda:LongHorizonCheckpoint(180,0,LongHorizonState.RUNNING),lambda:LongHorizonCheckpoint(180,1,LongHorizonState.COMPLETED,10),lambda:LongHorizonCheckpoint(180,1,LongHorizonState.RUNNING,error="x")):
+    for bad in (lambda:LongHorizonCheckpoint(181,1,LongHorizonState.RUNNING),lambda:LongHorizonCheckpoint(180,0,LongHorizonState.RUNNING),lambda:LongHorizonCheckpoint(180,1,LongHorizonState.COMPLETED,10),lambda:LongHorizonCheckpoint(180,1,LongHorizonState.RUNNING,error="x"),lambda:LongHorizonCheckpoint(180,1,LongHorizonState.FAILED)):
         try:bad()
         except ValueError:pass
         else:raise AssertionError("long_horizon_checkpoint_bypass")

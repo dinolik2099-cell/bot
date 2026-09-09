@@ -39,6 +39,8 @@ class LongHorizonCheckpoint:
             raise ValueError("long_horizon_completed_progress_invalid")
         if self.state != LongHorizonState.FAILED and self.error is not None:
             raise ValueError("long_horizon_error_state_invalid")
+        if self.state == LongHorizonState.FAILED and (not isinstance(self.error,str) or not self.error):
+            raise ValueError("long_horizon_failure_diagnostic_missing")
     def resume(self) -> "LongHorizonCheckpoint":
         if self.state not in {LongHorizonState.INTERRUPTED, LongHorizonState.FAILED}: raise ValueError("checkpoint_not_resumable")
         return LongHorizonCheckpoint(self.window_days, self.session + 1, LongHorizonState.RUNNING, self.progress_days)
