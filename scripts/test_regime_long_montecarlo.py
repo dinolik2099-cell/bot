@@ -9,6 +9,9 @@ def main():
     assert left.iloc[:-1].equals(right.iloc[:-1])
     checkpoint=LongHorizonCheckpoint(180,1,LongHorizonState.RUNNING).advance(10); assert checkpoint.progress_days==10 and LongHorizonProtocol().validate()
     request=SimulationRequest(MonteCarloProtocol(2),3,"synthetic"); assert run_tiny_synthetic(request,(1.,2.),DeterministicSyntheticResampler()).synthetic
+    try: run_tiny_synthetic(SimulationRequest(MonteCarloProtocol(2,status="OPEN"),3,"synthetic"),(1.,2.),DeterministicSyntheticResampler())
+    except ValueError: pass
+    else: raise AssertionError("mc_state_bypass")
     try: MonteCarloProtocol(9).execute()
     except PermissionError: pass
     else: raise AssertionError("real mc opened")
