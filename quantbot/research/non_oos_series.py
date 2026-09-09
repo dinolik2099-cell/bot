@@ -383,3 +383,32 @@ def validate_diagnostic_artifact(payload: Mapping[str, Any]) -> bool:
     if payload.get("selection_rule_changed") is not False:
         raise NonOOSSeriesError("diagnostic_selection_rule_changed")
     return True
+
+def validate_external_n12_anchor(diagnostic: Mapping[str, Any], manifest: Mapping[str, Any], *,
+                                 expected_n11_identity: str, expected_candidate_count: int,
+                                 actual_correlation_sha256: str) -> bool:
+    """Validate N12 against caller-supplied, read-only external evidence.
+
+    Server paths and accepted hashes stay outside this library: the audit caller
+    supplies those trusted values after independently reading its artifacts.
+    """
+    validate_diagnostic_artifact(diagnostic); validate_seal(manifest)
+    if manifest.get("schema_version") != SCHEMA_VERSION or manifest.get("input_n11_artifact_identity") != expected_n11_identity or diagnostic.get("input_n11_artifact_identity") != expected_n11_identity:
+        raise NonOOSSeriesError("n12_external_n11_binding_invalid")
+    if not isinstance(expected_candidate_count,int) or expected_candidate_count < 1 or manifest.get("candidate_count") != expected_candidate_count or diagnostic.get("candidate_count") != expected_candidate_count or manifest.get("series_count") != 2*expected_candidate_count:
+        raise NonOOSSeriesError("n12_external_count_invalid")
+    if diagnostic.get("correlation_file_sha256") != actual_correlation_sha256 or not isinstance(actual_correlation_sha256,str) or len(actual_correlation_sha256)!=64:
+        raise NonOOSSeriesError("n12_external_correlation_invalid")
+    if manifest.get("oos_status")!="SEALED" or manifest.get("oos_authorization")!="NOT_AUTHORIZED": raise NonOOSSeriesError("n12_external_oos_invalid")
+    rows=manifest.get("rows")
+    if not isinstance(rows,list) or len(rows)!=expected_candidate_count: raise NonOOSSeriesError("n12_external_rows_invalid")
+    seen_candidates=set(); seen_validation=set()
+    for row in rows:
+        candidate=row.get("candidate") if isinstance(row,Mapping) else None
+        if not isinstance(candidate,Mapping): raise NonOOSSeriesError("n12_external_row_invalid")
+        cid=candidate.get("candidate_identity"); vid=candidate.get("validation_result_identity")
+        if not isinstance(cid,str) or len(cid)!=64 or not isinstance(vid,str) or len(vid)!=64 or not candidate.get("task_identity") or not candidate.get("model_id") or not candidate.get("symbol"):
+            raise NonOOSSeriesError("n12_external_candidate_binding_invalid")
+        seen_candidates.add(cid); seen_validation.add(vid)
+    if len(seen_candidates)!=expected_candidate_count or len(seen_validation)!=expected_candidate_count: raise NonOOSSeriesError("n12_external_identity_set_invalid")
+    return True
