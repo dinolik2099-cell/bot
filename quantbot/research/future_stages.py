@@ -46,11 +46,18 @@ def validate_portfolio_protocol(protocol: Mapping[str, Any]) -> bool:
     return True
 
 def execute_shared_capital_protocol(protocol: Mapping[str, Any], *, frames, signal_maps, recipe_keys, boundary):
-    """Canonical execution bridge; callers must separately pass future formal authorization.
+    """Deny-by-default public portfolio execution entrypoint.
 
-    It intentionally delegates accounting to the existing engine rather than
-    averaging sleeve curves or implementing a second portfolio ledger.
+    A validated N12 protocol establishes what a future portfolio run *would*
+    consume; it does not grant permission to load data or perform accounting.
+    The canonical engine call is deliberately unreachable here until a future
+    reviewed orchestration layer supplies a separate authority implementation.
     """
+    validate_portfolio_protocol(protocol)
+    raise AuthorizationError("shared_capital_formal_execution_not_authorized")
+
+def _execute_shared_capital_after_authorization(protocol: Mapping[str, Any], *, frames, signal_maps, recipe_keys, boundary):
+    """Internal canonical delegation reserved for a future reviewed runner."""
     validate_portfolio_protocol(protocol)
     from quantbot.portfolio.shared_capital import shared_backtest
     return shared_backtest(frames,signal_maps,recipe_keys,boundary)

@@ -12,6 +12,7 @@ def main():
  candidates=(N12CandidateInput('a'*64,'v'*64,'t'*64,'task','m','family','BTC',{'x':1}),)
  source={'dataset_id':'d','boundary_identity_hash':'b','research_freeze_identity':'f','research_plan_identity':'p','engine_identity':'engine','cost_model_identity':'cost'}
  protocol=build_portfolio_protocol(n11_identity='n'*64,n12_artifact=n12,candidates=candidates,correlation_sha256='c'*64,source=source,policy_identity='policy');assert validate_portfolio_protocol(protocol)
+ blocked(lambda:execute_shared_capital_protocol(protocol,frames={},signal_maps={},recipe_keys=(),boundary={}))
  bad=seal({**{k:v for k,v in protocol.items() if k!='artifact_identity'},'oos_status':'OPEN','oos_authorization':'AUTHORIZED'});blocked(lambda:validate_portfolio_protocol(bad))
  stage=FormalStageProtocol('stress',protocol['artifact_identity'],'d','b','g'*40,{'scenarios':['BASE']}).artifact();assert validate_stage_protocol(stage,accepted_input_identity=protocol['artifact_identity'])
  assert ResumableStageState(stage['artifact_identity'],StageState.INTERRUPTED).resume().state==StageState.RUNNING
