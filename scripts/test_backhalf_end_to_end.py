@@ -12,7 +12,7 @@ from quantbot.execution.runtime_supervisor import PaperRuntimeCheckpoint, checkp
 from quantbot.execution.persistent_paper_runtime import snapshot_state, save_new_state, load_state, ledger_from_state, startup_reconcile
 from quantbot.execution.paper_ledger import PaperLedger
 from quantbot.execution.paper import PaperOrderRequest
-from quantbot.research.artifact_store import write_named_new_json, read_verified_json
+from quantbot.research.artifact_store import write_named_new_json, read_verified_json, seal
 from quantbot.research.walk_forward_execution import WalkForwardFold, FrozenOOSExecutionRequest
 from quantbot.research.regime_framework import classify_point_in_time
 import tempfile
@@ -26,6 +26,10 @@ def main():
     with tempfile.TemporaryDirectory() as directory:
         stored=write_named_new_json(directory,"n11.json",package); assert read_verified_json(stored)["artifact_identity"]==package["artifact_identity"]
     diagnostics=build_diagnostics(package); assert validate_diagnostics(diagnostics,package)
+    altered={key:value for key,value in diagnostics.items() if key!="artifact_identity"};altered["task_diagnostics"]=[dict(row) for row in altered["task_diagnostics"]];altered["task_diagnostics"][0]["turnover"]=999
+    try:validate_diagnostics(seal(altered),package)
+    except ValueError:pass
+    else:raise AssertionError("diagnostics_semantic_tamper_accepted")
     checklist=PreOOSChecklist("f"*64,"p"*64,"m","synthetic","b","g",True,True,True,True)
     try: OOSOpeningProtocol("f"*64,"p"*64).request_window("OOS",checklist)
     except PermissionError: pass

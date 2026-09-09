@@ -107,5 +107,11 @@ def validate_diagnostics(artifact: Mapping[str, object], package: Mapping[str, o
         if artifact.get(key) != package.get(key): raise ValueError("diagnostics_binding_mismatch")
     if artifact.get("result_package_identity") != package.get("artifact_identity"): raise ValueError("diagnostics_package_mismatch")
     if artifact.get("oos_read") is not False or artifact.get("oos_status") != "SEALED" or artifact.get("oos_authorization") != "NOT_AUTHORIZED": raise ValueError("diagnostics_oos_violation")
-    DiagnosticsPolicy(**artifact.get("policy", {})).validate()
+    try: policy=DiagnosticsPolicy(**artifact.get("policy", {}))
+    except (TypeError,ValueError) as exc: raise ValueError("diagnostics_policy_invalid") from exc
+    policy.validate()
+    expected=build_diagnostics(package,policy=policy)
+    claimed={key:value for key,value in artifact.items() if key!="artifact_identity"}
+    rebuilt={key:value for key,value in expected.items() if key!="artifact_identity"}
+    if claimed != rebuilt: raise ValueError("diagnostics_semantic_mismatch")
     return True
