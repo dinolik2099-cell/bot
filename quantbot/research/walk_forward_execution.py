@@ -37,9 +37,11 @@ def build_fold_result(request: FrozenOOSExecutionRequest, result: Mapping[str, o
     request.authorize()
     return seal({"schema_version": "quantbot-walk-forward-fold-v1", "request": request.__dict__, "result": dict(result)})
 
-def validate_fold_result(artifact: Mapping[str, object]) -> bool:
+def validate_fold_result(artifact: Mapping[str, object], *, request: FrozenOOSExecutionRequest) -> bool:
     validate_seal(artifact)
     if artifact.get("schema_version") != "quantbot-walk-forward-fold-v1": raise ValueError("fold_schema_invalid")
+    if artifact.get("request") != asdict(request) or not isinstance(artifact.get("result"),Mapping): raise ValueError("fold_request_binding_invalid")
+    if request.status != "LOCKED": raise ValueError("fold_request_state_invalid")
     return True
 
 @dataclass(frozen=True)
@@ -54,9 +56,12 @@ class WalkForwardState:
 
 def aggregate_fold_artifacts(requests: tuple[FrozenOOSExecutionRequest, ...], artifacts: tuple[Mapping[str, object], ...]) -> dict[str, object]:
     """Identity-only aggregation; authorized execution is intentionally absent."""
-    expected = {request.fold.fold_id for request in requests}
+    expected = {request.fold.fold_id:request for request in requests}
+    if len(expected)!=len(requests): raise ValueError("walk_forward_duplicate_fold_id")
     actual = {artifact.get("request", {}).get("fold", {}).get("fold_id") for artifact in artifacts}
-    if expected != actual or len(actual) != len(artifacts): raise ValueError("walk_forward_fold_set_mismatch")
-    for artifact in artifacts: validate_fold_result(artifact)
+    if set(expected) != actual or len(actual) != len(artifacts): raise ValueError("walk_forward_fold_set_mismatch")
+    for artifact in artifacts:
+        fold_id=artifact["request"]["fold"]["fold_id"]
+        validate_fold_result(artifact,request=expected[fold_id])
     return seal({"schema_version": "quantbot-walk-forward-aggregate-v1", "fold_result_identities": sorted(artifact["artifact_identity"] for artifact in artifacts),
                  "request_identities": sorted(seal(asdict(request))["artifact_identity"] for request in requests), "oos_authorized": False})
