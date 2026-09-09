@@ -33,9 +33,12 @@ def main():
  result=build_future_stage_result(execution,protocol=stage,accepted_input_identity=protocol['artifact_identity'],state=complete,chunk_results=rows,source_git_commit='g'*40)
  assert validate_future_stage_result(result,plan=execution,protocol=stage,accepted_input_identity=protocol['artifact_identity'])
  with tempfile.TemporaryDirectory() as root:
-  write_future_stage_result(root,result); blocked(lambda:write_future_stage_result(root,result))
+  write_future_stage_result(root,result,plan=execution,protocol=stage,accepted_input_identity=protocol['artifact_identity'])
+  blocked(lambda:write_future_stage_result(root,result,plan=execution,protocol=stage,accepted_input_identity=protocol['artifact_identity']))
  truncated=seal({**{key:value for key,value in result.items() if key!='artifact_identity'},'chunks':result['chunks'][:-1],'counts':{'chunks':2}})
  blocked(lambda:validate_future_stage_result(truncated,plan=execution,protocol=stage,accepted_input_identity=protocol['artifact_identity']))
+ with tempfile.TemporaryDirectory() as root:
+  blocked(lambda:write_future_stage_result(root,truncated,plan=execution,protocol=stage,accepted_input_identity=protocol['artifact_identity']))
  assert pre_oos_gate({'n11':'x'},required=('n11','n12'))==PreOOSStatus.RESEARCH_NOT_YET_COMPLETE
  assert pre_oos_gate({'n11':'x','n12':'y'},required=('n11','n12'))==PreOOSStatus.OOS_NOT_AUTHORIZED
  blocked(lambda:require_future_stage(Capability.OOS));blocked(lambda:require_future_stage(Capability.MONTE_CARLO));blocked(lambda:require_future_stage(Capability.LIVE))

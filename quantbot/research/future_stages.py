@@ -172,15 +172,22 @@ def validate_future_stage_result(result: Mapping[str, Any], *, plan: Mapping[str
     if result.get("schema_version")!="quantbot-future-stage-result-v1" or result.get("protocol_identity")!=protocol.get("artifact_identity") or result.get("execution_plan_identity")!=plan.get("artifact_identity") or result.get("input_identity")!=accepted_input_identity:
         raise ValueError("future_stage_result_binding_invalid")
     if result.get("oos_status")!="SEALED" or result.get("oos_authorization")!="NOT_AUTHORIZED": raise ValueError("future_stage_result_oos_violation")
+    if not isinstance(result.get("source_git_commit"),str) or len(result["source_git_commit"])!=40: raise ValueError("future_stage_result_source_invalid")
     expected={row["chunk_identity"] for row in plan["chunks"]}; rows=result.get("chunks")
     if not isinstance(rows,list) or result.get("counts",{}).get("chunks")!=len(expected) or {row.get("chunk_identity") for row in rows}!=expected or len(rows)!=len(expected):
         raise ValueError("future_stage_result_coverage_invalid")
-    if any(row.get("status")!="COMPLETED" or row.get("window")!="TRAIN_VALIDATION" for row in rows): raise ValueError("future_stage_result_rows_invalid")
+    if any(row.get("status")!="COMPLETED" or row.get("window")!="TRAIN_VALIDATION" or not isinstance(row.get("result_identity"),str) or len(row["result_identity"])!=64 for row in rows): raise ValueError("future_stage_result_rows_invalid")
     return True
 
-def write_future_stage_result(root: str, result: Mapping[str, Any]):
-    """Create-only output writer; accepted artifacts can never be overwritten."""
-    validate_seal(result)
+def write_future_stage_result(root: str, result: Mapping[str, Any], *, plan: Mapping[str, Any],
+                              protocol: Mapping[str, Any], accepted_input_identity: str):
+    """Create-only output writer after complete protocol/plan/result validation.
+
+    A sealed JSON object alone is not authority to write an accepted-stage
+    result: it must be proven to belong to the supplied frozen execution plan.
+    """
+    validate_future_stage_result(result,plan=plan,protocol=protocol,
+                                 accepted_input_identity=accepted_input_identity)
     return write_new_json(root,"FUTURE_STAGE_RESULT",result)
 
 def validate_stage_protocol(artifact: Mapping[str, Any], *, accepted_input_identity: str) -> bool:
