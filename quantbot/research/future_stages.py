@@ -68,6 +68,78 @@ class ResumableStageState:
         if self.state not in {StageState.PENDING,StageState.INTERRUPTED,StageState.FAILED}: raise ValueError("stage_not_resumable")
         return ResumableStageState(self.protocol_identity,StageState.RUNNING,self.completed_chunks,self.failed_chunks)
 
+    def record(self, chunk_identity: str, *, succeeded: bool) -> "ResumableStageState":
+        """Return a new fenced state after exactly one declared chunk completes.
+
+        This is deliberately pure: a future disk-backed coordinator can persist
+        it atomically without making a second, incompatible execution state
+        machine.  A chunk may never be recorded twice, including once as a
+        success and once as a failure.
+        """
+        if self.state != StageState.RUNNING or not isinstance(chunk_identity, str) or len(chunk_identity) != 64:
+            raise ValueError("stage_chunk_state_invalid")
+        seen=set(self.completed_chunks) | set(self.failed_chunks)
+        if chunk_identity in seen: raise ValueError("stage_chunk_already_recorded")
+        completed=self.completed_chunks + (chunk_identity,) if succeeded else self.completed_chunks
+        failed=self.failed_chunks if succeeded else self.failed_chunks + (chunk_identity,)
+        return ResumableStageState(self.protocol_identity,StageState.RUNNING,completed,failed)
+
+    def finish(self, expected_chunks: Sequence[str]) -> "ResumableStageState":
+        expected=tuple(expected_chunks)
+        if len(expected)!=len(set(expected)) or any(not isinstance(item,str) or len(item)!=64 for item in expected):
+            raise ValueError("stage_expected_chunks_invalid")
+        observed=set(self.completed_chunks) | set(self.failed_chunks)
+        if observed != set(expected): raise ValueError("stage_chunk_set_incomplete")
+        return ResumableStageState(self.protocol_identity,StageState.FAILED if self.failed_chunks else StageState.COMPLETE,
+                                   self.completed_chunks,self.failed_chunks)
+
+@dataclass(frozen=True)
+class FutureStageChunk:
+    """A deterministic work unit for future authorized stages.
+
+    ``window`` intentionally accepts only TRAIN/VALIDATION.  It makes it
+    impossible for a walk-forward, MC, or long-horizon scheduler to smuggle an
+    OOS read into its work declaration.
+    """
+    stage: str; ordinal: int; input_identity: str; window: str = "TRAIN_VALIDATION"
+    def identity(self) -> str:
+        if self.window != "TRAIN_VALIDATION" or self.ordinal < 0 or not self.stage or len(self.input_identity)!=64:
+            raise ValueError("future_stage_chunk_invalid")
+        return seal({"schema_version":"quantbot-future-stage-chunk-v1",**asdict(self)})["artifact_identity"]
+
+def build_future_stage_execution_plan(protocol: Mapping[str, Any], *, accepted_input_identity: str,
+                                      chunk_count: int) -> dict[str, Any]:
+    """Create an immutable, non-executing plan with an exact chunk universe.
+
+    This is the common production-shaped planning path for walk-forward,
+    Monte-Carlo and long-horizon work.  Execution still requires the separate
+    future authorization gate; constructing this plan has no loader/evaluator
+    dependency and performs no research.
+    """
+    validate_stage_protocol(protocol,accepted_input_identity=accepted_input_identity)
+    if not isinstance(chunk_count,int) or not 1 <= chunk_count <= 100_000: raise ValueError("future_stage_chunk_count_invalid")
+    protocol_id=protocol["artifact_identity"]
+    chunks=[{"ordinal":index,"chunk_identity":FutureStageChunk(protocol["stage"],index,protocol_id).identity(),"window":"TRAIN_VALIDATION"} for index in range(chunk_count)]
+    return seal({"schema_version":"quantbot-future-stage-execution-plan-v1","protocol_identity":protocol_id,
+                 "stage":protocol["stage"],"input_identity":accepted_input_identity,"chunks":chunks,
+                 "oos_status":"SEALED","oos_authorization":"NOT_AUTHORIZED"})
+
+def validate_future_stage_execution_plan(plan: Mapping[str, Any], *, protocol: Mapping[str, Any],
+                                         accepted_input_identity: str) -> bool:
+    validate_seal(plan); validate_stage_protocol(protocol,accepted_input_identity=accepted_input_identity)
+    if plan.get("schema_version")!="quantbot-future-stage-execution-plan-v1" or plan.get("protocol_identity")!=protocol.get("artifact_identity") or plan.get("stage")!=protocol.get("stage") or plan.get("input_identity")!=accepted_input_identity:
+        raise ValueError("future_stage_execution_binding_invalid")
+    if plan.get("oos_status")!="SEALED" or plan.get("oos_authorization")!="NOT_AUTHORIZED": raise ValueError("future_stage_execution_oos_violation")
+    chunks=plan.get("chunks")
+    if not isinstance(chunks,list) or not chunks: raise ValueError("future_stage_chunks_missing")
+    expected=[]
+    for index,row in enumerate(chunks):
+        if not isinstance(row,Mapping) or row.get("ordinal")!=index or row.get("window")!="TRAIN_VALIDATION": raise ValueError("future_stage_chunk_order_invalid")
+        expected.append(FutureStageChunk(protocol["stage"],index,protocol["artifact_identity"]).identity())
+    actual=[row.get("chunk_identity") for row in chunks]
+    if actual!=expected or len(actual)!=len(set(actual)): raise ValueError("future_stage_chunk_identity_invalid")
+    return True
+
 def validate_stage_protocol(artifact: Mapping[str, Any], *, accepted_input_identity: str) -> bool:
     validate_seal(artifact)
     if artifact.get("schema_version")!="quantbot-formal-stage-protocol-v1" or artifact.get("input_identity")!=accepted_input_identity: raise ValueError("stage_input_drift")

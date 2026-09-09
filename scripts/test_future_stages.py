@@ -14,6 +14,17 @@ def main():
  bad=seal({**{k:v for k,v in protocol.items() if k!='artifact_identity'},'oos_status':'OPEN','oos_authorization':'AUTHORIZED'});blocked(lambda:validate_portfolio_protocol(bad))
  stage=FormalStageProtocol('stress',protocol['artifact_identity'],'d','b','g'*40,{'scenarios':['BASE']}).artifact();assert validate_stage_protocol(stage,accepted_input_identity=protocol['artifact_identity'])
  assert ResumableStageState(stage['artifact_identity'],StageState.INTERRUPTED).resume().state==StageState.RUNNING
+ execution=build_future_stage_execution_plan(stage,accepted_input_identity=protocol['artifact_identity'],chunk_count=3)
+ assert validate_future_stage_execution_plan(execution,protocol=stage,accepted_input_identity=protocol['artifact_identity'])
+ chunk_ids=tuple(row['chunk_identity'] for row in execution['chunks'])
+ state=ResumableStageState(stage['artifact_identity']).resume().record(chunk_ids[0],succeeded=True).record(chunk_ids[1],succeeded=False).record(chunk_ids[2],succeeded=True)
+ assert state.finish(chunk_ids).state==StageState.FAILED
+ blocked(lambda:state.record(chunk_ids[0],succeeded=True))
+ tampered=seal({**{key:value for key,value in execution.items() if key!='artifact_identity'},'oos_status':'OPEN'})
+ blocked(lambda:validate_future_stage_execution_plan(tampered,protocol=stage,accepted_input_identity=protocol['artifact_identity']))
+ bad_chunk=seal({**{key:value for key,value in execution.items() if key!='artifact_identity'},'chunks':[dict(row) for row in execution['chunks']]})
+ bad_chunk['chunks'][1]['chunk_identity']='0'*64; bad_chunk=seal({key:value for key,value in bad_chunk.items() if key!='artifact_identity'})
+ blocked(lambda:validate_future_stage_execution_plan(bad_chunk,protocol=stage,accepted_input_identity=protocol['artifact_identity']))
  assert pre_oos_gate({'n11':'x'},required=('n11','n12'))==PreOOSStatus.RESEARCH_NOT_YET_COMPLETE
  assert pre_oos_gate({'n11':'x','n12':'y'},required=('n11','n12'))==PreOOSStatus.OOS_NOT_AUTHORIZED
  blocked(lambda:require_future_stage(Capability.OOS));blocked(lambda:require_future_stage(Capability.MONTE_CARLO));blocked(lambda:require_future_stage(Capability.LIVE))
