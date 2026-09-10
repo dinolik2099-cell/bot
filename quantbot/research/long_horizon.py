@@ -8,6 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from typing import Mapping
+from .artifact_store import seal, validate_seal
 
 
 WINDOW_DAYS = (180, 200, 240)
@@ -33,7 +34,7 @@ class LongHorizonState(str, Enum): PENDING="PENDING"; RUNNING="RUNNING"; INTERRU
 class LongHorizonCheckpoint:
     window_days: int; session: int; state: LongHorizonState; progress_days: int = 0; error: str | None = None
     def __post_init__(self) -> None:
-        if self.window_days not in WINDOW_DAYS or not isinstance(self.session,int) or self.session < 1 or not isinstance(self.progress_days,int) or not 0 <= self.progress_days <= self.window_days:
+        if self.window_days not in WINDOW_DAYS or not isinstance(self.session,int) or self.session < 1 or not isinstance(self.state,LongHorizonState) or not isinstance(self.progress_days,int) or not 0 <= self.progress_days <= self.window_days:
             raise ValueError("long_horizon_checkpoint_invalid")
         if self.state == LongHorizonState.COMPLETED and self.progress_days != self.window_days:
             raise ValueError("long_horizon_completed_progress_invalid")
@@ -47,3 +48,21 @@ class LongHorizonCheckpoint:
     def advance(self, observed_days: int) -> "LongHorizonCheckpoint":
         if self.state != LongHorizonState.RUNNING or observed_days <= self.progress_days or observed_days > self.window_days: raise ValueError("invalid_observed_progress")
         return LongHorizonCheckpoint(self.window_days, self.session, LongHorizonState.COMPLETED if observed_days == self.window_days else LongHorizonState.RUNNING, observed_days)
+
+def build_checkpoint_artifact(checkpoint: LongHorizonCheckpoint, *, input_identity: str) -> dict[str, object]:
+    """Persist a locked checkpoint identity; it cannot claim a study result."""
+    if not isinstance(input_identity,str) or len(input_identity)!=64: raise ValueError('long_horizon_input_identity_invalid')
+    return seal({'schema_version':'quantbot-long-horizon-checkpoint-v1','input_identity':input_identity,
+                 'checkpoint':{'window_days':checkpoint.window_days,'session':checkpoint.session,'state':checkpoint.state.value,
+                               'progress_days':checkpoint.progress_days,'error':checkpoint.error},
+                 'formal_result':False,'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'})
+
+def validate_checkpoint_artifact(artifact: Mapping[str, object], *, input_identity: str) -> bool:
+    validate_seal(artifact)
+    if artifact.get('schema_version')!='quantbot-long-horizon-checkpoint-v1' or artifact.get('input_identity')!=input_identity or artifact.get('formal_result') is not False:
+        raise ValueError('long_horizon_checkpoint_binding_invalid')
+    if artifact.get('oos_status')!='SEALED' or artifact.get('oos_authorization')!='NOT_AUTHORIZED': raise ValueError('long_horizon_checkpoint_oos_invalid')
+    try:
+        row=dict(artifact['checkpoint']); row['state']=LongHorizonState(row['state']); LongHorizonCheckpoint(**row)
+    except (KeyError,TypeError,ValueError) as exc: raise ValueError('long_horizon_checkpoint_payload_invalid') from exc
+    return True
