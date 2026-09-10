@@ -1,4 +1,4 @@
-"""P2 Monte-Carlo protocol schema; simulation is intentionally not exposed."""
+"""P2 Monte-Carlo protocol schema and deterministic non-OOS resampling rules."""
 from __future__ import annotations
 
 from dataclasses import dataclass

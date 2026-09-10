@@ -120,8 +120,9 @@ def build_future_stage_execution_plan(protocol: Mapping[str, Any], *, accepted_i
 
     This is the common production-shaped planning path for walk-forward,
     Monte-Carlo and long-horizon work.  Execution still requires the separate
-    future authorization gate; constructing this plan has no loader/evaluator
-    dependency and performs no research.
+    future authorization gate; constructing this plan performs no protected
+    read or research.  A verified runtime coordinator later binds these chunks
+    to the canonical evaluator/loader path.
     """
     validate_stage_protocol(protocol,accepted_input_identity=accepted_input_identity)
     if not isinstance(chunk_count,int) or not 1 <= chunk_count <= 100_000: raise ValueError("future_stage_chunk_count_invalid")
@@ -152,10 +153,10 @@ def build_future_stage_result(plan: Mapping[str, Any], *, protocol: Mapping[str,
                               chunk_results: Sequence[Mapping[str, Any]], source_git_commit: str) -> dict[str, Any]:
     """Package a completed future stage without allowing silent partial success.
 
-    The actual evaluator is intentionally outside this builder.  Once a future
-    authorization exists, it must return one result for every predeclared
-    chunk; this function enforces exact identity coverage and emits immutable
-    provenance only after the coordinator has reached ``COMPLETE``.
+    The runtime coordinator supplies one verified result for every predeclared
+    chunk after canonical execution.  This builder enforces exact identity
+    coverage and emits immutable provenance only after the coordinator has
+    reached ``COMPLETE``.
     """
     validate_future_stage_execution_plan(plan,protocol=protocol,accepted_input_identity=accepted_input_identity)
     if state.protocol_identity != protocol.get("artifact_identity") or state.state != StageState.COMPLETE or state.failed_chunks:

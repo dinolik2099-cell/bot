@@ -14,6 +14,7 @@ from quantbot.backtest.engine_v2 import BacktestEngine
 from quantbot.backtest.stress_framework import CostStressScenario, scenario_identity
 
 from .future_data_plane import FutureDataPlaneError, FutureRuntimeContext, make_future_canonical_evaluator
+from .future_stage_execution import _execute_verified_chunks, make_canonical_plan_chunk_executor
 
 
 class StressRunnerError(RuntimeError):
@@ -46,4 +47,23 @@ def make_stress_canonical_evaluator(*, runtime: FutureRuntimeContext, evidence, 
         runtime=runtime,evidence=evidence,n8_context=n8_context,raw_root=raw_root,
         strategy_resolver=strategy_resolver,
         engine_factory=lambda: BacktestEngine(stressed),
+    )
+
+
+def run_authorized_stress(*, runtime: FutureRuntimeContext, evidence, n8_context, raw_root,
+                          strategy_resolver, source_git_commit: str, checkpoint=None, prior_rows=()):
+    """Execute frozen stress chunks through only the N7/N8 canonical path.
+
+    There is deliberately no evaluator argument.  A caller cannot replace the
+    stressed BacktestEngine/CostModel with fabricated metrics while retaining
+    formal provenance.
+    """
+    evaluator = make_stress_canonical_evaluator(
+        runtime=runtime, evidence=evidence, n8_context=n8_context, raw_root=raw_root,
+        strategy_resolver=strategy_resolver,
+    )
+    return _execute_verified_chunks(
+        runtime=runtime, source_git_commit=source_git_commit,
+        executor=make_canonical_plan_chunk_executor(runtime=runtime, n8_context=n8_context, evaluator=evaluator),
+        checkpoint=checkpoint, prior_rows=prior_rows,
     )

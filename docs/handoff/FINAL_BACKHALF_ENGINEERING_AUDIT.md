@@ -9,11 +9,11 @@ Baseline audited: `e80bba04833c637dc06911f7ade780a18a13e895` (plus subsequent en
 | N12 to portfolio provenance bridge | COMPLETE_REAL | `research.future_stages.build_portfolio_protocol`; exact candidate identities, N11/N12/correlation/dataset/boundary/engine/cost identity are mandatory. |
 | Shared-capital portfolio execution | ENGINE_READY_LOCKED | `portfolio.shared_capital.shared_backtest` remains the only accounting execution truth. The formal result path binds N12/N8 inputs, all candidate sleeves, source revision and create-only sealed output; formal accounting remains separately authorized. |
 | Portfolio construction / weights / risk / attribution | ENGINE_READY_LOCKED | `portfolio.weight_engine`, `portfolio.research_artifact`, `research.future_stages`, and `research.portfolio_formal_runner`; frozen policy is a protocol input, never post-hoc searched. |
-| Cost/slippage stress | ENGINE_READY_LOCKED | `backtest.stress_framework` derives from canonical `CostModel`; future formal stage uses frozen protocol input and complete result provenance. |
-| Regime/failure attribution | ENGINE_READY_LOCKED | PIT regime and deterministic failure supervisor exist; future stages bind their provenance inputs. No formal data evaluation has been run. |
-| Walk-forward | ENGINE_READY_LOCKED | Non-OOS runner accepts only explicit TRAIN/VALIDATION folds and uses the N7/N8 canonical evaluator; OOS folds remain separately locked. |
-| Monte Carlo | ENGINE_READY_PERMANENTLY_LOCKED | Frozen formal request and result provenance exist, but the actual simulator construction path is hard locked by the current research discipline. |
-| 180/200/240 day studies | ENGINE_READY_LOCKED | Immutable 180/200/240 protocol/checkpoint/resume contracts and canonical evaluator construction exist; formal execution remains separately authorized. |
+| Cost/slippage stress | ENGINE_READY_LOCKED | Frozen scenarios are executed by the canonical N7/N8 evaluator with a derived `CostModel`, deterministic chunks, checkpoint/resume and complete-only result sealing. |
+| Regime/failure attribution | ENGINE_READY_LOCKED | PIT regime labeling and deterministic failure diagnostics have canonical chunk loops, checkpoints and provenance rows. No formal data evaluation has been run. |
+| Walk-forward | ENGINE_READY_LOCKED | Non-OOS folds execute only explicit TRAIN/VALIDATION work through N7/N8, with deterministic chunking and sealed resume state; OOS folds remain separately locked. |
+| Monte Carlo | ENGINE_READY_PERMANENTLY_LOCKED | A deterministic, fixed-seed, chunked runner is implemented and accepts only sealed non-synthetic upstream evidence. The independent MC authority remains locked, so no formal MC run can start today. |
+| 180/200/240 day studies | ENGINE_READY_LOCKED | Immutable 180/200/240 windows use canonical N7/N8 evaluation with deterministic chunks, checkpoint/resume, diagnostics and sealed result coverage. |
 | Persistent Paper runtime | COMPLETE_PROTOCOL | Durable ledger/recovery/reconciliation/supervisor path exists; startup remains intentionally disabled. |
 | Exchange and Live | INTENTIONALLY_DISABLED | Fake/Paper adapters and live authorization state machine exist; credentials/network/real adapter and orders remain disabled. |
 | Pre-OOS gate | COMPLETE_PROTOCOL | Requires N3/N5/N11/N12/portfolio/stress/walk-forward/MC/long-horizon evidence plus explicit human authority. Engineering readiness cannot authorize OOS. |
@@ -25,7 +25,7 @@ Baseline audited: `e80bba04833c637dc06911f7ade780a18a13e895` (plus subsequent en
 1. Current non-OOS portfolio protocol: `research.future_stages.build_portfolio_protocol`.
 2. Canonical shared-capital execution: `research.future_stages.execute_shared_capital_protocol` → `portfolio.shared_capital.shared_backtest`.
 3. N12 diagnostics: `scripts/run_non_oos_series_diagnostics.py`.
-4. Stress / walk-forward / MC / long-horizon: `FormalStageProtocol` + `build_future_stage_execution_plan` + `ResumableStageState` + `FutureRuntimeContext`; each work unit is identity-bound, TRAIN/VALIDATION-only, duplicate-proof, and requires a future explicit authorization before any evaluator or loader can be attached. Its v2 result validator requires exact chunk coverage, result identities, protocol/plan/input provenance, a valid source revision, and sealed OOS fields before a create-only result can be written.
+4. Stress / regime / failure / walk-forward / MC / long-horizon: `FormalStageProtocol` + `build_future_stage_execution_plan` + `FutureRuntimeContext` + `future_stage_execution`; each uses deterministic chunk scheduling, complete-only result sealing and identity-bound checkpoint/resume. Their public canonical runners never accept a raw evaluator, resampler or raw loader. They require explicit authority before canonical construction or a protected read.
 5. Paper: `execution.persistent_paper_runtime` plus `execution.paper_runtime`.
 6. Pre-OOS: `research.future_stages.pre_oos_gate`.
 7. Live: `execution.live_authorization`; deliberately disabled.
@@ -81,11 +81,24 @@ also carries the accepted N9/N10/N3/N5/candidate/boundary/dataset chain.
 Finalization is create-only and rejects partial result coverage, stale anchors,
 cross-stage substitution, source-revision omission and OOS field drift.
 
-This is the engineering Definition of Done for the non-OOS data-plane closure:
+## Stage-by-stage completion classification
+
+| Stage | PROTOCOL_IMPLEMENTED | REAL_EVALUATOR_IMPLEMENTED | EXECUTION_LOOP_IMPLEMENTED | CHECKPOINT_RESUME_IMPLEMENTED | CANONICAL_CLI_IMPLEMENTED | FORMAL_RESEARCH_EXECUTED |
+|---|---|---|---|---|---|---|
+| Portfolio | YES | YES | YES | Existing N10 recovery | YES | NO |
+| Stress | YES | YES | YES | YES | YES | NO |
+| Regime | YES | YES | YES | YES | YES | NO |
+| Failure | YES | Failure-supervisor adapter | YES | YES | YES | NO |
+| Walk-forward | YES | YES | YES | YES | YES | NO |
+| Monte Carlo | YES | Deterministic fixed-seed resampler, authority locked | YES | YES | YES | NO |
+| Long-horizon | YES | YES | YES | YES | YES | NO |
+
+The engineering Definition of Done for this non-OOS data-plane closure is
+therefore limited to implementation and synthetic/metadata verification:
 canonical reader/evaluator construction, frozen input identity, resumable
 checkpoint, complete result validation, N10 binding and immutable finalization
-are all implemented. It is explicitly not a claim that any formal research,
-OOS, Monte Carlo, Paper or Live execution has occurred.
+are implemented. It is explicitly not a claim that any formal research, OOS,
+Monte Carlo, Paper or Live execution has occurred.
 
 ## Local verification limit
 

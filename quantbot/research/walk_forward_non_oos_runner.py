@@ -6,6 +6,7 @@ cannot enter this runner.
 from __future__ import annotations
 from typing import Mapping
 from .future_data_plane import FutureRuntimeContext, make_future_canonical_evaluator
+from .future_stage_execution import _execute_verified_chunks, make_canonical_plan_chunk_executor
 
 
 class WalkForwardRunnerError(RuntimeError):
@@ -39,4 +40,19 @@ def make_walk_forward_non_oos_evaluator(*, runtime: FutureRuntimeContext, eviden
     return make_future_canonical_evaluator(
         runtime=runtime,evidence=evidence,n8_context=n8_context,raw_root=raw_root,
         strategy_resolver=strategy_resolver,engine_factory=engine_factory,
+    )
+
+
+def run_authorized_walk_forward(*, runtime: FutureRuntimeContext, evidence, n8_context, raw_root,
+                                strategy_resolver, engine_factory, source_git_commit: str,
+                                checkpoint=None, prior_rows=()):
+    """Run only frozen non-OOS folds with deterministic N5 task partitioning."""
+    evaluator = make_walk_forward_non_oos_evaluator(
+        runtime=runtime, evidence=evidence, n8_context=n8_context, raw_root=raw_root,
+        strategy_resolver=strategy_resolver, engine_factory=engine_factory,
+    )
+    return _execute_verified_chunks(
+        runtime=runtime, source_git_commit=source_git_commit,
+        executor=make_canonical_plan_chunk_executor(runtime=runtime, n8_context=n8_context, evaluator=evaluator),
+        checkpoint=checkpoint, prior_rows=prior_rows,
     )
