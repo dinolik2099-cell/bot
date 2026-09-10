@@ -7,13 +7,13 @@ Baseline audited: `e80bba04833c637dc06911f7ade780a18a13e895` (plus subsequent en
 | N3/N5/N7/N8/N9/N10/N11 formal non-OOS chain | COMPLETE_REAL | Frozen plan, canonical loader/engine/cost, recoverable state and N11 evidence package. |
 | N12 retained candidates and series diagnostics | COMPLETE_REAL | `research.non_oos_series` and `run_non_oos_series_diagnostics.py`; exact candidate identities are extracted from N11. |
 | N12 to portfolio provenance bridge | COMPLETE_REAL | `research.future_stages.build_portfolio_protocol`; exact candidate identities, N11/N12/correlation/dataset/boundary/engine/cost identity are mandatory. |
-| Shared-capital portfolio execution | ENGINE_READY_LOCKED | `portfolio.shared_capital.shared_backtest` remains the only accounting execution truth. The canonical runner builds one sleeve per retained N12 `candidate_identity`, so no model/symbol parameter candidate is silently collapsed. Formal accounting remains separately authorized. |
+| Shared-capital portfolio execution | ENGINE_READY_LOCKED | `portfolio.shared_capital.shared_backtest` remains the only accounting execution truth. The formal result path binds N12/N8 inputs, all candidate sleeves, source revision and create-only sealed output; formal accounting remains separately authorized. |
 | Portfolio construction / weights / risk / attribution | ENGINE_READY_LOCKED | `portfolio.weight_engine`, `portfolio.research_artifact`, `research.future_stages`, and `research.portfolio_formal_runner`; frozen policy is a protocol input, never post-hoc searched. |
 | Cost/slippage stress | ENGINE_READY_LOCKED | `backtest.stress_framework` derives from canonical `CostModel`; future formal stage uses frozen protocol input and complete result provenance. |
 | Regime/failure attribution | ENGINE_READY_LOCKED | PIT regime and deterministic failure supervisor exist; future stages bind their provenance inputs. No formal data evaluation has been run. |
-| Walk-forward | COMPLETE_PROTOCOL | Fold/request/aggregate/resume contracts now share an identity-bound, chunked TRAIN/VALIDATION-only execution plan; data execution remains blocked until specific future research authorization. |
-| Monte Carlo | COMPLETE_PROTOCOL | Deterministic seed/resampler/result infrastructure now has the same immutable chunk lifecycle; formal simulation remains blocked by authorization. |
-| 180/200/240 day studies | COMPLETE_PROTOCOL | Immutable protocol/checkpoint/resume contracts now use the shared chunk lifecycle; formal execution remains blocked. |
+| Walk-forward | ENGINE_READY_LOCKED | Non-OOS runner accepts only explicit TRAIN/VALIDATION folds and uses the N7/N8 canonical evaluator; OOS folds remain separately locked. |
+| Monte Carlo | ENGINE_READY_PERMANENTLY_LOCKED | Frozen formal request and result provenance exist, but the actual simulator construction path is hard locked by the current research discipline. |
+| 180/200/240 day studies | ENGINE_READY_LOCKED | Immutable 180/200/240 protocol/checkpoint/resume contracts and canonical evaluator construction exist; formal execution remains separately authorized. |
 | Persistent Paper runtime | COMPLETE_PROTOCOL | Durable ledger/recovery/reconciliation/supervisor path exists; startup remains intentionally disabled. |
 | Exchange and Live | INTENTIONALLY_DISABLED | Fake/Paper adapters and live authorization state machine exist; credentials/network/real adapter and orders remain disabled. |
 | Pre-OOS gate | COMPLETE_PROTOCOL | Requires N3/N5/N11/N12/portfolio/stress/walk-forward/MC/long-horizon evidence plus explicit human authority. Engineering readiness cannot authorize OOS. |
@@ -71,6 +71,21 @@ wrongly bound, non-completed, OOS-claiming, or identity-tampered result rows.
 This makes stress, regime, failure, walk-forward, Monte Carlo, and long-horizon
 results auditable only after their declared work-plan coverage is complete. It
 does not authorize any of those evaluators.
+
+## Finalization closure
+
+Every future stage now has one common finalization path. A final artifact can
+be created only from a validated complete future result and a sealed N10 input
+anchor with the same protocol, execution-plan and input identities. The anchor
+also carries the accepted N9/N10/N3/N5/candidate/boundary/dataset chain.
+Finalization is create-only and rejects partial result coverage, stale anchors,
+cross-stage substitution, source-revision omission and OOS field drift.
+
+This is the engineering Definition of Done for the non-OOS data-plane closure:
+canonical reader/evaluator construction, frozen input identity, resumable
+checkpoint, complete result validation, N10 binding and immutable finalization
+are all implemented. It is explicitly not a claim that any formal research,
+OOS, Monte Carlo, Paper or Live execution has occurred.
 
 ## Local verification limit
 
