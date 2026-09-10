@@ -6,6 +6,7 @@ from .future_stages import validate_portfolio_protocol
 from .non_oos_series import validate_external_n12_anchor
 from .evaluation import make_strategy_adapter
 from .canonical_data_adapter import make_n8_canonical_window_loader
+from .artifact_store import seal, validate_seal, write_new_json
 
 class PortfolioRunnerError(RuntimeError): pass
 
@@ -138,3 +139,50 @@ def prepare_authorized_portfolio_inputs(*, n8_context, raw_root, protocol, diagn
                      'boundary_identity_hash':n8_context.n7.plan['boundary_identity_hash'],
                      'dataset_id':n8_context.dataset.dataset_id})
     return prepared
+
+
+def run_authorized_shared_capital_portfolio(*, n8_context, raw_root, protocol, diagnostic, manifest,
+                                            n11_identity, candidate_count, correlation_sha256, evidence,
+                                            window: str, strategy_resolver, source_git_commit: str):
+    """Formal Portfolio execution path using only the established engine.
+
+    This callable is intentionally not invoked by engineering/preflight code.
+    It prepares N8-validated inputs, delegates to the one shared-capital engine
+    and seals a new result object; it never overwrites N3/N5/N11/N12 artifacts.
+    """
+    if not isinstance(source_git_commit,str) or len(source_git_commit)!=40:
+        raise PortfolioRunnerError('portfolio_source_git_commit_invalid')
+    prepared=prepare_authorized_portfolio_inputs(
+        n8_context=n8_context,raw_root=raw_root,protocol=protocol,diagnostic=diagnostic,manifest=manifest,
+        n11_identity=n11_identity,candidate_count=candidate_count,correlation_sha256=correlation_sha256,
+        evidence=evidence,window=window,strategy_resolver=strategy_resolver)
+    from quantbot.portfolio.shared_capital import shared_backtest
+    accounting=shared_backtest(prepared['frames'],prepared['signal_maps'],prepared['recipe_keys'],
+                               {'dataset_id':prepared['dataset_id'],'boundary_identity_hash':prepared['boundary_identity_hash']})
+    return seal({'schema_version':'quantbot-portfolio-formal-result-v1','portfolio_protocol_identity':protocol['artifact_identity'],
+                 'n11_identity':n11_identity,'n12_manifest_identity':manifest['artifact_identity'],
+                 'research_freeze_identity':prepared['research_freeze_identity'],'research_plan_identity':prepared['research_plan_identity'],
+                 'boundary_identity_hash':prepared['boundary_identity_hash'],'dataset_id':prepared['dataset_id'],
+                 'window':window,'source_git_commit':source_git_commit,'candidate_count':prepared['candidate_count'],
+                 'recipe_keys':[list(key) for key in prepared['recipe_keys']], 'sleeve_provenance':prepared['sleeve_provenance'],
+                 'accounting':accounting,'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'})
+
+
+def validate_portfolio_formal_result(result: Mapping[str,Any], *, protocol: Mapping[str,Any], manifest: Mapping[str,Any]) -> bool:
+    validate_seal(result); validate_portfolio_protocol(protocol)
+    if result.get('schema_version')!='quantbot-portfolio-formal-result-v1' or result.get('portfolio_protocol_identity')!=protocol.get('artifact_identity') or result.get('n12_manifest_identity')!=manifest.get('artifact_identity'):
+        raise PortfolioRunnerError('portfolio_result_binding_invalid')
+    if result.get('oos_status')!='SEALED' or result.get('oos_authorization')!='NOT_AUTHORIZED' or result.get('candidate_count')!=len(protocol.get('candidates',[])):
+        raise PortfolioRunnerError('portfolio_result_oos_or_count_invalid')
+    candidates=_frozen_candidates(protocol,manifest)
+    expected={row['candidate_identity']:row for row in candidates}; provenance=result.get('sleeve_provenance')
+    if not isinstance(provenance,Mapping) or set(provenance)!=set(expected): raise PortfolioRunnerError('portfolio_result_sleeve_set_invalid')
+    for identity,row in expected.items():
+        if any(provenance[identity].get(key)!=row.get(key) for key in ('candidate_identity','task_identity','model_id','family','symbol','params','validation_result_identity','selected_train_result_identity')):
+            raise PortfolioRunnerError('portfolio_result_sleeve_provenance_invalid')
+    return True
+
+
+def write_portfolio_formal_result(root, result: Mapping[str,Any]):
+    validate_seal(result)
+    return write_new_json(root,'PORTFOLIO_FORMAL_RESULT',result)
