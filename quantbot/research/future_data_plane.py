@@ -66,3 +66,13 @@ def make_future_canonical_evaluator(*, runtime: FutureRuntimeContext, evidence: 
  if runtime.protocol.get('boundary_identity_hash')!=n8_context.n7.plan.get('boundary_identity_hash'):
   raise FutureDataPlaneError('future_boundary_identity_mismatch')
  return make_n7_canonical_evaluator(n8_context.n7,make_n8_canonical_window_loader(n8_context,raw_root),strategy_resolver,engine_factory)
+
+
+def make_future_canonical_window_loader(*, runtime: FutureRuntimeContext, evidence: AuthorizationEvidence,
+                                        n8_context, raw_root):
+ """Authorize and bind a future metadata stage to N8's exact raw reader."""
+ runtime.authorize(evidence,Capability.TRAIN_VALIDATION)
+ from .canonical_data_adapter import make_n8_canonical_window_loader
+ if runtime.protocol.get('dataset_id')!=n8_context.dataset.dataset_id: raise FutureDataPlaneError('future_dataset_identity_mismatch')
+ if runtime.protocol.get('boundary_identity_hash')!=n8_context.n7.plan.get('boundary_identity_hash'): raise FutureDataPlaneError('future_boundary_identity_mismatch')
+ return make_n8_canonical_window_loader(n8_context,raw_root)
