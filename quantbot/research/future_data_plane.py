@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 from .authorization import AuthorizationEvidence, Capability
-from .future_stages import validate_stage_protocol, validate_future_stage_execution_plan
+from .future_stages import ResumableStageState, StageState, validate_stage_protocol, validate_future_stage_execution_plan
 from .artifact_store import seal, validate_seal, write_new_json
 
 class FutureDataPlaneError(RuntimeError): pass
@@ -47,6 +47,29 @@ class FutureRuntimeContext:
  def write_result(self,root:str,result:Mapping[str,Any]):
   self.validate_result(result)
   return write_new_json(root,'FUTURE_DATA_PLANE_RESULT',result)
+
+ def checkpoint(self,state:ResumableStageState)->dict[str,Any]:
+  """Seal recoverable progress without allowing chunk-set drift."""
+  self.validate()
+  if state.protocol_identity!=self.protocol['artifact_identity']: raise FutureDataPlaneError('future_checkpoint_protocol_mismatch')
+  expected={row['chunk_identity'] for row in self.plan['chunks']}; complete=set(state.completed_chunks); failed=set(state.failed_chunks)
+  if complete & failed or not (complete|failed).issubset(expected): raise FutureDataPlaneError('future_checkpoint_chunk_set_invalid')
+  if state.state==StageState.COMPLETE and (failed or complete!=expected): raise FutureDataPlaneError('future_checkpoint_complete_invalid')
+  return seal({'schema_version':'quantbot-future-data-plane-checkpoint-v1','protocol_identity':state.protocol_identity,
+               'execution_plan_identity':self.plan['artifact_identity'],'input_identity':self.input_identity,
+               'state':state.state.value,'completed_chunks':sorted(complete),'failed_chunks':sorted(failed),
+               'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'})
+
+ def validate_checkpoint(self,artifact:Mapping[str,Any])->ResumableStageState:
+  self.validate(); validate_seal(artifact)
+  if artifact.get('schema_version')!='quantbot-future-data-plane-checkpoint-v1' or artifact.get('protocol_identity')!=self.protocol['artifact_identity'] or artifact.get('execution_plan_identity')!=self.plan['artifact_identity'] or artifact.get('input_identity')!=self.input_identity:
+   raise FutureDataPlaneError('future_checkpoint_binding_invalid')
+  if artifact.get('oos_status')!='SEALED' or artifact.get('oos_authorization')!='NOT_AUTHORIZED': raise FutureDataPlaneError('future_checkpoint_oos_invalid')
+  try: state=ResumableStageState(self.protocol['artifact_identity'],StageState(artifact['state']),tuple(artifact['completed_chunks']),tuple(artifact['failed_chunks']))
+  except (KeyError,TypeError,ValueError) as exc: raise FutureDataPlaneError('future_checkpoint_payload_invalid') from exc
+  rebuilt=self.checkpoint(state)
+  if rebuilt['artifact_identity']!=artifact.get('artifact_identity'): raise FutureDataPlaneError('future_checkpoint_identity_mismatch')
+  return state
 
 
 def make_future_canonical_evaluator(*, runtime: FutureRuntimeContext, evidence: AuthorizationEvidence,
