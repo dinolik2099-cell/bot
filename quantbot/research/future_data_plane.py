@@ -47,3 +47,22 @@ class FutureRuntimeContext:
  def write_result(self,root:str,result:Mapping[str,Any]):
   self.validate_result(result)
   return write_new_json(root,'FUTURE_DATA_PLANE_RESULT',result)
+
+
+def make_future_canonical_evaluator(*, runtime: FutureRuntimeContext, evidence: AuthorizationEvidence,
+                                    n8_context, raw_root, strategy_resolver, engine_factory):
+ """Construct a future-stage evaluator only through the accepted N7/N8 path.
+
+ This constructor has no raw frame-loader or raw evaluator parameter.  It
+ first validates the stage protocol/plan and explicit non-OOS authority, then
+ binds the stage to N8's physically window-bounded canonical reader and N7's
+ BacktestEngine/CostModel checked evaluator.  No loader is called here.
+ """
+ runtime.authorize(evidence,Capability.TRAIN_VALIDATION)
+ from .canonical_data_adapter import make_n8_canonical_window_loader
+ from .formal_runner import make_n7_canonical_evaluator
+ if runtime.protocol.get('dataset_id')!=n8_context.dataset.dataset_id:
+  raise FutureDataPlaneError('future_dataset_identity_mismatch')
+ if runtime.protocol.get('boundary_identity_hash')!=n8_context.n7.plan.get('boundary_identity_hash'):
+  raise FutureDataPlaneError('future_boundary_identity_mismatch')
+ return make_n7_canonical_evaluator(n8_context.n7,make_n8_canonical_window_loader(n8_context,raw_root),strategy_resolver,engine_factory)
