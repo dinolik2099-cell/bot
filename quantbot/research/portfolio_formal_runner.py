@@ -1,5 +1,6 @@
 """Canonical future portfolio entrypoint; deny before any protected data access."""
 from __future__ import annotations
+from dataclasses import asdict, is_dataclass
 from typing import Any, Callable, Mapping
 from .authorization import AuthorizationEvidence, Capability
 from .future_stages import validate_portfolio_protocol
@@ -9,6 +10,22 @@ from .canonical_data_adapter import make_n8_canonical_window_loader
 from .artifact_store import seal, validate_seal, write_new_json
 
 class PortfolioRunnerError(RuntimeError): pass
+
+def _canonical_accounting(accounting: Mapping[str,Any]) -> dict[str,Any]:
+    """Convert the legacy shared-capital return shape into sealed JSON data."""
+    if not isinstance(accounting,Mapping): raise PortfolioRunnerError('portfolio_accounting_invalid')
+    result={}
+    for key,value in accounting.items():
+        if key=='trades':
+            if not isinstance(value,list) or any(not is_dataclass(item) for item in value):
+                raise PortfolioRunnerError('portfolio_trade_records_invalid')
+            result[key]=[asdict(item) for item in value]
+        elif key=='curve':
+            if not isinstance(value,list): raise PortfolioRunnerError('portfolio_curve_invalid')
+            result[key]=[list(item) for item in value]
+        else:
+            result[key]=value
+    return result
 
 def authorize_portfolio_run(*, protocol: Mapping[str,Any], diagnostic: Mapping[str,Any], manifest: Mapping[str,Any],
                             n11_identity: str, candidate_count: int, correlation_sha256: str,
@@ -157,8 +174,8 @@ def run_authorized_shared_capital_portfolio(*, n8_context, raw_root, protocol, d
         n11_identity=n11_identity,candidate_count=candidate_count,correlation_sha256=correlation_sha256,
         evidence=evidence,window=window,strategy_resolver=strategy_resolver)
     from quantbot.portfolio.shared_capital import shared_backtest
-    accounting=shared_backtest(prepared['frames'],prepared['signal_maps'],prepared['recipe_keys'],
-                               {'dataset_id':prepared['dataset_id'],'boundary_identity_hash':prepared['boundary_identity_hash']})
+    accounting=_canonical_accounting(shared_backtest(prepared['frames'],prepared['signal_maps'],prepared['recipe_keys'],
+                               {'dataset_id':prepared['dataset_id'],'boundary_identity_hash':prepared['boundary_identity_hash']}))
     return seal({'schema_version':'quantbot-portfolio-formal-result-v1','portfolio_protocol_identity':protocol['artifact_identity'],
                  'n11_identity':n11_identity,'n12_manifest_identity':manifest['artifact_identity'],
                  'research_freeze_identity':prepared['research_freeze_identity'],'research_plan_identity':prepared['research_plan_identity'],

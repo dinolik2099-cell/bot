@@ -1,7 +1,7 @@
 from quantbot.research.artifact_store import seal
 from quantbot.research.authorization import AuthorizationEvidence,Capability
 from quantbot.research.future_stages import N12CandidateInput,build_portfolio_protocol
-from quantbot.research.portfolio_formal_runner import authorize_portfolio_run,make_portfolio_window_loader,build_shared_capital_inputs
+from quantbot.research.portfolio_formal_runner import authorize_portfolio_run,make_portfolio_window_loader,build_shared_capital_inputs,_canonical_accounting
 from quantbot.research.portfolio_formal_runner import build_canonical_signal_map
 import pandas as pd
 def blocked(fn):
@@ -30,6 +30,9 @@ def main():
  assert prepared['sleeve_provenance']['1'*64]['model_id']=='m'
  bad_manifest=dict(manifest);bad_manifest['rows']=[{'candidate':dict(c,params={'forged':1})},{'candidate':c2}]
  blocked(lambda:build_shared_capital_inputs(frames_by_symbol={'BTC':frame},protocol=p,manifest=bad_manifest,strategy_resolver=lambda _:strategy))
+ from quantbot.portfolio.shared_capital import Trade
+ trade=Trade('BTC','buy','a','b',1,1,1,0,0,0,0,'x','tag',['s','BTC'])
+ assert _canonical_accounting({'curve':[('t',1.0)],'trades':[trade]})['trades'][0]['symbol']=='BTC'
  print('PORTFOLIO_CANDIDATE_SLEEVE_BINDING_SYNTHETIC_TEST_OK')
  print('PORTFOLIO_FORMAL_RUNNER_GATE_SYNTHETIC_TEST_OK');print('PROTECTED_READS=0');print('OOS_READS=0');print('SHARED_CAPITAL_CALLS=0')
 if __name__=='__main__':main()
