@@ -1,6 +1,6 @@
 """Canonical future portfolio entrypoint; deny before any protected data access."""
 from __future__ import annotations
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 from .authorization import AuthorizationEvidence, Capability
 from .future_stages import validate_portfolio_protocol
 from .non_oos_series import validate_external_n12_anchor
@@ -45,3 +45,96 @@ def make_portfolio_window_loader(*, n8_context, raw_root, protocol, diagnostic, 
     authorize_portfolio_run(protocol=protocol,diagnostic=diagnostic,manifest=manifest,n11_identity=n11_identity,
                             candidate_count=candidate_count,correlation_sha256=correlation_sha256,evidence=evidence)
     return make_n8_canonical_window_loader(n8_context,raw_root)
+
+
+def _frozen_candidates(protocol: Mapping[str, Any], manifest: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Return N12 candidates only when the protocol and manifest agree exactly.
+
+    ``candidate_identity`` is deliberately the shared-capital sleeve key.  A
+    model/symbol pair can have several separately retained N12 parameter sets;
+    using only ``(model_id, symbol)`` would silently discard all but one.
+    """
+    protocol_rows=protocol.get('candidates')
+    manifest_rows=manifest.get('rows')
+    if not isinstance(protocol_rows,list) or not isinstance(manifest_rows,list):
+        raise PortfolioRunnerError('portfolio_candidate_rows_missing')
+    by_protocol={row.get('candidate_identity'): row for row in protocol_rows if isinstance(row,Mapping)}
+    by_manifest={row.get('candidate',{}).get('candidate_identity'): row.get('candidate')
+                 for row in manifest_rows if isinstance(row,Mapping) and isinstance(row.get('candidate'),Mapping)}
+    if not by_protocol or set(by_protocol)!=set(by_manifest) or len(by_protocol)!=len(protocol_rows):
+        raise PortfolioRunnerError('portfolio_candidate_set_mismatch')
+    required=('candidate_identity','validation_result_identity','selected_train_result_identity',
+              'task_identity','model_id','family','symbol','params')
+    rows=[]
+    for identity in sorted(by_protocol):
+        left,right=by_protocol[identity],by_manifest[identity]
+        if any(left.get(key)!=right.get(key) for key in required):
+            raise PortfolioRunnerError('portfolio_candidate_metadata_mismatch')
+        rows.append(left)
+    return rows
+
+
+def build_shared_capital_inputs(*, frames_by_symbol: Mapping[str, Any], protocol: Mapping[str, Any],
+                                manifest: Mapping[str, Any], strategy_resolver: Callable[[str], Callable[..., Any]],
+                                risk_fraction: float=0.01, position_fraction: float=1.0):
+    """Build complete deterministic N12 sleeves for the existing shared engine.
+
+    Frames must already have passed the N8 formal canonical loader.  This
+    adapter does not load data, rank candidates, tune parameters, or authorize
+    a run.  The returned recipe keys pass unchanged to shared_backtest.
+    """
+    validate_portfolio_protocol(protocol)
+    candidates=_frozen_candidates(protocol,manifest)
+    frames=dict(frames_by_symbol)
+    if set(frames)!={row['symbol'] for row in candidates}:
+        raise PortfolioRunnerError('portfolio_frame_symbol_set_mismatch')
+    signal_maps={}; provenance={}
+    for row in candidates:
+        candidate_id=row['candidate_identity']; symbol=row['symbol']
+        strategy=strategy_resolver(row['model_id'])
+        if not callable(strategy): raise PortfolioRunnerError('portfolio_strategy_resolver_invalid')
+        signal_maps.update(build_canonical_signal_map(
+            frame=frames[symbol],strategy=strategy,params=row['params'],model_id=candidate_id,
+            symbol=symbol,task_identity=row['task_identity'],risk_fraction=risk_fraction,
+            position_fraction=position_fraction))
+        provenance[candidate_id]={
+            'candidate_identity':candidate_id,'validation_result_identity':row['validation_result_identity'],
+            'selected_train_result_identity':row['selected_train_result_identity'],'task_identity':row['task_identity'],
+            'model_id':row['model_id'],'family':row['family'],'symbol':symbol,'params':dict(row['params']),
+        }
+    recipe_keys=sorted(signal_maps)
+    return {'frames':frames,'signal_maps':signal_maps,'recipe_keys':recipe_keys,
+            'sleeve_provenance':provenance,'candidate_count':len(recipe_keys),
+            'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'}
+
+
+def prepare_authorized_portfolio_inputs(*, n8_context, raw_root, protocol, diagnostic, manifest,
+                                        n11_identity, candidate_count, correlation_sha256, evidence,
+                                        window: str, strategy_resolver: Callable[[str], Callable[..., Any]]):
+    """Formal pre-execution preparation, structurally bound to the N8 loader.
+
+    Authorization and frozen candidate checks finish before a canonical loader
+    is constructed.  It loads every required symbol once for a TRAIN or
+    VALIDATION request, then stops before shared-capital accounting; a separate
+    reviewed authority remains required for formal portfolio execution.
+    """
+    if window not in {'TRAIN','VALIDATION'}: raise PortfolioRunnerError('portfolio_window_not_authorized')
+    loader=make_portfolio_window_loader(
+        n8_context=n8_context,raw_root=raw_root,protocol=protocol,diagnostic=diagnostic,manifest=manifest,
+        n11_identity=n11_identity,candidate_count=candidate_count,correlation_sha256=correlation_sha256,evidence=evidence)
+    candidates=_frozen_candidates(protocol,manifest)
+    tasks={task['task_identity']:task for task in n8_context.n7.plan['tasks']}
+    frames={}
+    for row in candidates:
+        task=tasks.get(row['task_identity'])
+        if task is None or task.get('model_id')!=row['model_id'] or task.get('symbol')!=row['symbol']:
+            raise PortfolioRunnerError('portfolio_task_binding_mismatch')
+        if row['symbol'] not in frames:
+            frames[row['symbol']]=loader(window=window,symbol=row['symbol'],task=task,boundary=n8_context.n7.plan['boundary'])
+    prepared=build_shared_capital_inputs(frames_by_symbol=frames,protocol=protocol,manifest=manifest,
+                                         strategy_resolver=strategy_resolver)
+    prepared.update({'window':window,'research_freeze_identity':n8_context.n7.plan['research_freeze_identity'],
+                     'research_plan_identity':n8_context.n7.plan['research_plan_identity'],
+                     'boundary_identity_hash':n8_context.n7.plan['boundary_identity_hash'],
+                     'dataset_id':n8_context.dataset.dataset_id})
+    return prepared
