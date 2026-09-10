@@ -37,10 +37,13 @@ def bind_completed_n10_run(*, runtime: FutureRuntimeContext, run_root, manifest:
     final=final_result_identity(run_root,manifest,plan)
     if final!=expected_final: raise FutureN10BridgeError('future_n10_final_identity_mismatch')
     binding=state.get('binding',{})
-    for key in ('research_freeze_identity','research_plan_identity','candidate_universe_hash','boundary_identity_hash','dataset_id'):
-        if runtime.protocol.get(key) is not None and runtime.protocol[key]!=binding.get(key):
-            raise FutureN10BridgeError('future_n10_research_binding_mismatch')
+    required=('research_freeze_identity','research_plan_identity','candidate_universe_hash','boundary_identity_hash','dataset_id')
+    if any(not isinstance(config.get(key),str) or not config[key] for key in required):
+        raise FutureN10BridgeError('future_n10_research_identity_missing')
+    if any(config[key]!=binding.get(key) for key in required):
+        raise FutureN10BridgeError('future_n10_research_binding_mismatch')
     return seal({'schema_version':'quantbot-future-n10-input-anchor-v1','protocol_identity':runtime.protocol['artifact_identity'],
                  'execution_plan_identity':runtime.plan['artifact_identity'],'input_identity':runtime.input_identity,
                  'n9_manifest_identity':expected_manifest,'n10_run_id':state.get('run_id'),
-                 'n10_final_result_identity':final,'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'})
+                 'n10_final_result_identity':final,**{key:binding[key] for key in required},
+                 'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'})
