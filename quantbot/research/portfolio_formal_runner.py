@@ -5,6 +5,7 @@ from .authorization import AuthorizationEvidence, Capability
 from .future_stages import validate_portfolio_protocol
 from .non_oos_series import validate_external_n12_anchor
 from .evaluation import make_strategy_adapter
+from .canonical_data_adapter import make_n8_canonical_window_loader
 
 class PortfolioRunnerError(RuntimeError): pass
 
@@ -37,3 +38,10 @@ def build_canonical_signal_map(*, frame, strategy, params, model_id, symbol, tas
             if signal.stop_price is None: raise PortfolioRunnerError('portfolio_signal_stop_required')
             signals[frame.index[index]]={'side':signal.side,'stop_price':signal.stop_price,'take_profit':signal.take_profit,'tag':signal.tag}
     return {(model_id,symbol):signals}
+
+def make_portfolio_window_loader(*, n8_context, raw_root, protocol, diagnostic, manifest,
+                                 n11_identity, candidate_count, correlation_sha256, evidence):
+    """Formal constructor: authorization precedes canonical loader creation."""
+    authorize_portfolio_run(protocol=protocol,diagnostic=diagnostic,manifest=manifest,n11_identity=n11_identity,
+                            candidate_count=candidate_count,correlation_sha256=correlation_sha256,evidence=evidence)
+    return make_n8_canonical_window_loader(n8_context,raw_root)

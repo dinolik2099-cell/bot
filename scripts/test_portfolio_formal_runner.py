@@ -1,7 +1,7 @@
 from quantbot.research.artifact_store import seal
 from quantbot.research.authorization import AuthorizationEvidence,Capability
 from quantbot.research.future_stages import N12CandidateInput,build_portfolio_protocol
-from quantbot.research.portfolio_formal_runner import authorize_portfolio_run
+from quantbot.research.portfolio_formal_runner import authorize_portfolio_run,make_portfolio_window_loader
 from quantbot.research.portfolio_formal_runner import build_canonical_signal_map
 import pandas as pd
 def blocked(fn):
@@ -20,6 +20,7 @@ def main():
  blocked(lambda:authorize_portfolio_run(protocol=p,diagnostic=diagnostic,manifest=manifest,n11_identity='c'*64,candidate_count=1,correlation_sha256=sha,evidence=e))
  blocked(lambda:authorize_portfolio_run(protocol=p,diagnostic=diagnostic,manifest=manifest,n11_identity=n11,candidate_count=1,correlation_sha256='d'*64,evidence=e))
  blocked(lambda:authorize_portfolio_run(protocol=p,diagnostic=diagnostic,manifest=manifest,n11_identity=n11,candidate_count=1,correlation_sha256=sha,evidence=AuthorizationEvidence(Capability.OOS)))
+ blocked(lambda:make_portfolio_window_loader(n8_context=None,raw_root='must-not-open',protocol=p,diagnostic=diagnostic,manifest=manifest,n11_identity=n11,candidate_count=1,correlation_sha256=sha,evidence=e))
  index=pd.date_range('2025-01-01',periods=3,freq='h',tz='UTC');frame=pd.DataFrame({'open':[1,2,3],'high':[2,3,4],'low':[.5,1,2],'close':[1,2,3],'volume':[1,1,1]},index=index)
  def strategy(df,**_): return pd.DataFrame({'signal':[0,1,0],'stop':[None,1.0,None],'target':[None,3.0,None]},index=df.index)
  signals=build_canonical_signal_map(frame=frame,strategy=strategy,params={},model_id='m',symbol='BTC',task_identity='4'*64)
