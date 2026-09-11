@@ -13,7 +13,9 @@ def build_service(*,config_path,symbols,orchestrator,date_provider,pipeline=None
   if not isinstance(pipeline,ForwardPipeline) or pipeline.orchestrator is not orchestrator:raise ForwardResearchError('forward_service_pipeline_invalid')
  def on_event(event):
   date=date_provider(event.receive_time);result=orchestrator.ingest(event,date)
-  if result=='COMPLETED' and pipeline is not None:
+  # The public collector can retain multiple evidence intervals, while model
+  # execution is pinned to the single N5 protocol timeframe.
+  if result=='COMPLETED' and pipeline is not None and event.interval==pipeline.plan.get('protocol_scope',{}).get('timeframe'):
    pipeline.on_completed_candle(date=date,symbol=event.symbol,interval=event.interval)
   return result
  return {'config_identity':config['config_identity'],'transport':PublicWebsocketTransport(symbols,on_event),'checkpoint':orchestrator.checkpoint,'shadow_only':True,'oos_allowed':False,'orders_allowed':False,'pipeline_bound':pipeline is not None}

@@ -60,6 +60,9 @@ def main():
   decision={'schema_version':DECLARATION_SCHEMA,'decision_artifact_id':'external-decision-v1','research_freeze_identity':'f'*64,'research_plan_identity':'p'*64,'declarations':[declaration],'forward_research_only':True,'oos_allowed':False,'order_placement_allowed':False};decision['manifest_identity']=manifest_identity(decision);decision_path=f'{root}/decision.json';open(decision_path,'w',encoding='utf-8').write(json.dumps(decision));assert load_forward_declaration_manifest(decision_path,plan)['manifest_identity']==decision['manifest_identity']
   pipeline=ForwardPipeline(orchestrator=orch,plan=plan,declarations=[declaration]);assert pipeline.on_completed_candle(date='2026-09-11',symbol='Z',interval='1m')['errors']
   service=build_service(config_path='config/forward_research.yaml',symbols=['ZUSDT'],orchestrator=orch,date_provider=lambda _: '2026-09-11',pipeline=pipeline);assert service['shadow_only'] and service['pipeline_bound'] and len(service['transport'].shard_urls())==1
+  # Non-frozen intervals are retained as public evidence but do not enter the
+  # N5-bound model pipeline.
+  assert service['transport'].on_event(MarketEvent('Z','5m','later','r',1,2,1,2,1,True,99))=='COMPLETED'
   fresh=refresh_universe({'symbols':[{'symbol':'NEWUSDT','contractType':'PERPETUAL','quoteAsset':'USDT','status':'TRADING','filters':[]}]},[{'symbol':'NEWUSDT','quoteVolume':'3000000'}],'t',ForwardPersistence(root,'a'*40,'b'*64,'c'*64),'2026-09-11');assert fresh['symbols'][0]['symbol']=='NEWUSDT'
   assert reconcile_universe(None,fresh,1)['subscribe']==['NEWUSDT']
   assert schedule_models('NEWUSDT','t',[{'model_id':'m','params_identity':'p','input_boundary':'COMPLETED_CANDLE_T_MINUS_1'}])[0]['model_id']=='m'
