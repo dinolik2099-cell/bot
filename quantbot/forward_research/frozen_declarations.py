@@ -82,3 +82,36 @@ def validate_forward_declarations(plan: Mapping, declarations: Sequence[Mapping]
             raise ForwardResearchError("forward_declaration_identity_mismatch")
         validated.append(row)
     return tuple(sorted(validated, key=lambda item: item["model_id"]))
+
+
+def manifest_identity(manifest: Mapping) -> str:
+    """Stable artifact identity; excludes only its own identity field."""
+    payload = {key: manifest[key] for key in (
+        "schema_version", "decision_artifact_id", "research_freeze_identity",
+        "research_plan_identity", "declarations", "forward_research_only",
+        "oos_allowed", "order_placement_allowed",
+    )}
+    return identity(payload)
+
+
+def load_forward_declaration_manifest(path: str | Path, plan: Mapping) -> dict:
+    """Load a decision artifact, never construct or optimize declarations.
+
+    `decision_artifact_id` is deliberately mandatory.  Its producer is an
+    external, human-authorized decision process; this runtime refuses a
+    hand-wavy unnamed list of models and parameters.
+    """
+    assert_shadow_only()
+    manifest = json.loads(Path(path).read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != DECLARATION_SCHEMA:
+        raise ForwardResearchError("forward_declaration_manifest_schema_invalid")
+    if not isinstance(manifest.get("decision_artifact_id"), str) or not manifest["decision_artifact_id"]:
+        raise ForwardResearchError("forward_declaration_decision_artifact_missing")
+    if manifest.get("forward_research_only") is not True or manifest.get("oos_allowed") is not False or manifest.get("order_placement_allowed") is not False:
+        raise ForwardResearchError("forward_declaration_manifest_safety_invalid")
+    if manifest.get("manifest_identity") != manifest_identity(manifest):
+        raise ForwardResearchError("forward_declaration_manifest_identity_mismatch")
+    rows = validate_forward_declarations(plan, manifest.get("declarations", ()))
+    if not rows:
+        raise ForwardResearchError("forward_declaration_manifest_empty")
+    return {**manifest, "declarations": list(rows)}
