@@ -29,7 +29,7 @@ class ForwardOrchestrator:
  def run_completed_models(self,date,symbol,interval,declarations):
   """Only closed candles enter frozen model observation execution."""
   from .model_runtime import run_scheduled_models
-  rows=self.candles.completed.get(interval,[])
+  rows=self.candles.history(symbol,interval)
   result=run_scheduled_models(symbol,rows,declarations)
   for row in result['signals']:self.persistence.append('signals',date,row)
   for row in result['errors']:self.persistence.append('diagnostics',date,row)
@@ -37,7 +37,7 @@ class ForwardOrchestrator:
  def detect_opportunities(self,date,symbol,interval,signals=(),selected_signal_ids=()):
   from .event_detector import detect_moves
   from .opportunity import match_opportunity
-  events=detect_moves(symbol,self.candles.completed.get(interval,[]));matches=[]
+  events=detect_moves(symbol,self.candles.history(symbol,interval));matches=[]
   for event in events:
    self.persistence.append('opportunities',date,event);match=match_opportunity(event,signals,selected_signal_ids);self.persistence.append('opportunities',date,match);matches.append(match)
   return matches

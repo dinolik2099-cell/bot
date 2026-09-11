@@ -21,6 +21,8 @@ from quantbot.forward_research.model_schedule import schedule_models
 from quantbot.forward_research.model_runtime import run_scheduled_models
 from quantbot.forward_research.event_detector import detect_moves
 from quantbot.forward_research.orchestrator import ForwardOrchestrator
+from quantbot.forward_research.frozen_declarations import validate_forward_declarations,declaration_identity,DECLARATION_SCHEMA
+from quantbot.forward_research.pipeline import ForwardPipeline
 def main():
  assert validate_config('config/forward_research.yaml')['forward_research_only']=='true'
  rows=[UniverseSymbol('OKUSDT',3_000_000,'PERPETUAL','USDT','TRADING'),UniverseSymbol('LOWUSDT',2999999,'PERPETUAL','USDT','TRADING'),UniverseSymbol('BADUSDT',9e9,'CURRENT_QUARTER','USDT','TRADING')];snap=universe_snapshot(rows,'2026-09-11T00:00:00+00:00');assert [r['symbol'] for r in snap['symbols']]==['OKUSDT']
@@ -29,7 +31,7 @@ def main():
  assert fixed_exit('LONG',100,[111],.1,.05)['reason']=='TAKE_PROFIT';assert fixed_exit('SHORT',100,[106],.1,.05)['reason']=='STOP';assert any(row['rule']=='SIGNAL_REVERSAL' for row in replay_variants('SHORT',100,[95,97],1))
  event=classify_opportunity('A','2026-01-01T00:00:00Z','e',.1);assert match_opportunity(event,[{'symbol':'A','direction':'LONG','signal_timestamp':'2025-12-31T23:00:00Z','signal_identity':'s'}],['s'])['status']=='CAPTURED';assert match_opportunity(event,[{'symbol':'A','direction':'SHORT','signal_timestamp':'x','signal_identity':'s'}])['status']=='WRONG_DIRECTION'
  runtime=ForwardRuntime();assert runtime.ingest('a','t','r');assert not runtime.ingest('a','t','r');assert runtime.duplicates==1
- state=CandleState();assert state.apply(MarketEvent('A','1m','2026-01-01T00:00:00Z','r',1,2,1,2,3,False,1))=='INTRABAR';assert state.apply(MarketEvent('A','1m','2026-01-01T00:00:00Z','r',1,2,1,2,3,True,2))=='COMPLETED';assert len(state.completed['1m'])==1
+ state=CandleState();assert state.apply(MarketEvent('A','1m','2026-01-01T00:00:00Z','r',1,2,1,2,3,False,1))=='INTRABAR';assert state.apply(MarketEvent('A','1m','2026-01-01T00:00:00Z','r',1,2,1,2,3,True,2))=='COMPLETED';assert len(state.history('A','1m'))==1;state.apply(MarketEvent('B','1m','2026-01-01T00:01:00Z','r',1,2,1,2,3,True,3));assert len(state.history('A','1m'))==1 and len(state.history('B','1m'))==1
  assert shard_symbols(['C','A','B'],2)==(('A','B'),('C',)) and reconnect_delay(0)==1 and reconnect_delay(10)==60;collector=CollectorState();event=MarketEvent('A','1m','t','r',1,2,1,2,3,True,1);assert collector.accept(event) and not collector.accept(event);collector.record_error('BROKEN','synthetic');assert collector.stale('MISSING',0) and collector.reconnects==1
  assert len(PublicWebsocketTransport(['AUSDT','BUSDT'],lambda _:None).shard_urls(1))==2
  obs=observation({'direction':'SHORT','reference_price':100,'symbol':'A','model_id':'m'},[95,90,96]);assert obs['horizons'][0]['mfe']>0
@@ -40,6 +42,11 @@ def main():
   store=AppendOnlyStore(root);store.append('signals/2026-09-11.jsonl',{'event':'x'});store.append('signals/2026-09-11.jsonl',{'event':'x'});assert len((store.root/'signals/2026-09-11.jsonl').read_text().splitlines())==1;manifest=store.manifest('2026-09-11','a'*40,'b'*64);assert manifest['files'] and store.verify_manifest(manifest)
   checkpoint=checkpoint_payload(runtime,'b'*64,'a'*40);write_checkpoint(f'{root}/checkpoints/state.json',checkpoint);assert load_checkpoint(f'{root}/checkpoints/state.json',config_identity='b'*64,git_commit='a'*40)['checkpoint_identity']==checkpoint['checkpoint_identity'];ForwardPersistence(root,'a'*40,'b'*64,'c'*64).append('snapshots','2026-09-11',{'timestamp':'t'})
   orch=ForwardOrchestrator(ForwardPersistence(root,'a'*40,'b'*64,'c'*64),ForwardRuntime(),'b'*64,'a'*40,'c'*64);assert orch.ingest(MarketEvent('Z','1m','z','r',1,2,1,2,1,True,3),'2026-09-11')=='COMPLETED';assert orch.ingest(MarketEvent('Z','1m','z','r',1,2,1,2,1,True,3),'2026-09-11')=='DUPLICATE';orch.snapshot('2026-09-11','t',[{'symbol':'Z','model_id':'m','direction':'FLAT'}]);orch.checkpoint(f'{root}/checkpoints/orch.json')
+  plan={'research_freeze_identity':'f'*64,'research_plan_identity':'p'*64,'protocol_scope':{'timeframe':'1m'},'models':[{'model_id':'m','parameter_grid_hash':'g'*64,'strategy_function_hash':'s'*64,'implementation_module_hash':'i'*64}]}
+  declaration={'schema_version':DECLARATION_SCHEMA,'research_freeze_identity':'f'*64,'research_plan_identity':'p'*64,'model_id':'m','model_name':'missing','params':{},'params_identity':__import__('hashlib').sha256(b'{}').hexdigest(),'parameter_grid_hash':'g'*64,'strategy_function_hash':'s'*64,'implementation_module_hash':'i'*64,'input_boundary':'COMPLETED_CANDLE_T_MINUS_1'};declaration['declaration_identity']=declaration_identity(declaration);assert validate_forward_declarations(plan,[declaration])[0]['model_id']=='m';bad=dict(declaration);bad['parameter_grid_hash']='x'*64
+  try:validate_forward_declarations(plan,[bad]);raise AssertionError('metadata drift accepted')
+  except Exception as exc:assert 'metadata' in str(exc)
+  pipeline=ForwardPipeline(orchestrator=orch,plan=plan,declarations=[declaration]);assert pipeline.on_completed_candle(date='2026-09-11',symbol='Z',interval='1m')['errors']
   service=build_service(config_path='config/forward_research.yaml',symbols=['ZUSDT'],orchestrator=orch,date_provider=lambda _: '2026-09-11');assert service['shadow_only'] and len(service['transport'].shard_urls())==1
   fresh=refresh_universe({'symbols':[{'symbol':'NEWUSDT','contractType':'PERPETUAL','quoteAsset':'USDT','status':'TRADING','filters':[]}]},[{'symbol':'NEWUSDT','quoteVolume':'3000000'}],'t',ForwardPersistence(root,'a'*40,'b'*64,'c'*64),'2026-09-11');assert fresh['symbols'][0]['symbol']=='NEWUSDT'
   assert reconcile_universe(None,fresh,1)['subscribe']==['NEWUSDT']
