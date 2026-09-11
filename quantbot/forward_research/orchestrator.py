@@ -15,4 +15,14 @@ class ForwardOrchestrator:
   return kind
  def snapshot(self,date,timestamp,states):
   row=cross_section(timestamp,states);self.persistence.append('snapshots',date,row);return row
+ def record_signal_bundle(self,date,signal,prices,opportunity=None,portfolio=None):
+  """Persist already-authorized shadow evidence; no model call or order occurs here."""
+  from .observations import observation
+  from .exits import replay_variants
+  self.persistence.append('signals',date,signal)
+  path=observation(signal,prices);self.persistence.append('paths',date,path)
+  for row in replay_variants(signal['direction'],signal['reference_price'],prices):self.persistence.append('exits',date,{**row,'signal_identity':signal.get('signal_identity')})
+  if opportunity is not None:self.persistence.append('opportunities',date,opportunity)
+  if portfolio is not None:self.persistence.append('portfolio',date,portfolio)
+  return path
  def checkpoint(self,path):write_checkpoint(path,checkpoint_payload(self.runtime,self.config_identity,self.git_commit))
