@@ -1,0 +1,12 @@
+[Unit]
+Description=QuantBot public-market Shadow Forward Research
+After=network-online.target
+[Service]
+Type=simple
+WorkingDirectory=/www/wwwroot/QuantBot
+ExecStart=/www/wwwroot/QuantBot/venv/bin/python scripts/run_forward_research.py --config config/forward_research.yaml
+Restart=on-failure
+RestartSec=15
+NoNewPrivileges=true
+[Install]
+WantedBy=multi-user.target

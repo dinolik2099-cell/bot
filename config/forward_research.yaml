@@ -1,0 +1,7 @@
+forward_research_only: true
+order_placement_allowed: false
+oos_allowed: false
+universe_refresh_seconds: 300
+snapshot_seconds: 60
+quote_volume_min_usdt: 3000000
+horizons_minutes: [5, 15, 30, 60, 120, 240, 480, 720, 1440]
