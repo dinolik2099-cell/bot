@@ -19,6 +19,7 @@ from quantbot.forward_research.universe import refresh_universe
 from quantbot.forward_research.scheduler import reconcile_universe
 from quantbot.forward_research.model_schedule import schedule_models
 from quantbot.forward_research.model_runtime import run_scheduled_models
+from quantbot.forward_research.event_detector import detect_moves
 from quantbot.forward_research.orchestrator import ForwardOrchestrator
 def main():
  assert validate_config('config/forward_research.yaml')['forward_research_only']=='true'
@@ -46,6 +47,7 @@ def main():
   assert run_scheduled_models('NEWUSDT',[],[{'model_name':'missing','model_id':'m','params':{}}])['errors']
   assert orch.record_signal_bundle('2026-09-11',{'direction':'LONG','reference_price':100,'signal_identity':'s','symbol':'Z'},[101,102])['signal']['direction']=='LONG'
   assert orch.run_completed_models('2026-09-11','Z','1m',[{'model_name':'missing','model_id':'m','params':{}}])['errors']
+  assert detect_moves('Z',[{'event_time':'a','close':100},{'event_time':'b','close':106}])[0]['direction']=='UP'
   audit=json.loads(subprocess.check_output([sys.executable,'-B','scripts/audit_forward_research.py','--root',root,'--days','7'],env={**__import__('os').environ,'PYTHONPATH':'.'}));assert audit['candles_records']==1 and not audit['model_ranking_updated']
  print('FORWARD_RESEARCH_SYNTHETIC_TEST_OK');print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
 if __name__=='__main__':main()
