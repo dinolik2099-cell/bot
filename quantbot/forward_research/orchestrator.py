@@ -6,12 +6,15 @@ from .observations import cross_section
 from .checkpoint import checkpoint_payload,write_checkpoint
 from .core import assert_shadow_only
 class ForwardOrchestrator:
- def __init__(self,persistence,runtime,config_identity,git_commit,universe_identity):
-  assert_shadow_only();self.persistence=persistence;self.runtime=runtime;self.collector=CollectorState();self.candles=CandleState();self.config_identity=config_identity;self.git_commit=git_commit;self.universe_identity=universe_identity
+ def __init__(self,persistence,runtime,config_identity,git_commit,universe_identity,path_tracker=None):
+  assert_shadow_only();self.persistence=persistence;self.runtime=runtime;self.collector=CollectorState();self.candles=CandleState();self.config_identity=config_identity;self.git_commit=git_commit;self.universe_identity=universe_identity;self.path_tracker=path_tracker
  def ingest(self,event:MarketEvent,date):
   if not self.collector.accept(event):self.runtime.duplicates+=1;return 'DUPLICATE'
   self.runtime.ingest(event.identity(),event.event_time,event.receive_time);kind=self.candles.apply(event)
   self.persistence.append('candles' if event.closed else 'intrabar',date,{'symbol':event.symbol,'interval':event.interval,'event_time':event.event_time,'receive_time':event.receive_time,'open':event.open,'high':event.high,'low':event.low,'close':event.close,'volume':event.volume,'closed':event.closed})
+  if event.closed and self.path_tracker is not None:
+   for evidence in self.path_tracker.on_completed_close(symbol=event.symbol,event_time=event.event_time,close=event.close):
+    self.persistence.append('paths',date,evidence);self.runtime.completed_observations+=1
   return kind
  def snapshot(self,date,timestamp,states):
   row=cross_section(timestamp,states);self.persistence.append('snapshots',date,row);return row
@@ -32,6 +35,9 @@ class ForwardOrchestrator:
   rows=self.candles.history(symbol,interval)
   result=run_scheduled_models(symbol,rows,declarations)
   for row in result['signals']:self.persistence.append('signals',date,row)
+  if self.path_tracker is not None:
+   for signal in result['signals']:
+    if self.path_tracker.register(signal):self.runtime.open_observations+=1
   for row in result['errors']:self.persistence.append('diagnostics',date,row)
   return result
  def detect_opportunities(self,date,symbol,interval,signals=(),selected_signal_ids=()):

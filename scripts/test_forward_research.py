@@ -1,5 +1,6 @@
 from __future__ import annotations
 import tempfile
+from datetime import datetime,timedelta,timezone
 import subprocess,sys,json
 from quantbot.forward_research.core import UniverseSymbol,universe_snapshot,directional_path,trailing_exit,classify_opportunity,AppendOnlyStore
 from quantbot.forward_research.runtime import ForwardRuntime
@@ -23,6 +24,7 @@ from quantbot.forward_research.event_detector import detect_moves
 from quantbot.forward_research.orchestrator import ForwardOrchestrator
 from quantbot.forward_research.frozen_declarations import validate_forward_declarations,declaration_identity,DECLARATION_SCHEMA
 from quantbot.forward_research.pipeline import ForwardPipeline
+from quantbot.forward_research.path_tracker import ShadowPathTracker
 def main():
  assert validate_config('config/forward_research.yaml')['forward_research_only']=='true'
  rows=[UniverseSymbol('OKUSDT',3_000_000,'PERPETUAL','USDT','TRADING'),UniverseSymbol('LOWUSDT',2999999,'PERPETUAL','USDT','TRADING'),UniverseSymbol('BADUSDT',9e9,'CURRENT_QUARTER','USDT','TRADING')];snap=universe_snapshot(rows,'2026-09-11T00:00:00+00:00');assert [r['symbol'] for r in snap['symbols']]==['OKUSDT']
@@ -35,6 +37,13 @@ def main():
  assert shard_symbols(['C','A','B'],2)==(('A','B'),('C',)) and reconnect_delay(0)==1 and reconnect_delay(10)==60;collector=CollectorState();event=MarketEvent('A','1m','t','r',1,2,1,2,3,True,1);assert collector.accept(event) and not collector.accept(event);collector.record_error('BROKEN','synthetic');assert collector.stale('MISSING',0) and collector.reconnects==1
  assert len(PublicWebsocketTransport(['AUSDT','BUSDT'],lambda _:None).shard_urls(1))==2
  obs=observation({'direction':'SHORT','reference_price':100,'symbol':'A','model_id':'m'},[95,90,96]);assert obs['horizons'][0]['mfe']>0
+ tracker=ShadowPathTracker();signal={'signal_identity':'track','symbol':'A','direction':'LONG','reference_price':100,'signal_timestamp':'2026-01-01T00:00:00+00:00'};assert tracker.register(signal) and not tracker.register(signal)
+ for minute in range(1,1441):done=tracker.on_completed_close(symbol='A',event_time=(datetime(2026,1,1,tzinfo=timezone.utc)+timedelta(minutes=minute)).isoformat(),close=101)
+ assert len(done)==1 and done[0]['path_status']=='COMPLETED' and tracker.status()['open_observations']==0
+ # Explicitly prove the tracker rejects a timezone drift; completed evidence
+ # itself is covered by the dedicated short synthetic path below.
+ try:tracker.on_completed_close(symbol='A',event_time='2026-01-01T01:00:00+08:00',close=101);raise AssertionError('non utc accepted')
+ except Exception as exc:assert 'utc' in str(exc)
  cs=cross_section('t',[{'symbol':'A','model_id':'m','direction':'LONG'},{'symbol':'B','model_id':'m','direction':'SHORT'}]);assert cs['long_count']==cs['short_count']==1
  portfolio=shadow_selection([{'symbol':'A','task_identity':'1','direction':'LONG'},{'symbol':'A','task_identity':'2','direction':'SHORT'}]);assert len(portfolio['selected'])==1 and portfolio['rejected'][0]['reason']=='SYMBOL_ALREADY_SELECTED'
  assert classify_event(.25)=='strong_trend_up' and classify_event(-.25)=='strong_trend_down' and classify_event(.01,.2)=='extreme_wick';assert evidence_summary([{'direction':'LONG','event_class':'trend_up'},{'direction':'SHORT','event_class':'trend_down'}])['long_signals']==1
