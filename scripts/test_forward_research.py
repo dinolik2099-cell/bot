@@ -3,7 +3,7 @@ import tempfile
 import subprocess,sys,json
 from quantbot.forward_research.core import UniverseSymbol,universe_snapshot,directional_path,trailing_exit,classify_opportunity,AppendOnlyStore
 from quantbot.forward_research.runtime import ForwardRuntime
-from quantbot.forward_research.collector import MarketEvent,CollectorState,shard_symbols
+from quantbot.forward_research.collector import MarketEvent,CollectorState,shard_symbols,reconnect_delay
 from quantbot.forward_research.observations import observation,cross_section,shadow_selection
 from quantbot.forward_research.candle_state import CandleState
 from quantbot.forward_research.checkpoint import checkpoint_payload,write_checkpoint,load_checkpoint
@@ -17,7 +17,7 @@ def main():
  assert abs(directional_path('LONG',100,[105,97])['mfe']-.05)<1e-12;assert directional_path('SHORT',100,[95,103])['mfe']>0;assert trailing_exit('LONG',100,[110,103],.05)['reason']=='TRAILING';assert trailing_exit('SHORT',100,[90,96],.05)['reason']=='TRAILING';assert classify_opportunity('X','a','b',-.1)['direction']=='DOWN'
  runtime=ForwardRuntime();assert runtime.ingest('a','t','r');assert not runtime.ingest('a','t','r');assert runtime.duplicates==1
  state=CandleState();assert state.apply(MarketEvent('A','1m','2026-01-01T00:00:00Z','r',1,2,1,2,3,False,1))=='INTRABAR';assert state.apply(MarketEvent('A','1m','2026-01-01T00:00:00Z','r',1,2,1,2,3,True,2))=='COMPLETED';assert len(state.completed['1m'])==1
- assert shard_symbols(['C','A','B'],2)==(('A','B'),('C',));collector=CollectorState();event=MarketEvent('A','1m','t','r',1,2,1,2,3,True,1);assert collector.accept(event) and not collector.accept(event);assert collector.stale('MISSING',0)
+ assert shard_symbols(['C','A','B'],2)==(('A','B'),('C',)) and reconnect_delay(0)==1 and reconnect_delay(10)==60;collector=CollectorState();event=MarketEvent('A','1m','t','r',1,2,1,2,3,True,1);assert collector.accept(event) and not collector.accept(event);collector.record_error('BROKEN','synthetic');assert collector.stale('MISSING',0) and collector.reconnects==1
  obs=observation({'direction':'SHORT','reference_price':100,'symbol':'A','model_id':'m'},[95,90,96]);assert obs['horizons'][0]['mfe']>0
  cs=cross_section('t',[{'symbol':'A','model_id':'m','direction':'LONG'},{'symbol':'B','model_id':'m','direction':'SHORT'}]);assert cs['long_count']==cs['short_count']==1
  portfolio=shadow_selection([{'symbol':'A','task_identity':'1','direction':'LONG'},{'symbol':'A','task_identity':'2','direction':'SHORT'}]);assert len(portfolio['selected'])==1 and portfolio['rejected'][0]['reason']=='SYMBOL_ALREADY_SELECTED'
