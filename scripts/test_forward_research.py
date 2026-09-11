@@ -7,8 +7,10 @@ from quantbot.forward_research.observations import observation,cross_section,sha
 from quantbot.forward_research.candle_state import CandleState
 from quantbot.forward_research.checkpoint import checkpoint_payload,write_checkpoint,load_checkpoint
 from quantbot.forward_research.persistence import ForwardPersistence
+from quantbot.forward_research.binance_public import parse_exchange_info,apply_ticker_volumes,websocket_url,parse_kline
 def main():
  rows=[UniverseSymbol('OKUSDT',3_000_000,'PERPETUAL','USDT','TRADING'),UniverseSymbol('LOWUSDT',2999999,'PERPETUAL','USDT','TRADING'),UniverseSymbol('BADUSDT',9e9,'CURRENT_QUARTER','USDT','TRADING')];snap=universe_snapshot(rows,'2026-09-11T00:00:00+00:00');assert [r['symbol'] for r in snap['symbols']]==['OKUSDT']
+ parsed=parse_exchange_info({'symbols':[{'symbol':'XUSDT','contractType':'PERPETUAL','quoteAsset':'USDT','status':'TRADING','filters':[]}]});assert apply_ticker_volumes(parsed,[{'symbol':'XUSDT','quoteVolume':'3000000'}])[0].eligible();assert 'xusdt@kline_1m' in websocket_url(['XUSDT']);assert parse_kline({'e':'kline','s':'XUSDT','k':{'i':'1m','t':1,'o':'1','h':'2','l':'1','c':'2','v':'3','x':True}},'r').closed
  assert abs(directional_path('LONG',100,[105,97])['mfe']-.05)<1e-12;assert directional_path('SHORT',100,[95,103])['mfe']>0;assert trailing_exit('LONG',100,[110,103],.05)['reason']=='TRAILING';assert trailing_exit('SHORT',100,[90,96],.05)['reason']=='TRAILING';assert classify_opportunity('X','a','b',-.1)['direction']=='DOWN'
  runtime=ForwardRuntime();assert runtime.ingest('a','t','r');assert not runtime.ingest('a','t','r');assert runtime.duplicates==1
  state=CandleState();assert state.apply(MarketEvent('A','1m','2026-01-01T00:00:00Z','r',1,2,1,2,3,False,1))=='INTRABAR';assert state.apply(MarketEvent('A','1m','2026-01-01T00:00:00Z','r',1,2,1,2,3,True,2))=='COMPLETED';assert len(state.completed['1m'])==1
