@@ -10,7 +10,9 @@ def write_checkpoint(path,payload):
  try:Path(tmp).write_text(json.dumps(payload,sort_keys=True),encoding='utf-8');os.replace(tmp,target)
  finally:
   if Path(tmp).exists():Path(tmp).unlink()
-def load_checkpoint(path):
+def load_checkpoint(path,*,config_identity=None,git_commit=None):
  value=json.loads(Path(path).read_text(encoding='utf-8'));expected=dict(value);seen=expected.pop('checkpoint_identity',None)
  if seen!=identity(expected):raise ValueError('forward_checkpoint_identity_mismatch')
+ if config_identity is not None and value.get('config_identity')!=config_identity:raise ValueError('forward_checkpoint_config_drift')
+ if git_commit is not None and value.get('git_commit')!=git_commit:raise ValueError('forward_checkpoint_git_drift')
  return value
