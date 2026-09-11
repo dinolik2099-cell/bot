@@ -4,7 +4,7 @@ After=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/www/wwwroot/QuantBot
-ExecStart=/www/wwwroot/QuantBot/venv/bin/python scripts/run_forward_research.py --config config/forward_research.yaml
+ExecStart=/www/wwwroot/QuantBot/venv/bin/python scripts/run_forward_research.py --serve --config config/forward_research.yaml --plan docs/handoff/FROZEN_RESEARCH_PLAN_N5.json --declarations /etc/quantbot/forward-day0-declarations.json --data-root data/forward_research --checkpoint data/forward_research/checkpoints/runtime.json --repo-root /www/wwwroot/QuantBot
 Restart=on-failure
 RestartSec=15
 NoNewPrivileges=true
