@@ -16,6 +16,7 @@ from quantbot.forward_research.opportunity import match_opportunity
 from quantbot.forward_research.websocket_transport import PublicWebsocketTransport
 from quantbot.forward_research.config import validate_config
 from quantbot.forward_research.service_runtime import build_service
+from audit_forward_research import audit_forward_evidence
 from quantbot.forward_research.universe import refresh_universe
 from quantbot.forward_research.scheduler import reconcile_universe
 from quantbot.forward_research.model_schedule import schedule_models
@@ -56,7 +57,7 @@ def main():
   try:validate_forward_declarations(plan,[bad]);raise AssertionError('metadata drift accepted')
   except Exception as exc:assert 'metadata' in str(exc)
   pipeline=ForwardPipeline(orchestrator=orch,plan=plan,declarations=[declaration]);assert pipeline.on_completed_candle(date='2026-09-11',symbol='Z',interval='1m')['errors']
-  service=build_service(config_path='config/forward_research.yaml',symbols=['ZUSDT'],orchestrator=orch,date_provider=lambda _: '2026-09-11');assert service['shadow_only'] and len(service['transport'].shard_urls())==1
+  service=build_service(config_path='config/forward_research.yaml',symbols=['ZUSDT'],orchestrator=orch,date_provider=lambda _: '2026-09-11',pipeline=pipeline);assert service['shadow_only'] and service['pipeline_bound'] and len(service['transport'].shard_urls())==1
   fresh=refresh_universe({'symbols':[{'symbol':'NEWUSDT','contractType':'PERPETUAL','quoteAsset':'USDT','status':'TRADING','filters':[]}]},[{'symbol':'NEWUSDT','quoteVolume':'3000000'}],'t',ForwardPersistence(root,'a'*40,'b'*64,'c'*64),'2026-09-11');assert fresh['symbols'][0]['symbol']=='NEWUSDT'
   assert reconcile_universe(None,fresh,1)['subscribe']==['NEWUSDT']
   assert schedule_models('NEWUSDT','t',[{'model_id':'m','params_identity':'p','input_boundary':'COMPLETED_CANDLE_T_MINUS_1'}])[0]['model_id']=='m'
@@ -66,6 +67,6 @@ def main():
   assert orch.detect_opportunities('2026-09-11','Z','1m')==[]
   assert orch.shadow_portfolio('2026-09-11',[{'symbol':'Z','task_identity':'z','direction':'LONG'}])['selected']
   assert detect_moves('Z',[{'event_time':'a','close':100},{'event_time':'b','close':106}])[0]['direction']=='UP'
-  audit=json.loads(subprocess.check_output([sys.executable,'-B','scripts/audit_forward_research.py','--root',root,'--days','7'],env={**__import__('os').environ,'PYTHONPATH':'.'}));assert audit['candles_records']==1 and not audit['model_ranking_updated']
+  audit=json.loads(subprocess.check_output([sys.executable,'-B','scripts/audit_forward_research.py','--root',root,'--days','7'],env={**__import__('os').environ,'PYTHONPATH':'.'}));assert audit['candles_records']==1 and audit['provenance_chains']==1 and not audit['model_ranking_updated'];assert audit_forward_evidence(root,7)['audit_identity']==audit['audit_identity']
  print('FORWARD_RESEARCH_SYNTHETIC_TEST_OK');print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
 if __name__=='__main__':main()
