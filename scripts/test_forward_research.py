@@ -4,10 +4,12 @@ from quantbot.forward_research.core import UniverseSymbol,universe_snapshot,dire
 from quantbot.forward_research.runtime import ForwardRuntime
 from quantbot.forward_research.collector import MarketEvent,CollectorState,shard_symbols
 from quantbot.forward_research.observations import observation,cross_section,shadow_selection
+from quantbot.forward_research.candle_state import CandleState
 def main():
  rows=[UniverseSymbol('OKUSDT',3_000_000,'PERPETUAL','USDT','TRADING'),UniverseSymbol('LOWUSDT',2999999,'PERPETUAL','USDT','TRADING'),UniverseSymbol('BADUSDT',9e9,'CURRENT_QUARTER','USDT','TRADING')];snap=universe_snapshot(rows,'2026-09-11T00:00:00+00:00');assert [r['symbol'] for r in snap['symbols']]==['OKUSDT']
  assert abs(directional_path('LONG',100,[105,97])['mfe']-.05)<1e-12;assert directional_path('SHORT',100,[95,103])['mfe']>0;assert trailing_exit('LONG',100,[110,103],.05)['reason']=='TRAILING';assert trailing_exit('SHORT',100,[90,96],.05)['reason']=='TRAILING';assert classify_opportunity('X','a','b',-.1)['direction']=='DOWN'
  runtime=ForwardRuntime();assert runtime.ingest('a','t','r');assert not runtime.ingest('a','t','r');assert runtime.duplicates==1
+ state=CandleState();assert state.apply(MarketEvent('A','1m','2026-01-01T00:00:00Z','r',1,2,1,2,3,False,1))=='INTRABAR';assert state.apply(MarketEvent('A','1m','2026-01-01T00:00:00Z','r',1,2,1,2,3,True,2))=='COMPLETED';assert len(state.completed['1m'])==1
  assert shard_symbols(['C','A','B'],2)==(('A','B'),('C',));collector=CollectorState();event=MarketEvent('A','1m','t','r',1,2,1,2,3,True,1);assert collector.accept(event) and not collector.accept(event);assert collector.stale('MISSING',0)
  obs=observation({'direction':'SHORT','reference_price':100,'symbol':'A','model_id':'m'},[95,90,96]);assert obs['horizons'][0]['mfe']>0
  cs=cross_section('t',[{'symbol':'A','model_id':'m','direction':'LONG'},{'symbol':'B','model_id':'m','direction':'SHORT'}]);assert cs['long_count']==cs['short_count']==1
