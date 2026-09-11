@@ -34,3 +34,10 @@ class ForwardOrchestrator:
   for row in result['signals']:self.persistence.append('signals',date,row)
   for row in result['errors']:self.persistence.append('diagnostics',date,row)
   return result
+ def detect_opportunities(self,date,symbol,interval,signals=(),selected_signal_ids=()):
+  from .event_detector import detect_moves
+  from .opportunity import match_opportunity
+  events=detect_moves(symbol,self.candles.completed.get(interval,[]));matches=[]
+  for event in events:
+   self.persistence.append('opportunities',date,event);match=match_opportunity(event,signals,selected_signal_ids);self.persistence.append('opportunities',date,match);matches.append(match)
+  return matches
