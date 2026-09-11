@@ -9,6 +9,7 @@ from quantbot.forward_research.checkpoint import checkpoint_payload,write_checkp
 from quantbot.forward_research.persistence import ForwardPersistence
 from quantbot.forward_research.binance_public import parse_exchange_info,apply_ticker_volumes,websocket_url,parse_kline
 from quantbot.forward_research.diagnostics import classify_event,evidence_summary
+from quantbot.forward_research.orchestrator import ForwardOrchestrator
 def main():
  rows=[UniverseSymbol('OKUSDT',3_000_000,'PERPETUAL','USDT','TRADING'),UniverseSymbol('LOWUSDT',2999999,'PERPETUAL','USDT','TRADING'),UniverseSymbol('BADUSDT',9e9,'CURRENT_QUARTER','USDT','TRADING')];snap=universe_snapshot(rows,'2026-09-11T00:00:00+00:00');assert [r['symbol'] for r in snap['symbols']]==['OKUSDT']
  parsed=parse_exchange_info({'symbols':[{'symbol':'XUSDT','contractType':'PERPETUAL','quoteAsset':'USDT','status':'TRADING','filters':[]}]});assert apply_ticker_volumes(parsed,[{'symbol':'XUSDT','quoteVolume':'3000000'}])[0].eligible();assert 'xusdt@kline_1m' in websocket_url(['XUSDT']);assert parse_kline({'e':'kline','s':'XUSDT','k':{'i':'1m','t':1,'o':'1','h':'2','l':'1','c':'2','v':'3','x':True}},'r').closed
@@ -23,5 +24,6 @@ def main():
  with tempfile.TemporaryDirectory() as root:
   store=AppendOnlyStore(root);store.append('signals/2026-09-11.jsonl',{'event':'x'});store.append('signals/2026-09-11.jsonl',{'event':'x'});assert len((store.root/'signals/2026-09-11.jsonl').read_text().splitlines())==1;assert store.manifest('2026-09-11','a'*40,'b'*64)['files']
   checkpoint=checkpoint_payload(runtime,'b'*64,'a'*40);write_checkpoint(f'{root}/checkpoints/state.json',checkpoint);assert load_checkpoint(f'{root}/checkpoints/state.json')['checkpoint_identity']==checkpoint['checkpoint_identity'];ForwardPersistence(root,'a'*40,'b'*64,'c'*64).append('snapshots','2026-09-11',{'timestamp':'t'})
+  orch=ForwardOrchestrator(ForwardPersistence(root,'a'*40,'b'*64,'c'*64),ForwardRuntime(),'b'*64,'a'*40,'c'*64);assert orch.ingest(MarketEvent('Z','1m','z','r',1,2,1,2,1,True,3),'2026-09-11')=='COMPLETED';assert orch.ingest(MarketEvent('Z','1m','z','r',1,2,1,2,1,True,3),'2026-09-11')=='DUPLICATE';orch.snapshot('2026-09-11','t',[{'symbol':'Z','model_id':'m','direction':'FLAT'}]);orch.checkpoint(f'{root}/checkpoints/orch.json')
  print('FORWARD_RESEARCH_SYNTHETIC_TEST_OK');print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
 if __name__=='__main__':main()

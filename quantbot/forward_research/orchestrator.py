@@ -1,0 +1,18 @@
+"""Single-process Shadow coordinator: route public events without formal access."""
+from __future__ import annotations
+from .collector import CollectorState,MarketEvent
+from .candle_state import CandleState
+from .observations import cross_section
+from .checkpoint import checkpoint_payload,write_checkpoint
+from .core import assert_shadow_only
+class ForwardOrchestrator:
+ def __init__(self,persistence,runtime,config_identity,git_commit,universe_identity):
+  assert_shadow_only();self.persistence=persistence;self.runtime=runtime;self.collector=CollectorState();self.candles=CandleState();self.config_identity=config_identity;self.git_commit=git_commit;self.universe_identity=universe_identity
+ def ingest(self,event:MarketEvent,date):
+  if not self.collector.accept(event):self.runtime.duplicates+=1;return 'DUPLICATE'
+  self.runtime.ingest(event.identity(),event.event_time,event.receive_time);kind=self.candles.apply(event)
+  self.persistence.append('candles' if event.closed else 'intrabar',date,{'symbol':event.symbol,'interval':event.interval,'event_time':event.event_time,'receive_time':event.receive_time,'open':event.open,'high':event.high,'low':event.low,'close':event.close,'volume':event.volume,'closed':event.closed})
+  return kind
+ def snapshot(self,date,timestamp,states):
+  row=cross_section(timestamp,states);self.persistence.append('snapshots',date,row);return row
+ def checkpoint(self,path):write_checkpoint(path,checkpoint_payload(self.runtime,self.config_identity,self.git_commit))
