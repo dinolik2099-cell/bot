@@ -45,6 +45,7 @@ def main():
   assert schedule_models('NEWUSDT','t',[{'model_id':'m','params_identity':'p','input_boundary':'COMPLETED_CANDLE_T_MINUS_1'}])[0]['model_id']=='m'
   assert run_scheduled_models('NEWUSDT',[],[{'model_name':'missing','model_id':'m','params':{}}])['errors']
   assert orch.record_signal_bundle('2026-09-11',{'direction':'LONG','reference_price':100,'signal_identity':'s','symbol':'Z'},[101,102])['signal']['direction']=='LONG'
+  assert orch.run_completed_models('2026-09-11','Z','1m',[{'model_name':'missing','model_id':'m','params':{}}])['errors']
   audit=json.loads(subprocess.check_output([sys.executable,'-B','scripts/audit_forward_research.py','--root',root,'--days','7'],env={**__import__('os').environ,'PYTHONPATH':'.'}));assert audit['candles_records']==1 and not audit['model_ranking_updated']
  print('FORWARD_RESEARCH_SYNTHETIC_TEST_OK');print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
 if __name__=='__main__':main()
