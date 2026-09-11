@@ -15,6 +15,7 @@ from quantbot.forward_research.opportunity import match_opportunity
 from quantbot.forward_research.websocket_transport import PublicWebsocketTransport
 from quantbot.forward_research.config import validate_config
 from quantbot.forward_research.service_runtime import build_service
+from quantbot.forward_research.universe import refresh_universe
 from quantbot.forward_research.orchestrator import ForwardOrchestrator
 def main():
  assert validate_config('config/forward_research.yaml')['forward_research_only']=='true'
@@ -36,6 +37,7 @@ def main():
   checkpoint=checkpoint_payload(runtime,'b'*64,'a'*40);write_checkpoint(f'{root}/checkpoints/state.json',checkpoint);assert load_checkpoint(f'{root}/checkpoints/state.json')['checkpoint_identity']==checkpoint['checkpoint_identity'];ForwardPersistence(root,'a'*40,'b'*64,'c'*64).append('snapshots','2026-09-11',{'timestamp':'t'})
   orch=ForwardOrchestrator(ForwardPersistence(root,'a'*40,'b'*64,'c'*64),ForwardRuntime(),'b'*64,'a'*40,'c'*64);assert orch.ingest(MarketEvent('Z','1m','z','r',1,2,1,2,1,True,3),'2026-09-11')=='COMPLETED';assert orch.ingest(MarketEvent('Z','1m','z','r',1,2,1,2,1,True,3),'2026-09-11')=='DUPLICATE';orch.snapshot('2026-09-11','t',[{'symbol':'Z','model_id':'m','direction':'FLAT'}]);orch.checkpoint(f'{root}/checkpoints/orch.json')
   service=build_service(config_path='config/forward_research.yaml',symbols=['ZUSDT'],orchestrator=orch,date_provider=lambda _: '2026-09-11');assert service['shadow_only'] and len(service['transport'].shard_urls())==1
+  fresh=refresh_universe({'symbols':[{'symbol':'NEWUSDT','contractType':'PERPETUAL','quoteAsset':'USDT','status':'TRADING','filters':[]}]},[{'symbol':'NEWUSDT','quoteVolume':'3000000'}],'t',ForwardPersistence(root,'a'*40,'b'*64,'c'*64),'2026-09-11');assert fresh['symbols'][0]['symbol']=='NEWUSDT'
   assert orch.record_signal_bundle('2026-09-11',{'direction':'LONG','reference_price':100,'signal_identity':'s','symbol':'Z'},[101,102])['signal']['direction']=='LONG'
   audit=json.loads(subprocess.check_output([sys.executable,'-B','scripts/audit_forward_research.py','--root',root,'--days','7'],env={**__import__('os').environ,'PYTHONPATH':'.'}));assert audit['candles_records']==1 and not audit['model_ranking_updated']
  print('FORWARD_RESEARCH_SYNTHETIC_TEST_OK');print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
