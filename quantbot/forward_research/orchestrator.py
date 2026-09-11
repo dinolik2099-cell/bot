@@ -41,3 +41,6 @@ class ForwardOrchestrator:
   for event in events:
    self.persistence.append('opportunities',date,event);match=match_opportunity(event,signals,selected_signal_ids);self.persistence.append('opportunities',date,match);matches.append(match)
   return matches
+ def shadow_portfolio(self,date,signals):
+  from .observations import shadow_selection
+  result=shadow_selection(signals);self.persistence.append('portfolio',date,result);return result
