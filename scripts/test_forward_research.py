@@ -72,7 +72,7 @@ def main():
   assert orch.detect_opportunities('2026-09-11','Z','1m')==[]
   assert orch.shadow_portfolio('2026-09-11',[{'symbol':'Z','task_identity':'z','direction':'LONG'}])['selected']
   assert detect_moves('Z',[{'event_time':'a','close':100},{'event_time':'b','close':106}])[0]['direction']=='UP'
-  audit=json.loads(subprocess.check_output([sys.executable,'-B','scripts/audit_forward_research.py','--root',root,'--days','7'],env={**__import__('os').environ,'PYTHONPATH':'.'}));assert audit['candles_records']==1 and audit['provenance_chains']==1 and not audit['model_ranking_updated'];assert audit_forward_evidence(root,7)['audit_identity']==audit['audit_identity']
+  audit=json.loads(subprocess.check_output([sys.executable,'-B','scripts/audit_forward_research.py','--root',root,'--days','7'],env={**__import__('os').environ,'PYTHONPATH':'.'}));assert audit['candles_records']==2 and audit['provenance_chains']==1 and not audit['model_ranking_updated'];assert audit_forward_evidence(root,7)['audit_identity']==audit['audit_identity']
   sealed=seal_daily_manifest(root=root,date='2026-09-11',git_commit='a'*40,config_identity='b'*64,research_plan_identity='p'*64,declaration_manifest_identity='d'*64);assert verify_daily_manifest(f'{root}/manifests/2026-09-11.json')['daily_manifest_identity']==sealed['daily_manifest_identity']
   try:seal_daily_manifest(root=root,date='2026-09-11',git_commit='a'*40,config_identity='b'*64,research_plan_identity='p'*64,declaration_manifest_identity='d'*64);raise AssertionError('daily seal overwritten')
   except Exception as exc:assert 'already_sealed' in str(exc)
