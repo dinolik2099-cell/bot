@@ -42,3 +42,7 @@ class AppendOnlyStore:
   for path in sorted(self.root.rglob('*')):
    if path.is_file() and 'manifests' not in path.parts:files.append({'path':str(path.relative_to(self.root)).replace('\\','/'),'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'bytes':path.stat().st_size})
   data={'schema_version':'quantbot-forward-research-day-v1','date':date,'git_commit':git_commit,'config_identity':config_identity,'files':files,'forward_research_only':True};data['artifact_identity']=identity(data);return data
+ def verify_manifest(self,manifest):
+  rebuilt=self.manifest(manifest['date'],manifest['git_commit'],manifest['config_identity'])
+  if rebuilt['artifact_identity']!=manifest.get('artifact_identity'):raise ForwardResearchError('forward_daily_manifest_drift')
+  return True
