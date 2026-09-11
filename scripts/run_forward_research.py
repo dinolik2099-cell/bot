@@ -5,8 +5,9 @@ from pathlib import Path
 from quantbot.forward_research.core import AppendOnlyStore,identity,utc_now
 from quantbot.forward_research.runtime import ForwardRuntime
 from quantbot.forward_research.checkpoint import load_checkpoint
+from quantbot.forward_research.config import validate_config
 def main():
- p=argparse.ArgumentParser();p.add_argument('--config',required=True);p.add_argument('--status',action='store_true');p.add_argument('--diagnostics',action='store_true');p.add_argument('--checkpoint');args=p.parse_args();config=Path(args.config).read_bytes();runtime=ForwardRuntime()
+ p=argparse.ArgumentParser();p.add_argument('--config',required=True);p.add_argument('--status',action='store_true');p.add_argument('--diagnostics',action='store_true');p.add_argument('--checkpoint');args=p.parse_args();config=validate_config(args.config);runtime=ForwardRuntime()
  if args.status or args.diagnostics:
   health=load_checkpoint(args.checkpoint)['runtime'] if args.checkpoint and Path(args.checkpoint).exists() else runtime.health()
   print(json.dumps(health,sort_keys=True));return 0
