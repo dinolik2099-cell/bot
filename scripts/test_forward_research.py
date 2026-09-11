@@ -8,6 +8,7 @@ from quantbot.forward_research.candle_state import CandleState
 from quantbot.forward_research.checkpoint import checkpoint_payload,write_checkpoint,load_checkpoint
 from quantbot.forward_research.persistence import ForwardPersistence
 from quantbot.forward_research.binance_public import parse_exchange_info,apply_ticker_volumes,websocket_url,parse_kline
+from quantbot.forward_research.diagnostics import classify_event,evidence_summary
 def main():
  rows=[UniverseSymbol('OKUSDT',3_000_000,'PERPETUAL','USDT','TRADING'),UniverseSymbol('LOWUSDT',2999999,'PERPETUAL','USDT','TRADING'),UniverseSymbol('BADUSDT',9e9,'CURRENT_QUARTER','USDT','TRADING')];snap=universe_snapshot(rows,'2026-09-11T00:00:00+00:00');assert [r['symbol'] for r in snap['symbols']]==['OKUSDT']
  parsed=parse_exchange_info({'symbols':[{'symbol':'XUSDT','contractType':'PERPETUAL','quoteAsset':'USDT','status':'TRADING','filters':[]}]});assert apply_ticker_volumes(parsed,[{'symbol':'XUSDT','quoteVolume':'3000000'}])[0].eligible();assert 'xusdt@kline_1m' in websocket_url(['XUSDT']);assert parse_kline({'e':'kline','s':'XUSDT','k':{'i':'1m','t':1,'o':'1','h':'2','l':'1','c':'2','v':'3','x':True}},'r').closed
@@ -18,6 +19,7 @@ def main():
  obs=observation({'direction':'SHORT','reference_price':100,'symbol':'A','model_id':'m'},[95,90,96]);assert obs['horizons'][0]['mfe']>0
  cs=cross_section('t',[{'symbol':'A','model_id':'m','direction':'LONG'},{'symbol':'B','model_id':'m','direction':'SHORT'}]);assert cs['long_count']==cs['short_count']==1
  portfolio=shadow_selection([{'symbol':'A','task_identity':'1','direction':'LONG'},{'symbol':'A','task_identity':'2','direction':'SHORT'}]);assert len(portfolio['selected'])==1 and portfolio['rejected'][0]['reason']=='SYMBOL_ALREADY_SELECTED'
+ assert classify_event(.25)=='strong_trend_up' and classify_event(-.25)=='strong_trend_down' and classify_event(.01,.2)=='extreme_wick';assert evidence_summary([{'direction':'LONG','event_class':'trend_up'},{'direction':'SHORT','event_class':'trend_down'}])['long_signals']==1
  with tempfile.TemporaryDirectory() as root:
   store=AppendOnlyStore(root);store.append('signals/2026-09-11.jsonl',{'event':'x'});store.append('signals/2026-09-11.jsonl',{'event':'x'});assert len((store.root/'signals/2026-09-11.jsonl').read_text().splitlines())==1;assert store.manifest('2026-09-11','a'*40,'b'*64)['files']
   checkpoint=checkpoint_payload(runtime,'b'*64,'a'*40);write_checkpoint(f'{root}/checkpoints/state.json',checkpoint);assert load_checkpoint(f'{root}/checkpoints/state.json')['checkpoint_identity']==checkpoint['checkpoint_identity'];ForwardPersistence(root,'a'*40,'b'*64,'c'*64).append('snapshots','2026-09-11',{'timestamp':'t'})
