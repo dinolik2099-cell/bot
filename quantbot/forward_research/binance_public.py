@@ -1,7 +1,7 @@
 """Binance USDT-M public protocol helpers; deliberately no authenticated API."""
 from __future__ import annotations
 from .core import UniverseSymbol,ForwardResearchError
-PUBLIC_FAPI='https://fapi.binance.com';PUBLIC_WS='wss://fstream.binance.com/stream?streams='
+PUBLIC_FAPI='https://fapi.binance.com';PUBLIC_WS='wss://fstream.binance.com/market/stream?streams='
 def parse_exchange_info(payload):
  out=[]
  for row in payload.get('symbols',[]):
