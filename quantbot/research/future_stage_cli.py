@@ -43,12 +43,12 @@ def _rows(path):
     if not isinstance(rows,list) or any(not isinstance(row,Mapping) for row in rows):raise FutureStageCliError('future_stage_cli_rows_invalid')
     return tuple(dict(row) for row in rows)
 
-def dispatch_authorized_stage(*,stage,runtime,authority,deps,checkpoint=None,prior_rows=(),evidence_path=None):
+def dispatch_authorized_stage(*,stage,runtime,authority,deps,checkpoint=None,prior_rows=(),evidence_path=None,workers='auto'):
     """Call an existing production runner; no evaluator/loader injection exists."""
     common=dict(runtime=runtime,evidence=authority,n8_context=deps['n8'],raw_root=deps['raw_root'],source_git_commit=deps['source_git_commit'],checkpoint=checkpoint,prior_rows=prior_rows)
     if stage=='stress':
         from .stress_formal_runner import run_authorized_stress
-        return run_authorized_stress(strategy_resolver=deps['strategy_resolver'],**common)
+        return run_authorized_stress(strategy_resolver=deps['strategy_resolver'],workers=workers,**common)
     if stage=='regime':
         from .regime_formal_runner import run_authorized_regime
         return run_authorized_regime(**common)
@@ -78,7 +78,7 @@ def dispatch_authorized_stage(*,stage,runtime,authority,deps,checkpoint=None,pri
 def main_for_stage(stage):
     parser=argparse.ArgumentParser(description=f'QuantBot sealed {stage} non-OOS stage')
     parser.add_argument('--protocol',required=True);parser.add_argument('--plan',required=True);parser.add_argument('--input-identity',required=True)
-    parser.add_argument('--execute',action='store_true');parser.add_argument('--authority-json');parser.add_argument('--checkpoint-json');parser.add_argument('--prior-rows-json');parser.add_argument('--stage-evidence-json');parser.add_argument('--execution-json')
+    parser.add_argument('--execute',action='store_true');parser.add_argument('--authority-json');parser.add_argument('--checkpoint-json');parser.add_argument('--prior-rows-json');parser.add_argument('--stage-evidence-json');parser.add_argument('--execution-json');parser.add_argument('--workers',default='auto')
     args=parser.parse_args();runtime=FutureRuntimeContext(_load(args.protocol),_load(args.plan),args.input_identity);runtime.validate()
     if runtime.protocol.get('stage')!=stage:raise SystemExit('future_stage_cli_stage_mismatch')
     print(f'STAGE={stage}');print(f"PROTOCOL_IDENTITY={runtime.protocol['artifact_identity']}");print(f"EXECUTION_PLAN_IDENTITY={runtime.plan['artifact_identity']}");print('OOS_STATUS=SEALED');print('OOS_AUTHORIZATION=NOT_AUTHORIZED')
@@ -87,7 +87,9 @@ def main_for_stage(stage):
     authority=_authority(args.authority_json,capability)
     # Authorization is deliberately before canonical context/source/evidence loading.
     runtime.authorize(authority,capability)
-    output=dispatch_authorized_stage(stage=stage,runtime=runtime,authority=authority,deps=resolve_canonical_runtime(runtime),checkpoint=_checkpoint(runtime,args.checkpoint_json),prior_rows=_rows(args.prior_rows_json),evidence_path=args.stage_evidence_json)
+    workers=args.workers if args.workers=='auto' else int(args.workers)
+    if stage!='stress' and workers!='auto':raise FutureStageCliError('future_stage_workers_unsupported')
+    output=dispatch_authorized_stage(stage=stage,runtime=runtime,authority=authority,deps=resolve_canonical_runtime(runtime),checkpoint=_checkpoint(runtime,args.checkpoint_json),prior_rows=_rows(args.prior_rows_json),evidence_path=args.stage_evidence_json,workers=workers)
     if args.execution_json:
         if not all(hasattr(output,key) for key in ('state','checkpoint','rows','result')):
             raise FutureStageCliError('future_stage_cli_execution_snapshot_unavailable')
