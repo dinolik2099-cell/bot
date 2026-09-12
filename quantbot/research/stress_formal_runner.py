@@ -46,7 +46,7 @@ def make_stress_canonical_evaluator(*, runtime: FutureRuntimeContext, evidence, 
     return make_future_canonical_evaluator(
         runtime=runtime,evidence=evidence,n8_context=n8_context,raw_root=raw_root,
         strategy_resolver=strategy_resolver,
-        engine_factory=lambda: BacktestEngine(stressed),
+        engine_factory=lambda: BacktestEngine(initial_equity=10_000.0, cost_model=stressed),
     )
 
 
