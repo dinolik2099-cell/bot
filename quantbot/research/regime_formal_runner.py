@@ -41,7 +41,7 @@ def run_authorized_regime(*, runtime: FutureRuntimeContext, evidence, n8_context
    if index % chunks != ordinal: continue
    windows=[]
    for window in ('TRAIN','VALIDATION'):
-    labels=runner(window=window,symbol=task['symbol'],task=task,boundary=n8_context.dataset.boundary)
+    labels=runner(window=window,symbol=task['symbol'],task=task,boundary=n8_context.n7.plan['boundary'])
     windows.append({'window':window,'rows':len(labels),'first_timestamp':labels.index[0].isoformat(),
                     'last_timestamp':labels.index[-1].isoformat(),
                     'composite_counts':{str(key):int(value) for key,value in labels['composite'].value_counts().sort_index().items()}})
