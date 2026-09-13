@@ -13,12 +13,13 @@ def main():
     # The bootstrap is deliberately an external launcher: it imports the
     # historical worktree's canonical CLI + run_authorized_stress rather than
     # injecting an evaluator or calling the private chunk coordinator.
-    assert 'run_authorized_stress' in BOOTSTRAP and '_execute_stress_chunks' not in BOOTSTRAP
+    assert 'stress_runner.run_authorized_stress' in BOOTSTRAP and '_execute_stress_chunks' not in BOOTSTRAP
     assert 'resolve_canonical_runtime(runtime)' in BOOTSTRAP
     assert "state.completed_chunks,()" in BOOTSTRAP
     assert "len(state.completed_chunks)!=11" in BOOTSTRAP
     assert "len(output.state.completed_chunks)!=12" in BOOTSTRAP
     assert "target.open('x'" in BOOTSTRAP
+    assert 'external_historical_recovery_observer' in BOOTSTRAP and 'raise' in BOOTSTRAP
     assert 'historical_stress_recovery_original_overwrite_forbidden' in Path('scripts/recover_historical_stress.py').read_text(encoding='utf-8')
     calls=[]
     with tempfile.TemporaryDirectory() as root:

@@ -34,7 +34,7 @@ from quantbot.research.artifact_store import seal
 from quantbot.research.future_data_plane import FutureRuntimeContext
 from quantbot.research.future_stage_cli import _authority,resolve_canonical_runtime
 from quantbot.research.future_stages import ResumableStageState,StageState
-from quantbot.research.stress_formal_runner import run_authorized_stress
+import quantbot.research.stress_formal_runner as stress_runner
 
 def load(path):
     value=json.loads(Path(path).read_text(encoding='utf-8'))
@@ -62,7 +62,34 @@ runtime.authorize(authority,Capability.TRAIN_VALIDATION)
 deps=resolve_canonical_runtime(runtime)
 if deps['source_git_commit']!=expected_commit:
     raise RuntimeError('historical_stress_recovery_observed_commit_mismatch')
-output=run_authorized_stress(runtime=runtime,evidence=authority,n8_context=deps['n8'],raw_root=raw_root,
+# b106's coordinator deliberately catches a chunk exception.  Observe the
+# exception outside its sealed checkpoint without changing the evaluator or
+# allowing it to return a different value: record, then immediately re-raise
+# into the original coordinator.  This field is new recovery-tool evidence,
+# never a claimed mutation of the original execution artifact.
+external_retry_diagnostic={}
+original_factory=stress_runner.make_canonical_plan_chunk_executor
+def observed_factory(*args,**kwargs):
+    executor=original_factory(*args,**kwargs)
+    def observed(chunk):
+        try:return executor(chunk)
+        except Exception as exc:
+            external_retry_diagnostic.update({'source':'external_historical_recovery_observer',
+                'chunk_identity':chunk.get('chunk_identity'),'exception_type':type(exc).__name__,
+                'exception_message':str(exc)[:4096]})
+            raise
+    return observed
+stress_runner.make_canonical_plan_chunk_executor=observed_factory
+original_worker=stress_runner._stress_chunk_worker
+def observed_worker(request,chunk):
+    try:return original_worker(request,chunk)
+    except Exception as exc:
+        external_retry_diagnostic.update({'source':'external_historical_recovery_observer',
+            'chunk_identity':chunk.get('chunk_identity'),'exception_type':type(exc).__name__,
+            'exception_message':str(exc)[:4096]})
+        raise
+stress_runner._stress_chunk_worker=observed_worker
+output=stress_runner.run_authorized_stress(runtime=runtime,evidence=authority,n8_context=deps['n8'],raw_root=raw_root,
     strategy_resolver=deps['strategy_resolver'],source_git_commit=deps['source_git_commit'],checkpoint=retry_checkpoint,
     prior_rows=rows,workers='auto')
 new_rows=[dict(row) for row in output.rows]
@@ -82,6 +109,7 @@ artifact=seal({'schema_version':'quantbot-historical-stress-recovery-v1',
     'failed_chunk_requested':failed_chunk,
     'state':{'protocol_identity':output.state.protocol_identity,'state':output.state.state.value,
              'completed_chunks':list(output.state.completed_chunks),'failed_chunks':list(output.state.failed_chunks)},
+    'external_retry_diagnostic':dict(external_retry_diagnostic) if external_retry_diagnostic else None,
     'checkpoint':dict(output.checkpoint),'rows':new_rows,
     'result':dict(output.result) if output.result is not None else None,
     'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'})
