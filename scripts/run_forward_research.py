@@ -18,7 +18,9 @@ def main():
   if not args.plan or not args.declarations:p.error('--serve requires --plan and --declarations')
   authority=build_production_authority(config_path=args.config,plan_path=args.plan,declaration_path=args.declarations,data_root=args.data_root,checkpoint_path=args.checkpoint or 'data/forward_research/checkpoints/runtime.json',repo_root=args.repo_root);authority.serve();return 0
  if args.status or args.diagnostics:
-  health=load_checkpoint(args.checkpoint)['runtime'] if args.checkpoint and Path(args.checkpoint).exists() else runtime.health()
+  if args.diagnostics and args.plan and args.declarations:
+   authority=build_production_authority(config_path=args.config,plan_path=args.plan,declaration_path=args.declarations,data_root=args.data_root,checkpoint_path=args.checkpoint or 'data/forward_research/checkpoints/runtime.json',repo_root=args.repo_root);health=authority.diagnostics()
+  else: health=load_checkpoint(args.checkpoint)['runtime'] if args.checkpoint and Path(args.checkpoint).exists() else runtime.health()
   print(json.dumps(health,sort_keys=True));return 0
  print('FORWARD_RESEARCH_ONLY=True');print('ORDER_PLACEMENT_ALLOWED=False');print('OOS_ALLOWED=False');print('PUBLIC_COLLECTOR_NOT_STARTED_BY_CLI_WITHOUT_SERVICE_AUTHORITY');return 2
 if __name__=='__main__':raise SystemExit(main())

@@ -23,6 +23,8 @@ from .runtime import ForwardRuntime
 from .orchestrator import ForwardOrchestrator
 from .service_runtime import build_service
 from .universe import refresh_universe
+from .bootstrap import fetch_completed_1h_candles, frozen_warmup_bars
+from .daily_manifest import seal_daily_manifest, verify_daily_manifest
 
 
 def current_git_commit(repo_root: str | Path = ".") -> str:
@@ -71,6 +73,8 @@ class ForwardServiceAuthority:
         self.universe = None
         self.orchestrator = None
         self.pipeline = None
+        self._active_date = None
+        self._last_transitions = {'added': [], 'removed': [], 'surviving': []}
         self._shutdown = threading.Event()
 
     def refresh_universe(self, timestamp: str | None = None):
@@ -79,18 +83,50 @@ class ForwardServiceAuthority:
         exchange = _public_json(PUBLIC_FAPI + "/fapi/v1/exchangeInfo", self.session)
         tickers = _public_json(PUBLIC_FAPI + "/fapi/v1/ticker/24hr", self.session)
         date = timestamp[:10]
-        # Snapshot first through a temporary provenance-neutral writer.  The
-        # snapshot's identity then becomes the persistence/orchestrator binding.
+        # A snapshot is provenance, not a state-generation key.  Its identity
+        # changes with timestamp/volume; its membership identity does not.
         snapshot = refresh_universe(exchange, tickers, timestamp)
-        if self.universe is not None and snapshot["universe_identity"] == self.universe["universe_identity"]:
-            refresh_universe(exchange, tickers, timestamp, self.orchestrator.persistence, date)
-            return snapshot
-        persistence = ForwardPersistence(self.data_root, self.git_commit, self.config["config_identity"], snapshot["universe_identity"])
-        refresh_universe(exchange, tickers, timestamp, persistence, date)
+        self._seal_prior_day(date)
+        if self.orchestrator is None:
+            persistence = ForwardPersistence(self.data_root, self.git_commit, self.config["config_identity"], snapshot["universe_identity"])
+            self.orchestrator = ForwardOrchestrator(persistence, self.runtime, self.config["config_identity"], self.git_commit, snapshot["universe_identity"], ShadowPathTracker())
+            self.pipeline = ForwardPipeline(orchestrator=self.orchestrator, plan=self.plan, declarations=self.manifest["declarations"])
+            transitions={'added':sorted(row['symbol'] for row in snapshot['symbols']),'removed':[],'surviving':[]}
+            self.orchestrator.persistence.bind_snapshot(snapshot)
+        else:
+            transitions=self.orchestrator.reconcile_membership(self.universe,snapshot)
+        refresh_universe(exchange, tickers, timestamp, self.orchestrator.persistence, date)
+        for symbol in transitions['added']:
+            self._bootstrap_symbol(symbol,timestamp,date)
+        self._last_transitions=transitions
         self.universe = snapshot
-        self.orchestrator = ForwardOrchestrator(persistence, self.runtime, self.config["config_identity"], self.git_commit, snapshot["universe_identity"], ShadowPathTracker())
-        self.pipeline = ForwardPipeline(orchestrator=self.orchestrator, plan=self.plan, declarations=self.manifest["declarations"])
         return snapshot
+
+    def _bootstrap_symbol(self, symbol, decision_time, date):
+        count=frozen_warmup_bars(self.plan['models'])
+        rows, provenance=fetch_completed_1h_candles(self.session,symbol=symbol,decision_time=decision_time,count=count)
+        self.orchestrator.candles.seed_completed(symbol,'1h',rows)
+        self.orchestrator.persistence.append('bootstrap',date,{**provenance,'interval':'1h','bootstrap_only':True})
+        return provenance
+
+    def _seal_prior_day(self, date):
+        if self._active_date is not None and date != self._active_date:
+            target=self.data_root/'manifests'/f'{self._active_date}.json'
+            if target.exists():
+                verify_daily_manifest(target)
+            else:
+                seal_daily_manifest(root=self.data_root,date=self._active_date,git_commit=self.git_commit,config_identity=self.config['config_identity'],research_plan_identity=self.plan['research_plan_identity'],declaration_manifest_identity=self.manifest['manifest_identity'])
+        self._active_date=date
+
+    def diagnostics(self):
+        """Read-only service health; it never ranks, selects, or mutates models."""
+        health=self.runtime.health();symbols=tuple(row['symbol'] for row in (self.universe or {}).get('symbols',()))
+        counters=self.orchestrator.persistence.daily_counts(self._active_date) if self.orchestrator and self._active_date else {}
+        health.update({'eligible_universe_size':len(symbols),'active_membership':symbols,'membership_transitions':self._last_transitions,'raw_event_candle_health':{'intrabar_records':counters.get('intrabar',0),'completed_candle_records':counters.get('candles',0)},'signal_counts':{'long_short_unclassified_records':counters.get('signals',0)},'open_path_observations':self.orchestrator.path_tracker.status()['open_observations'] if self.orchestrator else 0,'completed_path_observations':counters.get('paths',0),'opportunities':counters.get('opportunities',0),'shadow_portfolio_evidence':counters.get('portfolio',0),'diagnostics':counters.get('diagnostics',0),'daily_manifest_identity':None,'oos_allowed':False,'order_placement_allowed':False})
+        if self._active_date:
+            target=self.data_root/'manifests'/f'{self._active_date}.json'
+            if target.exists():health['daily_manifest_identity']=verify_daily_manifest(target)['daily_manifest_identity']
+        return health
 
     def resume(self):
         if not self.checkpoint_path.exists():
@@ -153,17 +189,17 @@ class ForwardServiceAuthority:
             if now - last_checkpoint >= checkpoint_seconds:
                 self.checkpoint(); last_checkpoint = now
             if now - last_refresh >= refresh_seconds:
-                previous = self.universe["universe_identity"]
+                previous = self.universe["membership_identity"]
                 self.refresh_universe()
                 last_refresh = now
-                if self.universe["universe_identity"] != previous:
+                if self.universe["membership_identity"] != previous:
                     generation_stop.set()
                     break
         generation_stop.set()
         for worker in workers: worker.join(timeout=35)
         self.checkpoint()
-        # A changed membership gets a fresh transport generation and fresh
-        # per-symbol state.  It never reuses histories across universes.
+        # A changed membership gets a fresh transport generation, while the
+        # coordinator retains surviving-symbol state and preserves evidence.
         if not self._shutdown.is_set():
             return self.serve()
 

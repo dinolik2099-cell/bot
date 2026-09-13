@@ -35,19 +35,27 @@ class ShadowPathTracker:
         self.pending[signal_id] = {"signal": dict(signal), "opened_at": signal["signal_timestamp"], "prices": []}
         return True
 
-    def on_completed_close(self, *, symbol: str, event_time: str, close: float) -> list[dict]:
+    def on_completed_close(self, *, symbol: str, event_time: str, close: float, interval: str = '1m') -> list[dict]:
         """Add one closed public candle and emit evidence only at the 24h horizon."""
         assert_shadow_only()
+        if interval != f'{self.interval_minutes}m':
+            return []
         timestamp = _utc_timestamp(event_time)
         completed: list[dict] = []
         for signal_id, state in list(self.pending.items()):
             signal = state["signal"]
             if signal["symbol"] != symbol or timestamp <= _utc_timestamp(signal["signal_timestamp"]):
                 continue
-            state["prices"].append(float(close))
+            prices=state["prices"]
+            # A gap is evidence, not a synthetic minute.  Do not let a later
+            # 5m/1h close advance a minute-horizon path by count alone.
+            if prices and timestamp <= prices[-1][0]:
+                continue
+            prices.append((timestamp, float(close)))
             # HORIZONS are defined in minutes and the configured input is 1m.
-            if len(state["prices"]) >= max(HORIZONS):
-                evidence = observation(signal, state["prices"], HORIZONS)
+            elapsed=(timestamp-_utc_timestamp(signal['signal_timestamp'])).total_seconds()/60
+            if elapsed >= max(HORIZONS) and len(prices) >= max(HORIZONS):
+                evidence = observation(signal, [value for _,value in prices], HORIZONS)
                 evidence["completion_timestamp"] = event_time
                 evidence["path_status"] = "COMPLETED"
                 completed.append(evidence)

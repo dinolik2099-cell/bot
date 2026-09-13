@@ -27,9 +27,12 @@ from quantbot.forward_research.frozen_declarations import validate_forward_decla
 from quantbot.forward_research.pipeline import ForwardPipeline
 from quantbot.forward_research.path_tracker import ShadowPathTracker
 from quantbot.forward_research.daily_manifest import seal_daily_manifest,verify_daily_manifest
+from quantbot.forward_research.bootstrap import fetch_completed_1h_candles,frozen_warmup_bars
 def main():
  assert validate_config('config/forward_research.yaml')['forward_research_only']=='true'
  rows=[UniverseSymbol('OKUSDT',3_000_000,'PERPETUAL','USDT','TRADING'),UniverseSymbol('LOWUSDT',2999999,'PERPETUAL','USDT','TRADING'),UniverseSymbol('BADUSDT',9e9,'CURRENT_QUARTER','USDT','TRADING')];snap=universe_snapshot(rows,'2026-09-11T00:00:00+00:00');assert [r['symbol'] for r in snap['symbols']]==['OKUSDT']
+ # Snapshot provenance can vary every refresh without redefining membership.
+ snap_changed=universe_snapshot([UniverseSymbol('OKUSDT',9_000_000,'PERPETUAL','USDT','TRADING')],'2026-09-11T00:05:00+00:00');assert snap['universe_identity']!=snap_changed['universe_identity'] and snap['membership_identity']==snap_changed['membership_identity']
  parsed=parse_exchange_info({'symbols':[{'symbol':'XUSDT','contractType':'PERPETUAL','quoteAsset':'USDT','status':'TRADING','filters':[]}]});assert apply_ticker_volumes(parsed,[{'symbol':'XUSDT','quoteVolume':'3000000'}])[0].eligible();assert 'xusdt@kline_1m' in websocket_url(['XUSDT']);assert parse_kline({'e':'kline','s':'XUSDT','k':{'i':'1m','t':1,'o':'1','h':'2','l':'1','c':'2','v':'3','x':True}},'r').closed
  assert abs(directional_path('LONG',100,[105,97])['mfe']-.05)<1e-12;assert directional_path('SHORT',100,[95,103])['mfe']>0;assert trailing_exit('LONG',100,[110,103],.05)['reason']=='TRAILING';assert trailing_exit('SHORT',100,[90,96],.05)['reason']=='TRAILING';assert classify_opportunity('X','a','b',-.1)['direction']=='DOWN'
  assert fixed_exit('LONG',100,[111],.1,.05)['reason']=='TAKE_PROFIT';assert fixed_exit('SHORT',100,[106],.1,.05)['reason']=='STOP';assert any(row['rule']=='SIGNAL_REVERSAL' for row in replay_variants('SHORT',100,[95,97],1))
@@ -40,6 +43,7 @@ def main():
  assert len(PublicWebsocketTransport(['AUSDT','BUSDT'],lambda _:None).shard_urls(1))==2
  obs=observation({'direction':'SHORT','reference_price':100,'symbol':'A','model_id':'m'},[95,90,96]);assert obs['horizons'][0]['mfe']>0
  tracker=ShadowPathTracker();signal={'signal_identity':'track','symbol':'A','direction':'LONG','reference_price':100,'signal_timestamp':'2026-01-01T00:00:00+00:00'};assert tracker.register(signal) and not tracker.register(signal)
+ assert tracker.on_completed_close(symbol='A',event_time='2026-01-01T01:00:00+00:00',close=101,interval='1h')==[] and tracker.status()['open_observations']==1
  for minute in range(1,1441):done=tracker.on_completed_close(symbol='A',event_time=(datetime(2026,1,1,tzinfo=timezone.utc)+timedelta(minutes=minute)).isoformat(),close=101)
  assert len(done)==1 and done[0]['path_status']=='COMPLETED' and tracker.status()['open_observations']==0
  # Explicitly prove the tracker rejects a timezone drift; completed evidence
@@ -53,6 +57,19 @@ def main():
   store=AppendOnlyStore(root);store.append('signals/2026-09-11.jsonl',{'event':'x'});store.append('signals/2026-09-11.jsonl',{'event':'x'});assert len((store.root/'signals/2026-09-11.jsonl').read_text().splitlines())==1;manifest=store.manifest('2026-09-11','a'*40,'b'*64);assert manifest['files'] and store.verify_manifest(manifest)
   checkpoint=checkpoint_payload(runtime,'b'*64,'a'*40,research_plan_identity='p'*64,declaration_manifest_identity='d'*64);write_checkpoint(f'{root}/checkpoints/state.json',checkpoint);assert load_checkpoint(f'{root}/checkpoints/state.json',config_identity='b'*64,git_commit='a'*40,research_plan_identity='p'*64,declaration_manifest_identity='d'*64)['checkpoint_identity']==checkpoint['checkpoint_identity'];ForwardPersistence(root,'a'*40,'b'*64,'c'*64).append('snapshots','2026-09-11',{'timestamp':'t'})
   orch=ForwardOrchestrator(ForwardPersistence(root,'a'*40,'b'*64,'c'*64),ForwardRuntime(),'b'*64,'a'*40,'c'*64);assert orch.ingest(MarketEvent('Z','1m','z','r',1,2,1,2,1,True,3),'2026-09-11')=='COMPLETED';assert orch.ingest(MarketEvent('Z','1m','z','r',1,2,1,2,1,True,3),'2026-09-11')=='DUPLICATE';orch.snapshot('2026-09-11','t',[{'symbol':'Z','model_id':'m','direction':'FLAT'}]);orch.checkpoint(f'{root}/checkpoints/orch.json')
+  before={'symbols':[{'symbol':'Z'}],'membership_identity':'old','universe_identity':'old'};same={'symbols':[{'symbol':'Z'}],'membership_identity':'old','universe_identity':'new'};assert orch.reconcile_membership(before,same)['surviving']==['Z'] and len(orch.candles.history('Z','1m'))==1
+  added={'symbols':[{'symbol':'Z'},{'symbol':'NEW'}],'membership_identity':'add','universe_identity':'add'};assert orch.reconcile_membership(same,added)['added']==['NEW'] and len(orch.candles.history('Z','1m'))==1
+  removed={'symbols':[{'symbol':'NEW'}],'membership_identity':'remove','universe_identity':'remove'};assert orch.reconcile_membership(added,removed)['removed']==['Z'] and not orch.candles.history('Z','1m')
+  # Re-add begins from a fresh seed, never a stale pre-removal history splice.
+  assert orch.reconcile_membership(removed,added)['added']==['Z'] and not orch.candles.history('Z','1m')
+  orch.candles.apply(MarketEvent('Z','1m','fresh','r',1,2,1,2,1,True,44))
+  class Response:
+   def raise_for_status(self):pass
+   def json(self):return [[int((datetime(2026,1,1,tzinfo=timezone.utc)+timedelta(hours=i)).timestamp()*1000),'1','2','1','1','2',int((datetime(2026,1,1,tzinfo=timezone.utc)+timedelta(hours=i+1)-timedelta(milliseconds=1)).timestamp()*1000)] for i in range(121)]
+  class Session:
+   def get(self,url,timeout):assert '/fapi/v1/klines?' in url and 'interval=1h' in url;return Response()
+  boot,proof=fetch_completed_1h_candles(Session(),symbol='Z',decision_time='2026-01-06T02:00:00+00:00',count=120);assert len(boot)==120 and proof['forward_observation_coverage'] is False and frozen_warmup_bars([{'warmup_bars':120}])==121
+  orch.candles.seed_completed('Z','1h',boot);assert len(orch.candles.history('Z','1h'))==120 and orch.runtime.events==1
   plan={'research_freeze_identity':'f'*64,'research_plan_identity':'p'*64,'protocol_scope':{'timeframe':'1m'},'models':[{'model_id':'m','parameter_grid_hash':'g'*64,'strategy_function_hash':'s'*64,'implementation_module_hash':'i'*64}]}
   declaration={'schema_version':DECLARATION_SCHEMA,'research_freeze_identity':'f'*64,'research_plan_identity':'p'*64,'model_id':'m','model_name':'missing','params':{},'params_identity':__import__('hashlib').sha256(b'{}').hexdigest(),'parameter_grid_hash':'g'*64,'strategy_function_hash':'s'*64,'implementation_module_hash':'i'*64,'input_boundary':'COMPLETED_CANDLE_T_MINUS_1'};declaration['declaration_identity']=declaration_identity(declaration);assert validate_forward_declarations(plan,[declaration])[0]['model_id']=='m';bad=dict(declaration);bad['parameter_grid_hash']='x'*64
   try:validate_forward_declarations(plan,[bad]);raise AssertionError('metadata drift accepted')
@@ -72,9 +89,9 @@ def main():
   assert orch.detect_opportunities('2026-09-11','Z','1m')==[]
   assert orch.shadow_portfolio('2026-09-11',[{'symbol':'Z','task_identity':'z','direction':'LONG'}])['selected']
   assert detect_moves('Z',[{'event_time':'a','close':100},{'event_time':'b','close':106}])[0]['direction']=='UP'
-  audit=json.loads(subprocess.check_output([sys.executable,'-B','scripts/audit_forward_research.py','--root',root,'--days','7'],env={**__import__('os').environ,'PYTHONPATH':'.'}));assert audit['candles_records']==2 and audit['provenance_chains']==1 and not audit['model_ranking_updated'];assert audit_forward_evidence(root,7)['audit_identity']==audit['audit_identity']
+  audit=json.loads(subprocess.check_output([sys.executable,'-B','scripts/audit_forward_research.py','--root',root,'--days','7'],env={**__import__('os').environ,'PYTHONPATH':'.'}));assert audit['candles_records']==2 and audit['provenance_chains']==1 and audit['universe_snapshots']>=1 and not audit['model_ranking_updated'];assert audit_forward_evidence(root,7)['audit_identity']==audit['audit_identity']
   sealed=seal_daily_manifest(root=root,date='2026-09-11',git_commit='a'*40,config_identity='b'*64,research_plan_identity='p'*64,declaration_manifest_identity='d'*64);assert verify_daily_manifest(f'{root}/manifests/2026-09-11.json')['daily_manifest_identity']==sealed['daily_manifest_identity']
   try:seal_daily_manifest(root=root,date='2026-09-11',git_commit='a'*40,config_identity='b'*64,research_plan_identity='p'*64,declaration_manifest_identity='d'*64);raise AssertionError('daily seal overwritten')
   except Exception as exc:assert 'already_sealed' in str(exc)
- print('FORWARD_RESEARCH_SYNTHETIC_TEST_OK');print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
+ print('FORWARD_RESEARCH_SYNTHETIC_TEST_OK');print('FORWARD_LIFECYCLE_RECONCILIATION=PASS');print('FORWARD_BOOTSTRAP_CAUSALITY=PASS');print('FORWARD_1M_TRACKER_ROUTING=PASS');print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
 if __name__=='__main__':main()

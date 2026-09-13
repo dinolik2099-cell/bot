@@ -20,3 +20,14 @@ class CandleState:
    if history and history[-1]['event_time']>=event.event_time:raise ForwardResearchError('completed_candle_rewrite_or_order_violation')
    history.append(row);self.intrabar.pop(key,None);return 'COMPLETED'
   self.intrabar[key]=row;return 'INTRABAR'
+ def seed_completed(self,symbol:str,interval:str,rows):
+  """Install causally valid bootstrap candles without treating them as feed observations."""
+  key=(symbol,interval);history=[]
+  for row in sorted((dict(item) for item in rows),key=lambda item:item['event_time']):
+   if row.get('closed') is not True or not row.get('event_time') or (history and history[-1]['event_time']>=row['event_time']):raise ForwardResearchError('bootstrap_candle_invalid')
+   history.append(row)
+  self.completed[key]=history
+ def remove_symbol(self,symbol:str):
+  """A re-add gets a new bootstrap; it cannot splice a stale pre-removal path."""
+  for key in [key for key in self.completed if key[0]==symbol]:self.completed.pop(key,None)
+  for key in [key for key in self.intrabar if key[0]==symbol]:self.intrabar.pop(key,None)

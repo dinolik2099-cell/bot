@@ -13,9 +13,21 @@ class ForwardOrchestrator:
   self.runtime.ingest(event.identity(),event.event_time,event.receive_time);kind=self.candles.apply(event)
   self.persistence.append('candles' if event.closed else 'intrabar',date,{'symbol':event.symbol,'interval':event.interval,'event_time':event.event_time,'receive_time':event.receive_time,'open':event.open,'high':event.high,'low':event.low,'close':event.close,'volume':event.volume,'closed':event.closed})
   if event.closed and self.path_tracker is not None:
-   for evidence in self.path_tracker.on_completed_close(symbol=event.symbol,event_time=event.event_time,close=event.close):
+   for evidence in self.path_tracker.on_completed_close(symbol=event.symbol,event_time=event.event_time,close=event.close,interval=event.interval):
     self.persistence.append('paths',date,evidence);self.runtime.completed_observations+=1
   return kind
+ def reconcile_membership(self,previous,current):
+  """Retain survivors; removed symbols keep persisted evidence but lose live state."""
+  before={row['symbol'] for row in previous.get('symbols',())} if previous else set();after={row['symbol'] for row in current.get('symbols',())}
+  removed=sorted(before-after)
+  for symbol in removed:
+   self.candles.remove_symbol(symbol)
+   if self.path_tracker is not None:
+    for signal_id,state in list(self.path_tracker.pending.items()):
+     if state['signal']['symbol']==symbol:del self.path_tracker.pending[signal_id]
+  self.universe_identity=current['universe_identity']
+  self.persistence.bind_snapshot(current)
+  return {'added':sorted(after-before),'removed':removed,'surviving':sorted(before&after),'membership_identity':current['membership_identity']}
  def snapshot(self,date,timestamp,states):
   row=cross_section(timestamp,states);self.persistence.append('snapshots',date,row);return row
  def record_signal_bundle(self,date,signal,prices,opportunity=None,portfolio=None):
