@@ -27,6 +27,18 @@ from .bootstrap import fetch_completed_1h_candles, frozen_warmup_bars
 from .daily_manifest import seal_daily_manifest, verify_daily_manifest
 
 
+def _retire_reader_generation(workers, transport, *, join_timeout=35, drain_timeout=30):
+    """Never hand off a generation while a reader is still alive."""
+    for worker in workers:
+        worker.join(timeout=join_timeout)
+    alive=[worker.name for worker in workers if worker.is_alive()]
+    drained=transport.close(timeout=drain_timeout)
+    if alive:
+        raise ForwardResearchError('forward_reader_shutdown_timeout:' + ','.join(alive))
+    if not drained:
+        raise ForwardResearchError('forward_transport_drain_timeout')
+
+
 def current_git_commit(repo_root: str | Path = ".") -> str:
     value = subprocess.check_output(["git", "-C", str(repo_root), "rev-parse", "HEAD"], text=True).strip()
     if len(value) != 40:
@@ -200,9 +212,7 @@ class ForwardServiceAuthority:
                     generation_stop.set()
                     break
         generation_stop.set()
-        for worker in workers: worker.join(timeout=35)
-        if not service['transport'].close(timeout=30):
-            raise ForwardResearchError('forward_transport_drain_timeout')
+        _retire_reader_generation(workers,service['transport'])
         self.checkpoint()
         # A changed membership gets a fresh transport generation, while the
         # coordinator retains surviving-symbol state and preserves evidence.

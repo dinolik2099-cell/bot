@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from quantbot.forward_research.collector import MarketEvent
 from quantbot.forward_research.websocket_transport import PublicWebsocketTransport
+from quantbot.forward_research.production_runtime import _retire_reader_generation
 
 
 def event(symbol, interval, sequence, closed=False):
@@ -37,16 +38,40 @@ def main():
     second=PublicWebsocketTransport(['XUSDT'],flaky,on_error=lambda source,exc:faults.append(source),ingress_capacity=2)
     first=event('XUSDT','1m',1,True);next_row=event('XUSDT','1m',2,True);second.ingest_event(first);second.ingest_event(next_row);assert second.retire_and_drain(timeout=3);health2=second.health();second.close(timeout=3)
     assert health2['processing_exceptions']==1 and faults==['forward_processor'] and next_row.identity() in calls
+    # Critical memory is finite.  A stalled processor cannot make close
+    # evidence accumulate without bound: admission waits briefly then fails
+    # closed with an explicit rejected-close counter.
+    stalled=[];saturation_errors=[]
+    def stalled_callback(row):
+        time.sleep(.08);stalled.append(row.identity())
+    bounded=PublicWebsocketTransport(['BUSDT'],stalled_callback,on_error=lambda source,exc:saturation_errors.append(source),ingress_capacity=2,critical_capacity=2,critical_put_timeout=.01)
+    accepted=[bounded.ingest_event(event('BUSDT','1m',100+i,True)) for i in range(8)]
+    bounded.retire_and_drain(timeout=3);bounded_health=bounded.health();bounded.close(timeout=3)
+    assert bounded_health['critical_capacity']==2 and bounded_health['queue_high_water_mark']<=4
+    assert bounded_health['critical_backpressure_failures']==1 and bounded_health['completed_events_rejected']==1 and bounded_health['transport_failed'] is True
+    assert bounded_health['completed_events_processed']==bounded_health['completed_events_received'] and accepted.count(False)>=1
     # Generation retirement closes ingress first, then drains already received
     # final closes exactly once before a replacement transport is created.
     retired=[];third=PublicWebsocketTransport(['RUSDT'],lambda row:retired.append(row.identity()),ingress_capacity=1)
     close=event('RUSDT','1h',9,True);third.ingest_event(event('RUSDT','1m',8,False));third.ingest_event(close);assert third.retire_and_drain(timeout=3) and close.identity() in retired and third.ingest_event(event('RUSDT','1m',10,False)) is False;third.close(timeout=3)
+    class StuckReader:
+        name='stuck-reader'
+        def join(self,timeout):self.timeout=timeout
+        def is_alive(self):return True
+    class RetiredTransport:
+        def __init__(self):self.closed=False
+        def close(self,timeout):self.closed=True;return True
+    fake=RetiredTransport()
+    try:_retire_reader_generation([StuckReader()],fake,join_timeout=0,drain_timeout=0);raise AssertionError('reader timeout accepted')
+    except Exception as exc:assert 'reader_shutdown_timeout' in str(exc) and fake.closed
     print('FORWARD_TRANSPORT_THROUGHPUT_SYNTHETIC_TEST_OK')
     print(f"INGRESS_SECONDS={time.monotonic()-started:.3f}")
     print('SYMBOLS=240 INTERVALS=4 COMPLETED_PRESERVED=960')
     print('BACKPRESSURE_INTRABAR_COALESCING=PASS')
     print('PROCESSOR_FAILURE_OBSERVABLE=PASS')
     print('GENERATION_ROLLOVER_COMPLETED_DRAIN=PASS')
+    print('CRITICAL_CAPACITY_FAIL_CLOSED=PASS')
+    print('READER_SHUTDOWN_TIMEOUT_FAIL_CLOSED=PASS')
     print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
 
 if __name__=='__main__':main()
