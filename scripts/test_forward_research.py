@@ -75,7 +75,7 @@ def main():
   try:validate_forward_declarations(plan,[bad]);raise AssertionError('metadata drift accepted')
   except Exception as exc:assert 'metadata' in str(exc)
   decision={'schema_version':DECLARATION_SCHEMA,'decision_artifact_id':'external-decision-v1','research_freeze_identity':'f'*64,'research_plan_identity':'p'*64,'declarations':[declaration],'forward_research_only':True,'oos_allowed':False,'order_placement_allowed':False};decision['manifest_identity']=manifest_identity(decision);decision_path=f'{root}/decision.json';open(decision_path,'w',encoding='utf-8').write(json.dumps(decision));assert load_forward_declaration_manifest(decision_path,plan)['manifest_identity']==decision['manifest_identity']
-  pipeline=ForwardPipeline(orchestrator=orch,plan=plan,declarations=[declaration]);assert pipeline.on_completed_candle(date='2026-09-11',symbol='Z',interval='1m')['errors']
+  pipeline=ForwardPipeline(orchestrator=orch,plan=plan,declarations=[declaration]);pipeline.on_completed_candle(date='2026-09-11',symbol='Z',interval='1m');assert pipeline.retire_and_drain(3) and pipeline.health()['committed']==1
   service=build_service(config_path='config/forward_research.yaml',symbols=['ZUSDT'],orchestrator=orch,date_provider=lambda _: '2026-09-11',pipeline=pipeline);assert service['shadow_only'] and service['pipeline_bound'] and len(service['transport'].shard_urls())==1
   # Non-frozen intervals are retained as public evidence but do not enter the
   # N5-bound model pipeline.
@@ -89,7 +89,7 @@ def main():
   assert orch.detect_opportunities('2026-09-11','Z','1m')==[]
   assert orch.shadow_portfolio('2026-09-11',[{'symbol':'Z','task_identity':'z','direction':'LONG'}])['selected']
   assert detect_moves('Z',[{'event_time':'a','close':100},{'event_time':'b','close':106}])[0]['direction']=='UP'
-  orch.persistence.store.close();audit=json.loads(subprocess.check_output([sys.executable,'-B','scripts/audit_forward_research.py','--root',root,'--days','7'],env={**__import__('os').environ,'PYTHONPATH':'.'}));assert audit['candles_records']==2 and audit['provenance_chains']==1 and audit['universe_snapshots']>=1 and not audit['model_ranking_updated'];assert audit_forward_evidence(root,7)['audit_identity']==audit['audit_identity']
+  assert pipeline.close(3);orch.persistence.store.close();audit=json.loads(subprocess.check_output([sys.executable,'-B','scripts/audit_forward_research.py','--root',root,'--days','7'],env={**__import__('os').environ,'PYTHONPATH':'.'}));assert audit['candles_records']==2 and audit['provenance_chains']==1 and audit['universe_snapshots']>=1 and not audit['model_ranking_updated'];assert audit_forward_evidence(root,7)['audit_identity']==audit['audit_identity']
   sealed=seal_daily_manifest(root=root,date='2026-09-11',git_commit='a'*40,config_identity='b'*64,research_plan_identity='p'*64,declaration_manifest_identity='d'*64);assert verify_daily_manifest(f'{root}/manifests/2026-09-11.json')['daily_manifest_identity']==sealed['daily_manifest_identity']
   try:seal_daily_manifest(root=root,date='2026-09-11',git_commit='a'*40,config_identity='b'*64,research_plan_identity='p'*64,declaration_manifest_identity='d'*64);raise AssertionError('daily seal overwritten')
   except Exception as exc:assert 'already_sealed' in str(exc)

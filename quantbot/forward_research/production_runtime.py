@@ -27,15 +27,17 @@ from .bootstrap import fetch_completed_1h_candles, frozen_warmup_bars
 from .daily_manifest import seal_daily_manifest, verify_daily_manifest
 
 
-def _retire_reader_generation(workers, transport, *, join_timeout=35, drain_timeout=30):
+def _retire_reader_generation(workers, transport, *, pipeline=None, join_timeout=35, drain_timeout=30):
     """Never hand off a generation while a reader is still alive."""
     for worker in workers:
         worker.join(timeout=join_timeout)
     alive=[worker.name for worker in workers if worker.is_alive()]
-    drained=transport.close(timeout=drain_timeout)
+    deadline=time.monotonic()+drain_timeout
+    drained=transport.close(timeout=max(0.0,deadline-time.monotonic()))
+    pipeline_drained=True if pipeline is None else pipeline.retire_and_drain(timeout=max(0.0,deadline-time.monotonic()))
     if alive:
         raise ForwardResearchError('forward_reader_shutdown_timeout:' + ','.join(alive))
-    if not drained:
+    if not drained or not pipeline_drained:
         raise ForwardResearchError('forward_transport_drain_timeout')
 
 
@@ -160,6 +162,10 @@ class ForwardServiceAuthority:
     def build_service(self):
         if self.universe is None:
             self.refresh_universe()
+        if self.pipeline is not None:
+            # This is reached for a replacement transport only after the old
+            # generation's bounded transport + pipeline drain succeeded.
+            self.pipeline.begin_generation()
         service=build_service(config_path=self.config_path, symbols=[row["symbol"] for row in self.universe["symbols"]],
                              orchestrator=self.orchestrator, pipeline=self.pipeline, date_provider=lambda value: str(value)[:10])
         self._transport=service['transport'];return service
@@ -215,7 +221,7 @@ class ForwardServiceAuthority:
                     break
         generation_stop.set()
         try:
-            _retire_reader_generation(workers,service['transport'])
+            _retire_reader_generation(workers,service['transport'],pipeline=self.pipeline)
         finally:
             # Once ingress is closed, both graceful retirement and a surfaced
             # fail-closed transport error must durably flush accepted rows.
@@ -225,6 +231,8 @@ class ForwardServiceAuthority:
         # coordinator retains surviving-symbol state and preserves evidence.
         if not self._shutdown.is_set():
             return self.serve()
+        if self.pipeline is not None and not self.pipeline.close(timeout=30):
+            raise ForwardResearchError('forward_pipeline_shutdown_timeout')
 
 
 def build_production_authority(*, config_path, plan_path, declaration_path, data_root, checkpoint_path, repo_root="."):
