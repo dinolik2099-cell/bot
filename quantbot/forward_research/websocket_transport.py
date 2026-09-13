@@ -18,7 +18,7 @@ class _Ingress:
     def __init__(self, callback, on_error, capacity=8192, critical_capacity=2048, critical_put_timeout=5.0):
         if type(capacity) is not int or capacity < 1 or type(critical_capacity) is not int or critical_capacity < 1 or critical_put_timeout <= 0: raise ValueError('forward_ingress_capacity_invalid')
         self.callback,self.on_error,self.capacity,self.critical_capacity,self.critical_put_timeout=callback,on_error,capacity,critical_capacity,critical_put_timeout;self._critical=deque();self._intrabar={};self._lock=threading.Condition();self._accepting=True;self._stopped=False;self._failed=False;self._processing=0
-        self.metrics={'raw_frames_received':0,'events_parsed':0,'queue_depth':0,'queue_high_water_mark':0,'intrabar_capacity':capacity,'critical_capacity':critical_capacity,'completed_events_received':0,'completed_events_processed':0,'completed_events_rejected':0,'critical_backpressure_failures':0,'intrabar_events_processed':0,'intrabar_events_coalesced':0,'intrabar_events_dropped':0,'processor_lag_seconds':0.0,'processing_exceptions':0,'transport_failed':False}
+        self.metrics={'raw_frames_received':0,'events_parsed':0,'queue_depth':0,'queue_high_water_mark':0,'intrabar_capacity':capacity,'critical_capacity':critical_capacity,'completed_events_received':0,'completed_events_processed':0,'completed_events_rejected':0,'critical_backpressure_failures':0,'intrabar_events_processed':0,'intrabar_events_coalesced':0,'intrabar_events_dropped':0,'intrabar_events_retired':0,'processor_lag_seconds':0.0,'processing_exceptions':0,'transport_failed':False}
         self._thread=threading.Thread(target=self._consume,daemon=True,name='forward-canonical-processor');self._thread.start()
     def _depth(self): return len(self._critical)+len(self._intrabar)
     def raw_frame(self):
@@ -66,10 +66,19 @@ class _Ingress:
                     try:self.on_error('forward_processor',exc)
                     except Exception:pass
     def retire_and_drain(self,timeout=30):
+        """Retire mutable state, then drain immutable completed evidence.
+
+        Queued intrabar events are replaceable observations.  At membership
+        generation handoff they are stale by definition and must not delay
+        critical close evidence.  A currently executing callback is allowed
+        to finish, but all not-yet-started intrabar entries are explicitly
+        retired and counted; completed FIFO entries are never retired here.
+        """
         deadline=time.monotonic()+timeout
         with self._lock:
             self._accepting=False
-            while self._critical or self._intrabar or self._processing:
+            self.metrics['intrabar_events_retired']+=len(self._intrabar);self._intrabar.clear();self.metrics['queue_depth']=self._depth();self._lock.notify_all()
+            while self._critical or self._processing:
                 remaining=deadline-time.monotonic()
                 if remaining<=0:return False
                 self._lock.wait(min(.25,remaining))

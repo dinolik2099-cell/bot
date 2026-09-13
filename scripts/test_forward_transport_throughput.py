@@ -50,6 +50,21 @@ def main():
     assert bounded_health['critical_capacity']==2 and bounded_health['queue_high_water_mark']<=4
     assert bounded_health['critical_backpressure_failures']==1 and bounded_health['completed_events_rejected']==1 and bounded_health['transport_failed'] is True
     assert bounded_health['completed_events_processed']==bounded_health['completed_events_received'] and accepted.count(False)>=1
+    # Production-shaped rollover: roughly the observed 900 mutable entries
+    # are explicitly retired, while all already accepted closes drain.
+    rollover_processed=[]
+    def rollover_callback(row):
+        time.sleep(.001);rollover_processed.append(row.identity())
+    rollover=PublicWebsocketTransport([f'R{i}USDT' for i in range(240)],rollover_callback,ingress_capacity=2048,critical_capacity=1024,critical_put_timeout=1)
+    rollover_closes=[]
+    for index in range(235):
+        for interval in intervals:
+            rollover.ingest_event(event(f'R{index}USDT',interval,index,False))
+    for index in range(235):
+        row=event(f'R{index}USDT','1m',2000+index,True);rollover_closes.append(row.identity());assert rollover.ingest_event(row)
+    assert rollover.retire_and_drain(timeout=5);rollover_health=rollover.health();rollover.close(timeout=3)
+    assert rollover_health['intrabar_events_retired']>=900 and rollover_health['completed_events_received']==rollover_health['completed_events_processed']==235
+    assert set(rollover_closes).issubset(rollover_processed) and rollover_health['completed_events_rejected']==0 and rollover_health['critical_backpressure_failures']==0
     # Generation retirement closes ingress first, then drains already received
     # final closes exactly once before a replacement transport is created.
     retired=[];third=PublicWebsocketTransport(['RUSDT'],lambda row:retired.append(row.identity()),ingress_capacity=1)
@@ -70,6 +85,7 @@ def main():
     print('BACKPRESSURE_INTRABAR_COALESCING=PASS')
     print('PROCESSOR_FAILURE_OBSERVABLE=PASS')
     print('GENERATION_ROLLOVER_COMPLETED_DRAIN=PASS')
+    print('BROAD_MARKET_MUTABLE_ROLLOVER_RETIREMENT=PASS')
     print('CRITICAL_CAPACITY_FAIL_CLOSED=PASS')
     print('READER_SHUTDOWN_TIMEOUT_FAIL_CLOSED=PASS')
     print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
