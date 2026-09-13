@@ -54,18 +54,24 @@ class FutureRuntimeContext:
   if state.protocol_identity!=self.protocol['artifact_identity']: raise FutureDataPlaneError('future_checkpoint_protocol_mismatch')
   expected={row['chunk_identity'] for row in self.plan['chunks']}; complete=set(state.completed_chunks); failed=set(state.failed_chunks)
   if complete & failed or not (complete|failed).issubset(expected): raise FutureDataPlaneError('future_checkpoint_chunk_set_invalid')
+  diagnostics=tuple(dict(row) for row in state.failure_diagnostics)
+  diagnostic_ids=[row.get('chunk_identity') for row in diagnostics]
+  if diagnostics and (set(diagnostic_ids)!=failed or len(diagnostic_ids)!=len(set(diagnostic_ids))): raise FutureDataPlaneError('future_checkpoint_failure_diagnostics_invalid')
   if state.state==StageState.COMPLETE and (failed or complete!=expected): raise FutureDataPlaneError('future_checkpoint_complete_invalid')
-  return seal({'schema_version':'quantbot-future-data-plane-checkpoint-v1','protocol_identity':state.protocol_identity,
+  payload={'schema_version':'quantbot-future-data-plane-checkpoint-v1','protocol_identity':state.protocol_identity,
                'execution_plan_identity':self.plan['artifact_identity'],'input_identity':self.input_identity,
                'state':state.state.value,'completed_chunks':sorted(complete),'failed_chunks':sorted(failed),
-               'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'})
+               'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'}
+  # Omitting an empty field preserves validation of pre-diagnostics checkpoints.
+  if diagnostics: payload['failure_diagnostics']=sorted(diagnostics,key=lambda row:row['chunk_identity'])
+  return seal(payload)
 
  def validate_checkpoint(self,artifact:Mapping[str,Any])->ResumableStageState:
   self.validate(); validate_seal(artifact)
   if artifact.get('schema_version')!='quantbot-future-data-plane-checkpoint-v1' or artifact.get('protocol_identity')!=self.protocol['artifact_identity'] or artifact.get('execution_plan_identity')!=self.plan['artifact_identity'] or artifact.get('input_identity')!=self.input_identity:
    raise FutureDataPlaneError('future_checkpoint_binding_invalid')
   if artifact.get('oos_status')!='SEALED' or artifact.get('oos_authorization')!='NOT_AUTHORIZED': raise FutureDataPlaneError('future_checkpoint_oos_invalid')
-  try: state=ResumableStageState(self.protocol['artifact_identity'],StageState(artifact['state']),tuple(artifact['completed_chunks']),tuple(artifact['failed_chunks']))
+  try: state=ResumableStageState(self.protocol['artifact_identity'],StageState(artifact['state']),tuple(artifact['completed_chunks']),tuple(artifact['failed_chunks']),tuple(dict(row) for row in artifact.get('failure_diagnostics',())))
   except (KeyError,TypeError,ValueError) as exc: raise FutureDataPlaneError('future_checkpoint_payload_invalid') from exc
   rebuilt=self.checkpoint(state)
   if rebuilt['artifact_identity']!=artifact.get('artifact_identity'): raise FutureDataPlaneError('future_checkpoint_identity_mismatch')

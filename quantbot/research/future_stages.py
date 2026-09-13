@@ -70,12 +70,12 @@ class FormalStageProtocol:
 
 @dataclass(frozen=True)
 class ResumableStageState:
-    protocol_identity: str; state: StageState=StageState.PENDING; completed_chunks: tuple[str,...]=(); failed_chunks: tuple[str,...]=()
+    protocol_identity: str; state: StageState=StageState.PENDING; completed_chunks: tuple[str,...]=(); failed_chunks: tuple[str,...]=(); failure_diagnostics: tuple[Mapping[str,Any],...]=()
     def resume(self) -> "ResumableStageState":
         if self.state not in {StageState.PENDING,StageState.INTERRUPTED,StageState.FAILED}: raise ValueError("stage_not_resumable")
-        return ResumableStageState(self.protocol_identity,StageState.RUNNING,self.completed_chunks,self.failed_chunks)
+        return ResumableStageState(self.protocol_identity,StageState.RUNNING,self.completed_chunks,self.failed_chunks,self.failure_diagnostics)
 
-    def record(self, chunk_identity: str, *, succeeded: bool) -> "ResumableStageState":
+    def record(self, chunk_identity: str, *, succeeded: bool, failure_diagnostic: Mapping[str,Any] | None=None) -> "ResumableStageState":
         """Return a new fenced state after exactly one declared chunk completes.
 
         This is deliberately pure: a future disk-backed coordinator can persist
@@ -87,9 +87,15 @@ class ResumableStageState:
             raise ValueError("stage_chunk_state_invalid")
         seen=set(self.completed_chunks) | set(self.failed_chunks)
         if chunk_identity in seen: raise ValueError("stage_chunk_already_recorded")
+        if succeeded and failure_diagnostic is not None: raise ValueError("stage_success_failure_diagnostic_invalid")
+        if not succeeded and failure_diagnostic is not None:
+            if not isinstance(failure_diagnostic,Mapping) or failure_diagnostic.get('chunk_identity')!=chunk_identity:
+                raise ValueError("stage_failure_diagnostic_invalid")
+            if any(row.get('chunk_identity')==chunk_identity for row in self.failure_diagnostics): raise ValueError("stage_failure_diagnostic_duplicate")
         completed=self.completed_chunks + (chunk_identity,) if succeeded else self.completed_chunks
         failed=self.failed_chunks if succeeded else self.failed_chunks + (chunk_identity,)
-        return ResumableStageState(self.protocol_identity,StageState.RUNNING,completed,failed)
+        diagnostics=self.failure_diagnostics if succeeded or failure_diagnostic is None else self.failure_diagnostics+(dict(failure_diagnostic),)
+        return ResumableStageState(self.protocol_identity,StageState.RUNNING,completed,failed,diagnostics)
 
     def finish(self, expected_chunks: Sequence[str]) -> "ResumableStageState":
         expected=tuple(expected_chunks)
@@ -98,7 +104,7 @@ class ResumableStageState:
         observed=set(self.completed_chunks) | set(self.failed_chunks)
         if observed != set(expected): raise ValueError("stage_chunk_set_incomplete")
         return ResumableStageState(self.protocol_identity,StageState.FAILED if self.failed_chunks else StageState.COMPLETE,
-                                   self.completed_chunks,self.failed_chunks)
+                                   self.completed_chunks,self.failed_chunks,self.failure_diagnostics)
 
 @dataclass(frozen=True)
 class FutureStageChunk:

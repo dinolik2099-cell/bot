@@ -42,6 +42,18 @@ def main():
     assert one.result['artifact_identity']==four.result['artifact_identity'] and len(four.rows)==12
     failed=_execute_stress_chunks(runtime=parallel_runtime,source_git_commit='d'*40,executor=worker_fail,workers=4)
     assert failed.result is None and failed.state.failed_chunks and len(failed.rows)==11
+    diagnostic=failed.state.failure_diagnostics[0]
+    assert diagnostic['chunk_identity']==failed.state.failed_chunks[0] and diagnostic['ordinal']==1 and diagnostic['exception_type']=='RuntimeError' and diagnostic['exception_message']=='synthetic_failure'
+    assert diagnostic['protocol_identity']==parallel_runtime.protocol['artifact_identity'] and diagnostic['execution_plan_identity']==parallel_runtime.plan['artifact_identity'] and diagnostic['input_identity']==parallel_runtime.input_identity and diagnostic['source_git_commit']=='d'*40
+    # Completed chunks are fenced on retry; only the failed ordinal runs again.
+    retry_calls=[]
+    def retry(chunk):
+        retry_calls.append(chunk['ordinal']);return worker_good(chunk)
+    recovered=_execute_stress_chunks(runtime=parallel_runtime,source_git_commit='d'*40,executor=retry,checkpoint=failed.checkpoint,prior_rows=failed.rows,retry_failed=True,workers=1)
+    assert retry_calls==[1] and recovered.state.state.name=='COMPLETE' and not recovered.state.failed_chunks and not recovered.state.failure_diagnostics and len(recovered.rows)==12 and recovered.result is not None
+    def retry_fails(chunk):raise ValueError('updated_failure')
+    failed_again=_execute_stress_chunks(runtime=parallel_runtime,source_git_commit='d'*40,executor=retry_fails,checkpoint=failed.checkpoint,prior_rows=failed.rows,retry_failed=True,workers=1)
+    assert failed_again.state.failed_chunks==failed.state.failed_chunks and failed_again.state.failure_diagnostics[0]['exception_type']=='ValueError' and failed_again.state.failure_diagnostics[0]['exception_message']=='updated_failure'
     freeze='f'*64
     frozen={'research_plan_identity':ACCEPTED_N5_RESEARCH_PLAN_IDENTITY,'research_freeze_identity':freeze,'boundary_identity_hash':'boundary','oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'}
     n8=SimpleNamespace(n7=SimpleNamespace(plan=frozen,freeze={'research_freeze_identity':freeze,'research_boundary':None}),dataset=SimpleNamespace(dataset_id='dataset'))
@@ -57,6 +69,7 @@ def main():
     print('STRESS_FORMAL_RUNNER_SYNTHETIC_TEST_OK')
     print('PROTECTED_READS=0'); print('OOS_READS=0'); print('FORMAL_STRESS_RUNS=0')
     print('STRESS_PARALLEL_DETERMINISM=PASS');print('STRESS_12_CHUNK_COVERAGE=PASS');print('STRESS_FAILURE_PARTIAL=PASS')
+    print('STRESS_FAILED_CHUNK_DIAGNOSTICS=PASS');print('STRESS_RETRY_FAILED_ONLY=PASS');print('STRESS_RETRY_COMPLETE=PASS')
     print('STRESS_WORKER_PROVENANCE_DRIFT_REJECTED=PASS')
 
 

@@ -7,6 +7,7 @@ fallback-loader, or caller-supplied-engine path.
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor,as_completed
@@ -139,6 +140,11 @@ def resolve_stress_workers(runtime,workers='auto'):
     else: raise StressRunnerError('stress_workers_invalid')
     return min(resolve_workers(requested_cap=cap).workers,count)
 
+def _stress_failure_diagnostic(*,runtime,source_git_commit,chunk,error):
+    """Bounded, checkpoint-sealed diagnostics for a failed frozen chunk."""
+    message=str(error)
+    return {'schema_version':'quantbot-stress-failure-diagnostic-v1','stage':'stress','chunk_identity':chunk['chunk_identity'],'ordinal':chunk['ordinal'],'exception_type':type(error).__name__,'exception_message':message[:4096],'protocol_identity':runtime.protocol['artifact_identity'],'execution_plan_identity':runtime.plan['artifact_identity'],'input_identity':runtime.input_identity,'source_git_commit':source_git_commit,'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED','recorded_at':datetime.now(timezone.utc).isoformat()}
+
 def _execute_stress_chunks(*,runtime,source_git_commit,executor,checkpoint=None,prior_rows=(),retry_failed=False,workers=1):
     """Stress-only deterministic process coordinator; other stages stay serial."""
     runtime.validate()
@@ -166,10 +172,10 @@ def _execute_stress_chunks(*,runtime,source_git_commit,executor,checkpoint=None,
             if not isinstance(evidence,Mapping):raise StressRunnerError('stress_worker_evidence_invalid')
             row={'chunk_identity':chunk['chunk_identity'],'status':'COMPLETED','window':'TRAIN_VALIDATION','protocol_identity':runtime.protocol['artifact_identity'],'execution_plan_identity':runtime.plan['artifact_identity'],'input_identity':runtime.input_identity,'evidence':dict(evidence),'oos_status':'SEALED','oos_authorization':'NOT_AUTHORIZED'}
             row['result_identity']=_row_identity(runtime=runtime,chunk=chunk,evidence=row['evidence']);rows.append(row);state=state.record(chunk['chunk_identity'],succeeded=True)
-        except Exception:state=state.record(chunk['chunk_identity'],succeeded=False)
-    if state.failed_chunks:state=ResumableStageState(state.protocol_identity,StageState.INTERRUPTED,state.completed_chunks,state.failed_chunks)
+        except Exception as exc:state=state.record(chunk['chunk_identity'],succeeded=False,failure_diagnostic=_stress_failure_diagnostic(runtime=runtime,source_git_commit=source_git_commit,chunk=chunk,error=exc))
+    if state.failed_chunks:state=ResumableStageState(state.protocol_identity,StageState.INTERRUPTED,state.completed_chunks,state.failed_chunks,state.failure_diagnostics)
     elif len(state.completed_chunks)==len(expected):state=state.finish(expected)
-    else:state=ResumableStageState(state.protocol_identity,StageState.INTERRUPTED,state.completed_chunks,state.failed_chunks)
+    else:state=ResumableStageState(state.protocol_identity,StageState.INTERRUPTED,state.completed_chunks,state.failed_chunks,state.failure_diagnostics)
     sealed=runtime.checkpoint(state);ordered=tuple(sorted(rows,key=lambda row:row['chunk_identity']))
     return FutureStageExecution(state,sealed,ordered,None if state.state!=StageState.COMPLETE else runtime.result(ordered,source_git_commit))
 
