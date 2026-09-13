@@ -27,7 +27,7 @@ class ForwardPipeline:
         rows = self.orchestrator.candles.history(symbol, interval)
         if not rows or not all(row.get("closed") for row in rows):
             raise ForwardResearchError("forward_pipeline_completed_history_required")
-        result = self.orchestrator.run_completed_models(date, symbol, interval, self.declarations)
+        result = self.orchestrator.run_completed_models(date, symbol, interval, self.declarations, incremental=True)
         # Signal persistence occurs in the orchestrator.  No positions, orders,
         # formal scores, validation, or OOS path is introduced here.
         return {**result, "symbol": symbol, "interval": interval,

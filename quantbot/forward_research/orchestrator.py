@@ -41,11 +41,11 @@ class ForwardOrchestrator:
   if portfolio is not None:self.persistence.append('portfolio',date,portfolio)
   return path
  def checkpoint(self,path):write_checkpoint(path,checkpoint_payload(self.runtime,self.config_identity,self.git_commit))
- def run_completed_models(self,date,symbol,interval,declarations):
+ def run_completed_models(self,date,symbol,interval,declarations,*,incremental=False):
   """Only closed candles enter frozen model observation execution."""
   from .model_runtime import run_scheduled_models
   rows=self.candles.history(symbol,interval)
-  result=run_scheduled_models(symbol,rows,declarations)
+  result=run_scheduled_models(symbol,rows,declarations,incremental=incremental)
   for row in result['signals']:self.persistence.append('signals',date,row)
   if self.path_tracker is not None:
    for signal in result['signals']:
