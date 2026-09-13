@@ -11,7 +11,7 @@ class ForwardOrchestrator:
  def ingest(self,event:MarketEvent,date):
   if not self.collector.accept(event):self.runtime.duplicates+=1;return 'DUPLICATE'
   self.runtime.ingest(event.identity(),event.event_time,event.receive_time);kind=self.candles.apply(event)
-  self.persistence.append('candles' if event.closed else 'intrabar',date,{'symbol':event.symbol,'interval':event.interval,'event_time':event.event_time,'receive_time':event.receive_time,'open':event.open,'high':event.high,'low':event.low,'close':event.close,'volume':event.volume,'closed':event.closed})
+  self.persistence.append('candles' if event.closed else 'intrabar',date,{'symbol':event.symbol,'interval':event.interval,'event_time':event.event_time,'receive_time':event.receive_time,'open':event.open,'high':event.high,'low':event.low,'close':event.close,'volume':event.volume,'closed':event.closed,'sequence':event.sequence})
   if event.closed and self.path_tracker is not None:
    for evidence in self.path_tracker.on_completed_close(symbol=event.symbol,event_time=event.event_time,close=event.close,interval=event.interval):
     self.persistence.append('paths',date,evidence);self.runtime.completed_observations+=1

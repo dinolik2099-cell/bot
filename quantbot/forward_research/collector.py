@@ -5,7 +5,7 @@ from .core import ForwardResearchError,assert_shadow_only
 @dataclass(frozen=True)
 class MarketEvent:
  symbol:str;interval:str;event_time:str;receive_time:str;open:float;high:float;low:float;close:float;volume:float;closed:bool;sequence:int
- def identity(self):return f'{self.symbol}:{self.interval}:{self.event_time}:{self.sequence}'
+ def identity(self):return f'{self.symbol}:{self.interval}:{self.event_time}:{self.sequence}:{int(self.closed)}'
 def shard_symbols(symbols,max_per_shard=200):
  if max_per_shard<1:raise ForwardResearchError('shard_limit_invalid')
  return tuple(tuple(sorted(symbols)[i:i+max_per_shard]) for i in range(0,len(symbols),max_per_shard))

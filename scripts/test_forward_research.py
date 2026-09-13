@@ -93,5 +93,18 @@ def main():
   sealed=seal_daily_manifest(root=root,date='2026-09-11',git_commit='a'*40,config_identity='b'*64,research_plan_identity='p'*64,declaration_manifest_identity='d'*64);assert verify_daily_manifest(f'{root}/manifests/2026-09-11.json')['daily_manifest_identity']==sealed['daily_manifest_identity']
   try:seal_daily_manifest(root=root,date='2026-09-11',git_commit='a'*40,config_identity='b'*64,research_plan_identity='p'*64,declaration_manifest_identity='d'*64);raise AssertionError('daily seal overwritten')
   except Exception as exc:assert 'already_sealed' in str(exc)
- print('FORWARD_RESEARCH_SYNTHETIC_TEST_OK');print('FORWARD_LIFECYCLE_RECONCILIATION=PASS');print('FORWARD_BOOTSTRAP_CAUSALITY=PASS');print('FORWARD_1M_TRACKER_ROUTING=PASS');print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
+
+ # Final Binance kline close must never be deduplicated by a prior intrabar update.
+ payload={'e':'kline','s':'BTCUSDT','k':{'i':'1h','t':1789286400000,'o':'100','h':'110','l':'90','c':'105','v':'10','f':1000,'L':1010,'x':False}}
+ intrabar=parse_kline(payload,'2026-09-13T08:59:58+00:00')
+ payload['k']['x']=True
+ final_close=parse_kline(payload,'2026-09-13T09:00:00+00:00')
+ assert intrabar.sequence==1010 and final_close.sequence==1010
+ assert intrabar.identity()!=final_close.identity()
+ close_collector=CollectorState()
+ assert close_collector.accept(intrabar)
+ assert close_collector.accept(final_close)
+ print('FORWARD_FINAL_CLOSE_DEDUPE=PASS')
+
+print('FORWARD_RESEARCH_SYNTHETIC_TEST_OK');print('FORWARD_LIFECYCLE_RECONCILIATION=PASS');print('FORWARD_BOOTSTRAP_CAUSALITY=PASS');print('FORWARD_1M_TRACKER_ROUTING=PASS');print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
 if __name__=='__main__':main()
