@@ -18,4 +18,8 @@ def build_service(*,config_path,symbols,orchestrator,date_provider,pipeline=None
   if result=='COMPLETED' and pipeline is not None and event.interval==pipeline.plan.get('protocol_scope',{}).get('timeframe'):
    pipeline.on_completed_candle(date=date,symbol=event.symbol,interval=event.interval)
   return result
- return {'config_identity':config['config_identity'],'transport':PublicWebsocketTransport(symbols,on_event),'checkpoint':orchestrator.checkpoint,'shadow_only':True,'oos_allowed':False,'orders_allowed':False,'pipeline_bound':pipeline is not None}
+ def on_transport_error(source,exc):
+  orchestrator.collector.record_error(source,exc)
+  orchestrator.runtime.errors+=1
+  orchestrator.runtime.reconnects+=1
+ return {'config_identity':config['config_identity'],'transport':PublicWebsocketTransport(symbols,on_event,on_error=on_transport_error),'checkpoint':orchestrator.checkpoint,'shadow_only':True,'oos_allowed':False,'orders_allowed':False,'pipeline_bound':pipeline is not None}

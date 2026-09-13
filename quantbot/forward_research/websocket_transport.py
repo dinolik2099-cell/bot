@@ -10,10 +10,11 @@ from .core import assert_shadow_only
 
 
 class PublicWebsocketTransport:
-    def __init__(self, symbols, on_event, clock=time.sleep):
+    def __init__(self, symbols, on_event, clock=time.sleep, on_error=None):
         self.symbols = tuple(symbols)
         self.on_event = on_event
         self.clock = clock
+        self.on_error = on_error
 
     def shard_urls(self, max_per_shard=200):
         from .collector import shard_symbols
@@ -32,9 +33,14 @@ class PublicWebsocketTransport:
                         return
                     self.on_event(parse_kline(json.loads(raw), receive_time()))
                 attempt = 0
-            except Exception:
+            except Exception as exc:
                 if should_stop():
                     return
+                if self.on_error is not None:
+                    try:
+                        self.on_error('websocket_shard', exc)
+                    except Exception:
+                        pass
                 self.clock(reconnect_delay(attempt))
                 attempt += 1
             finally:

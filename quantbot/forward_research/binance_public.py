@@ -1,5 +1,6 @@
 """Binance USDT-M public protocol helpers; deliberately no authenticated API."""
 from __future__ import annotations
+from datetime import datetime, timezone
 from .core import UniverseSymbol,ForwardResearchError
 PUBLIC_FAPI='https://fapi.binance.com';PUBLIC_WS='wss://fstream.binance.com/market/stream?streams='
 def parse_exchange_info(payload):
@@ -19,4 +20,4 @@ def parse_kline(payload,receive_time):
  data=payload.get('data',payload);k=data.get('k',{})
  if data.get('e')!='kline' or not k:raise ForwardResearchError('binance_kline_payload_invalid')
  from .collector import MarketEvent
- return MarketEvent(data.get('s',''),k.get('i',''),str(k.get('t')),receive_time,float(k['o']),float(k['h']),float(k['l']),float(k['c']),float(k['v']),bool(k['x']),int(k.get('L',k.get('f',0))))
+ return MarketEvent(data.get('s',''),k.get('i',''),datetime.fromtimestamp(int(k.get('t'))/1000, timezone.utc).isoformat(),receive_time,float(k['o']),float(k['h']),float(k['l']),float(k['c']),float(k['v']),bool(k['x']),int(k.get('L',k.get('f',0))))
