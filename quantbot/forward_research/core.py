@@ -31,12 +31,31 @@ def classify_opportunity(symbol,start,end,move,volume_expansion=1.0):
  if abs(move)<.05: return None
  return {'symbol':symbol,'event_start':start,'event_end':end,'direction':'UP' if move>0 else 'DOWN','move_magnitude':abs(move),'volume_expansion':volume_expansion,'event_identity':identity({'symbol':symbol,'start':start,'end':end,'move':move})}
 class AppendOnlyStore:
- def __init__(self,root):self.root=Path(root)
- def append(self,partition,record):
-  assert_shadow_only();path=self.root/partition;path.parent.mkdir(parents=True,exist_ok=True);line=canon(record)+'\n'
-  if path.exists() and line.encode() in path.read_bytes().splitlines(keepends=True):return path
-  with path.open('a',encoding='utf-8',newline='\n') as handle:handle.write(line);handle.flush();os.fsync(handle.fileno())
+ def __init__(self,root,batch_size=128):self.root=Path(root);self.batch_size=batch_size;self._handles={};self._pending={};self._seen={}
+ def append(self,partition,record,deduplicate=True):
+  assert_shadow_only();path=self.root/partition;path.parent.mkdir(parents=True,exist_ok=True);line=canon(record)+'\n';key=str(path)
+  encoded=line.encode()
+  if deduplicate:
+   if key not in self._seen:self._seen[key]=set(path.read_bytes().splitlines(keepends=True)) if path.exists() else set()
+   if encoded in self._seen[key]:return path
+  handle=self._handles.get(key)
+  if handle is None:handle=path.open('a',encoding='utf-8',newline='\n');self._handles[key]=handle;self._pending[key]=0
+  handle.write(line)
+  if deduplicate:self._seen[key].add(encoded)
+  self._pending[key]+=1
+  if deduplicate:
+   self._sync(key);handle.close();self._handles.pop(key,None);self._pending.pop(key,None)
+  elif self._pending[key]>=self.batch_size:self._sync(key)
   return path
+ def _sync(self,key):
+  handle=self._handles.get(key)
+  if handle is not None:handle.flush();os.fsync(handle.fileno());self._pending[key]=0
+ def flush(self):
+  for key in tuple(self._handles):self._sync(key)
+ def close(self):
+  self.flush()
+  for handle in self._handles.values():handle.close()
+  self._handles.clear()
  def manifest(self,date,git_commit,config_identity):
   files=[]
   for path in sorted(self.root.rglob('*')):

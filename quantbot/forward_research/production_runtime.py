@@ -148,6 +148,8 @@ class ForwardServiceAuthority:
                                research_plan_identity=self.plan["research_plan_identity"], declaration_manifest_identity=self.manifest["manifest_identity"])
 
     def checkpoint(self):
+        if self.orchestrator is not None:
+            self.orchestrator.persistence.flush()
         if self._transport is not None:
             self.runtime.transport_metrics = self._transport.health()
         payload = checkpoint_payload(self.runtime, self.config["config_identity"], self.git_commit,
@@ -213,6 +215,7 @@ class ForwardServiceAuthority:
                     break
         generation_stop.set()
         _retire_reader_generation(workers,service['transport'])
+        self.orchestrator.persistence.flush()
         self.checkpoint()
         # A changed membership gets a fresh transport generation, while the
         # coordinator retains surviving-symbol state and preserves evidence.

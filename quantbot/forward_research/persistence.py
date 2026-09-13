@@ -8,7 +8,8 @@ class ForwardPersistence:
   """Update only provenance for newly appended evidence, never store state."""
   self.meta['universe_identity']=snapshot['universe_identity'];self.meta['membership_identity']=snapshot['membership_identity']
  def append(self,kind,date,row):
-  payload={**self.meta,'created_at':utc_now(),**dict(row)};return self.store.append(f'{kind}/{date}/{kind}.jsonl',payload)
+  payload={**self.meta,'created_at':utc_now(),**dict(row)};return self.store.append(f'{kind}/{date}/{kind}.jsonl',payload,deduplicate=False)
+ def flush(self):self.store.flush()
  def daily_counts(self,date):
   """Read-only evidence counters for operator diagnostics."""
   out={}

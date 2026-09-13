@@ -29,6 +29,7 @@ def main():
   session=Session();authority=_build_authority_for_test(config_path=config,plan_path=plan_path,declaration_path=declaration_path,data_root=root/'data',checkpoint_path=root/'checkpoint.json',repo_root='.',_session=session)
   snapshot=authority.refresh_universe('2026-09-11T00:00:00+00:00');assert snapshot['symbols'][0]['symbol']=='XUSDT' and len(session.urls)==3
   authority.checkpoint();assert authority.resume()['research_plan_identity']=='p'*64
+  authority.orchestrator.persistence.store.close()
   try:_public_json('https://api.binance.com/api/v3/account',session);raise AssertionError('private endpoint accepted')
   except Exception as exc:assert 'nonpublic' in str(exc)
  print('FORWARD_SERVICE_AUTHORITY_SYNTHETIC_TEST_OK');print('OOS_READS=0');print('FORMAL_ARTIFACT_MUTATIONS=0');print('EXCHANGE_ORDER_PLACEMENT=0');print('LIVE_AUTHORIZATION=0')
