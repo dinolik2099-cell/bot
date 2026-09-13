@@ -75,6 +75,7 @@ class ForwardServiceAuthority:
         self.pipeline = None
         self._active_date = None
         self._last_transitions = {'added': [], 'removed': [], 'surviving': []}
+        self._transport = None
         self._shutdown = threading.Event()
 
     def refresh_universe(self, timestamp: str | None = None):
@@ -135,6 +136,8 @@ class ForwardServiceAuthority:
                                research_plan_identity=self.plan["research_plan_identity"], declaration_manifest_identity=self.manifest["manifest_identity"])
 
     def checkpoint(self):
+        if self._transport is not None:
+            self.runtime.transport_metrics = self._transport.health()
         payload = checkpoint_payload(self.runtime, self.config["config_identity"], self.git_commit,
                                      research_plan_identity=self.plan["research_plan_identity"], declaration_manifest_identity=self.manifest["manifest_identity"])
         write_checkpoint(self.checkpoint_path, payload)
@@ -143,8 +146,9 @@ class ForwardServiceAuthority:
     def build_service(self):
         if self.universe is None:
             self.refresh_universe()
-        return build_service(config_path=self.config_path, symbols=[row["symbol"] for row in self.universe["symbols"]],
+        service=build_service(config_path=self.config_path, symbols=[row["symbol"] for row in self.universe["symbols"]],
                              orchestrator=self.orchestrator, pipeline=self.pipeline, date_provider=lambda value: str(value)[:10])
+        self._transport=service['transport'];return service
 
     def request_shutdown(self, *_):
         self._shutdown.set()
@@ -197,6 +201,8 @@ class ForwardServiceAuthority:
                     break
         generation_stop.set()
         for worker in workers: worker.join(timeout=35)
+        if not service['transport'].close(timeout=30):
+            raise ForwardResearchError('forward_transport_drain_timeout')
         self.checkpoint()
         # A changed membership gets a fresh transport generation, while the
         # coordinator retains surviving-symbol state and preserves evidence.
