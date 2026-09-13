@@ -180,7 +180,7 @@ def _execute_stress_chunks(*,runtime,source_git_commit,executor,checkpoint=None,
     return FutureStageExecution(state,sealed,ordered,None if state.state!=StageState.COMPLETE else runtime.result(ordered,source_git_commit))
 
 def run_authorized_stress(*, runtime: FutureRuntimeContext, evidence, n8_context, raw_root,
-                          strategy_resolver, source_git_commit: str, checkpoint=None, prior_rows=(),workers='auto'):
+                          strategy_resolver, source_git_commit: str, checkpoint=None, prior_rows=(),retry_failed=False,workers='auto'):
     """Execute frozen stress chunks through only the N7/N8 canonical path.
 
     There is deliberately no evaluator argument.  A caller cannot replace the
@@ -196,5 +196,5 @@ def run_authorized_stress(*, runtime: FutureRuntimeContext, evidence, n8_context
     else: executor=make_canonical_plan_chunk_executor(runtime=runtime,n8_context=n8_context,evaluator=evaluator)
     return _execute_stress_chunks(
         runtime=runtime, source_git_commit=source_git_commit,
-        executor=executor, checkpoint=checkpoint, prior_rows=prior_rows,workers=effective,
+        executor=executor, checkpoint=checkpoint, prior_rows=prior_rows,retry_failed=retry_failed,workers=effective,
     )

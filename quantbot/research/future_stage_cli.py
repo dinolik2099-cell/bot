@@ -43,12 +43,14 @@ def _rows(path):
     if not isinstance(rows,list) or any(not isinstance(row,Mapping) for row in rows):raise FutureStageCliError('future_stage_cli_rows_invalid')
     return tuple(dict(row) for row in rows)
 
-def dispatch_authorized_stage(*,stage,runtime,authority,deps,checkpoint=None,prior_rows=(),evidence_path=None,workers='auto'):
+def dispatch_authorized_stage(*,stage,runtime,authority,deps,checkpoint=None,prior_rows=(),evidence_path=None,workers='auto',retry_failed=False):
     """Call an existing production runner; no evaluator/loader injection exists."""
+    if retry_failed and stage!='stress':
+        raise FutureStageCliError('future_stage_retry_failed_unsupported')
     common=dict(runtime=runtime,evidence=authority,n8_context=deps['n8'],raw_root=deps['raw_root'],source_git_commit=deps['source_git_commit'],checkpoint=checkpoint,prior_rows=prior_rows)
     if stage=='stress':
         from .stress_formal_runner import run_authorized_stress
-        return run_authorized_stress(strategy_resolver=deps['strategy_resolver'],workers=workers,**common)
+        return run_authorized_stress(strategy_resolver=deps['strategy_resolver'],workers=workers,retry_failed=retry_failed,**common)
     if stage=='regime':
         from .regime_formal_runner import run_authorized_regime
         return run_authorized_regime(**common)
@@ -75,10 +77,29 @@ def dispatch_authorized_stage(*,stage,runtime,authority,deps,checkpoint=None,pri
         return run_authorized_shared_capital_portfolio(n8_context=deps['n8'],raw_root=deps['raw_root'],protocol=runtime.protocol,diagnostic=row['diagnostic'],manifest=row['manifest'],n11_identity=row['n11_identity'],candidate_count=row['candidate_count'],correlation_sha256=row['correlation_sha256'],evidence=authority,window=row.get('window','VALIDATION'),strategy_resolver=deps['strategy_resolver'],source_git_commit=deps['source_git_commit'])
     raise FutureStageCliError('future_stage_cli_unknown_stage')
 
+def _execution_snapshot(output):
+    """Serialize recoverable state without discarding Stress failure evidence."""
+    if not all(hasattr(output,key) for key in ('state','checkpoint','rows','result')):
+        raise FutureStageCliError('future_stage_cli_execution_snapshot_unavailable')
+    state={
+        'protocol_identity':output.state.protocol_identity,
+        'state':output.state.state.value,
+        'completed_chunks':list(output.state.completed_chunks),
+        'failed_chunks':list(output.state.failed_chunks),
+    }
+    # Older checkpoints predate durable diagnostics and remain readable; new
+    # failed Stress attempts must preserve the diagnostic record verbatim.
+    diagnostics=getattr(output.state,'failure_diagnostics',())
+    if diagnostics:
+        state['failure_diagnostics']=[dict(row) for row in diagnostics]
+    return {'state':state,'checkpoint':dict(output.checkpoint),
+            'rows':[dict(row) for row in output.rows],
+            'result':dict(output.result) if output.result is not None else None}
+
 def main_for_stage(stage):
     parser=argparse.ArgumentParser(description=f'QuantBot sealed {stage} non-OOS stage')
     parser.add_argument('--protocol',required=True);parser.add_argument('--plan',required=True);parser.add_argument('--input-identity',required=True)
-    parser.add_argument('--execute',action='store_true');parser.add_argument('--authority-json');parser.add_argument('--checkpoint-json');parser.add_argument('--prior-rows-json');parser.add_argument('--stage-evidence-json');parser.add_argument('--execution-json');parser.add_argument('--workers',default='auto')
+    parser.add_argument('--execute',action='store_true');parser.add_argument('--authority-json');parser.add_argument('--checkpoint-json');parser.add_argument('--prior-rows-json');parser.add_argument('--stage-evidence-json');parser.add_argument('--execution-json');parser.add_argument('--workers',default='auto');parser.add_argument('--retry-failed',action='store_true')
     args=parser.parse_args();runtime=FutureRuntimeContext(_load(args.protocol),_load(args.plan),args.input_identity);runtime.validate()
     if runtime.protocol.get('stage')!=stage:raise SystemExit('future_stage_cli_stage_mismatch')
     print(f'STAGE={stage}');print(f"PROTOCOL_IDENTITY={runtime.protocol['artifact_identity']}");print(f"EXECUTION_PLAN_IDENTITY={runtime.plan['artifact_identity']}");print('OOS_STATUS=SEALED');print('OOS_AUTHORIZATION=NOT_AUTHORIZED')
@@ -89,23 +110,12 @@ def main_for_stage(stage):
     runtime.authorize(authority,capability)
     workers=args.workers if args.workers=='auto' else int(args.workers)
     if stage!='stress' and workers!='auto':raise FutureStageCliError('future_stage_workers_unsupported')
-    output=dispatch_authorized_stage(stage=stage,runtime=runtime,authority=authority,deps=resolve_canonical_runtime(runtime),checkpoint=_checkpoint(runtime,args.checkpoint_json),prior_rows=_rows(args.prior_rows_json),evidence_path=args.stage_evidence_json,workers=workers)
+    if stage!='stress' and args.retry_failed:raise FutureStageCliError('future_stage_retry_failed_unsupported')
+    output=dispatch_authorized_stage(stage=stage,runtime=runtime,authority=authority,deps=resolve_canonical_runtime(runtime),checkpoint=_checkpoint(runtime,args.checkpoint_json),prior_rows=_rows(args.prior_rows_json),evidence_path=args.stage_evidence_json,workers=workers,retry_failed=args.retry_failed)
     if args.execution_json:
-        if not all(hasattr(output,key) for key in ('state','checkpoint','rows','result')):
-            raise FutureStageCliError('future_stage_cli_execution_snapshot_unavailable')
         destination=Path(args.execution_json)
         destination.parent.mkdir(parents=True,exist_ok=True)
-        snapshot={
-            'state':{
-                'protocol_identity':output.state.protocol_identity,
-                'state':output.state.state.value,
-                'completed_chunks':list(output.state.completed_chunks),
-                'failed_chunks':list(output.state.failed_chunks),
-            },
-            'checkpoint':dict(output.checkpoint),
-            'rows':[dict(row) for row in output.rows],
-            'result':dict(output.result) if output.result is not None else None,
-        }
+        snapshot=_execution_snapshot(output)
         try:
             with destination.open('x',encoding='utf-8') as handle:
                 json.dump(snapshot,handle,indent=2,sort_keys=True)
