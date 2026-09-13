@@ -214,9 +214,13 @@ class ForwardServiceAuthority:
                     generation_stop.set()
                     break
         generation_stop.set()
-        _retire_reader_generation(workers,service['transport'])
-        self.orchestrator.persistence.flush()
-        self.checkpoint()
+        try:
+            _retire_reader_generation(workers,service['transport'])
+        finally:
+            # Once ingress is closed, both graceful retirement and a surfaced
+            # fail-closed transport error must durably flush accepted rows.
+            self.orchestrator.persistence.flush()
+            self.checkpoint()
         # A changed membership gets a fresh transport generation, while the
         # coordinator retains surviving-symbol state and preserves evidence.
         if not self._shutdown.is_set():
