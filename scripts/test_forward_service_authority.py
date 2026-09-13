@@ -28,7 +28,7 @@ def main():
   manifest={'schema_version':DECLARATION_SCHEMA,'decision_artifact_id':'day0','research_freeze_identity':'f'*64,'research_plan_identity':'p'*64,'declarations':[declaration],'forward_research_only':True,'oos_allowed':False,'order_placement_allowed':False};manifest['manifest_identity']=manifest_identity(manifest);declaration_path=root/'declaration.json';declaration_path.write_text(json.dumps(manifest),encoding='utf-8')
   session=Session();authority=_build_authority_for_test(config_path=config,plan_path=plan_path,declaration_path=declaration_path,data_root=root/'data',checkpoint_path=root/'checkpoint.json',repo_root='.',_session=session)
   snapshot=authority.refresh_universe('2026-09-11T00:00:00+00:00');assert snapshot['symbols'][0]['symbol']=='XUSDT' and len(session.urls)==3
-  authority.checkpoint();assert authority.resume()['research_plan_identity']=='p'*64
+  authority.checkpoint();assert authority.resume()['research_plan_identity']=='p'*64 and authority.orchestrator.persistence.daily_counts('2026-09-11')['bootstrap']==1
   authority.orchestrator.persistence.store.close()
   try:_public_json('https://api.binance.com/api/v3/account',session);raise AssertionError('private endpoint accepted')
   except Exception as exc:assert 'nonpublic' in str(exc)
