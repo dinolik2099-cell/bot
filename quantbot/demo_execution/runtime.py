@@ -86,7 +86,8 @@ class DemoRuntime:
     # A deterministic intent already durably recorded as RECONCILING is safe
     # to resume through reconciliation.  Any earlier failure leaves this
     # marker uncommitted so it cannot be silently skipped.
-    if not durable_reconciling:break
+    if not durable_reconciling:
+     self.checkpoint(cursor);self.persistence.flush();break
    cursor=marker;self.checkpoint(cursor)
    if self.fail_closed:break
   self.persistence.flush();return {'processed':processed,'cursor':cursor,'fail_closed':self.fail_closed}

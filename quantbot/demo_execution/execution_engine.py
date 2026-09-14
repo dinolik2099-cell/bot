@@ -1,7 +1,7 @@
 from __future__ import annotations
 from .models import ExecutionIntent,OrderState
 from .risk import check_risk,normalize_quantity
-from .core import FailClosedError
+from .core import FailClosedError,DemoRiskRejected
 
 class DemoExecutionEngine:
  def __init__(self,ledger,persistence,adapter,config,epoch):self.ledger,self.persistence,self.adapter,self.config,self.epoch=ledger,persistence,adapter,config,epoch;self.fail_closed=False;self._configured_symbols=set()
@@ -23,10 +23,13 @@ class DemoExecutionEngine:
   if self.fail_closed:raise FailClosedError('demo_new_orders_disabled')
   policy=self.config.get('execution_policy')
   if policy is None:raise FailClosedError('demo_execution_policy_missing')
-  if action=='OPEN':check_risk(policy,signal,open_orders=(health or {}).get('open_orders',0),gross_exposure=(health or {}).get('gross_exposure',0),strategy_exposure=(health or {}).get('strategy_exposure',0),daily_pnl=(health or {}).get('daily_pnl',0))
   intent=ExecutionIntent.from_signal(signal,policy['order_notional'],action);row,created=self.ledger.create(intent)
   if not created:return row
   self.persistence.append('signals',date,{'signal':signal,'demo_epoch':self.epoch,'execution_intent_identity':intent.intent_identity})
+  if action=='OPEN':
+   try:check_risk(policy,signal,open_orders=(health or {}).get('open_orders',0),gross_exposure=(health or {}).get('gross_exposure',0),strategy_exposure=(health or {}).get('strategy_exposure',0),daily_pnl=(health or {}).get('daily_pnl',0))
+   except DemoRiskRejected as exc:
+    self.persistence.append('policy_rejections',date,{'signal_identity':intent.signal_identity,'execution_intent_identity':intent.intent_identity,'reason':exc.reason,'demo_epoch':self.epoch});return self.ledger.transition(intent.signal_identity,OrderState.REJECTED_POLICY.value,reason=exc.reason,dry_run=bool(dry_run))
   if action=='SKIP_SAME_DIRECTION':return self.ledger.transition(intent.signal_identity,OrderState.SKIPPED.value,dry_run=dry_run,reason='same_direction_position')
   if price is None or filters is None:raise FailClosedError('demo_market_metadata_missing')
   quantity=normalize_quantity(intent.notional,price,filters) if action=='OPEN' else str(close_quantity or '')

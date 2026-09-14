@@ -32,7 +32,7 @@ def main():
   # Restart reread cannot form another intent; client id is deterministic.
   restarted=ExecutionLedger(Path(root)/'demo');assert len(restarted.rows)==1 and restarted.rows['s'*64]['client_order_id']==first['client_order_id']
   assert normalize_quantity(100,50000,filters)=='0.002';blocked(lambda:normalize_quantity(1,50000,filters))
-  old=signal('o'*64,(datetime.now(timezone.utc)-timedelta(hours=2)).isoformat());blocked(lambda:engine.process(old,'2026-09-14',dry_run=True,price=50000,filters=filters,health={}))
+  old=signal('o'*64,(datetime.now(timezone.utc)-timedelta(hours=2)).isoformat());assert engine.process(old,'2026-09-14',dry_run=True,price=50000,filters=filters,health={})['state']=='REJECTED_POLICY'
   ledger.transition('s'*64,'SUBMITTING')
   def remote_transport(method,url,params,signed):
    return [] if '/openOrders' in url else {'status':'FILLED','orderId':'42'}
