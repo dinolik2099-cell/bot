@@ -32,7 +32,15 @@ class DemoExecutionEngine:
    if row['state'] in {item.value for item in __import__('quantbot.demo_execution.models',fromlist=['TERMINAL']).TERMINAL}:return row
    if row['state']!='VALIDATED':return row
    if dry_run:return row
-   quantity=row['quantity'];self.ledger.transition(intent.signal_identity,OrderState.SUBMITTING.value);order={'symbol':intent.symbol,'side':('BUY' if intent.side=='LONG' else 'SELL') if intent.action=='CLOSE' else ('BUY' if intent.side=='LONG' else 'SELL'),'type':'MARKET','quantity':quantity,'newClientOrderId':intent.client_order_id}
+   if intent.action=='CLOSE':
+    expected_side='SHORT' if intent.side=='LONG' else 'LONG'
+    if not close_quantity or close_side!=expected_side:raise FailClosedError('demo_validated_close_position_changed')
+    quantity=str(close_quantity);order_side='BUY' if close_side=='SHORT' else 'SELL'
+   else:
+    # A crash can occur after VALIDATED but before configuration.  Recovering
+    # OPENs must re-establish the same account policy gate before POST.
+    self._configure_symbol(intent.symbol,dry_run);quantity=row['quantity'];order_side='BUY' if intent.side=='LONG' else 'SELL'
+   self.ledger.transition(intent.signal_identity,OrderState.SUBMITTING.value);order={'symbol':intent.symbol,'side':order_side,'type':'MARKET','quantity':quantity,'newClientOrderId':intent.client_order_id}
    if intent.action=='CLOSE':order['reduceOnly']='true'
    try:response=self.adapter.create_order(order)
    except Exception:return self.ledger.transition(intent.signal_identity,OrderState.RECONCILING.value,submit_response_unknown=True)
