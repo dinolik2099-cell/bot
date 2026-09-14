@@ -25,6 +25,7 @@ class BinanceDemoAdapter:
   except Exception as exc:raise DemoExecutionError('demo_api_request_failed:'+type(exc).__name__) from exc
  def server_time(self):return self._request('GET','/fapi/v1/time')
  def exchange_info(self):return self._request('GET','/fapi/v1/exchangeInfo')
+ def ticker_price(self,symbol):return self._request('GET','/fapi/v1/ticker/price',{'symbol':symbol})
  def account(self):return self._request('GET','/fapi/v2/account',signed=True)
  def balance(self):return self._request('GET','/fapi/v2/balance',signed=True)
  def positions(self):return self._request('GET','/fapi/v2/positionRisk',signed=True)
