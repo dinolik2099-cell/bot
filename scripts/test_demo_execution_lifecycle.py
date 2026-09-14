@@ -47,6 +47,10 @@ def main():
   try:runtime._health(signal('y'))
   except FailClosedError:pass
   else:raise AssertionError('expected ambiguous attribution fence')
+  # Existing VALIDATED OPEN settles terminally when Demo venue is unavailable.
+  pending=signal('p');intent=__import__('quantbot.demo_execution.models',fromlist=['ExecutionIntent']).ExecutionIntent.from_signal(pending,10,'OPEN');venue_ledger=__import__('quantbot.demo_execution.ledger',fromlist=['ExecutionLedger']).ExecutionLedger(root/'venue');venue_ledger.create(intent);venue_ledger.transition(pending['signal_identity'],'VALIDATED',quantity='0.001',dry_run=False);venue_engine=DemoExecutionEngine(venue_ledger,runtime.persistence,api,runtime.config,'day0');result=venue_engine.reject_venue(pending,'2026-09-15','demo_symbol_not_trading');assert result['state']=='REJECTED_VENUE' and result['client_order_id']==intent.client_order_id and result['execution_intent_identity']==intent.intent_identity
+  for state in ('SUBMITTING','RECONCILING','ACKNOWLEDGED','PARTIALLY_FILLED'):
+   row_signal=signal(state[0].lower());other=__import__('quantbot.demo_execution.ledger',fromlist=['ExecutionLedger']).ExecutionLedger(root/state);other_intent=__import__('quantbot.demo_execution.models',fromlist=['ExecutionIntent']).ExecutionIntent.from_signal(row_signal,10,'OPEN');other.create(other_intent);other.transition(row_signal['signal_identity'],state,quantity='0.001',dry_run=False);assert DemoExecutionEngine(other,runtime.persistence,api,runtime.config,'day0').reject_venue(row_signal,'2026-09-15','demo_symbol_not_trading')['state']==state
   runtime.persistence.close()
  print('DEMO_MARGIN_LEVERAGE_EXECUTE_ONLY=PASS')
  print('DEMO_DRY_RUN_NEVER_MUTATES_ACCOUNT_CONFIGURATION=PASS')
@@ -56,5 +60,7 @@ def main():
  print('DEMO_FILLED_OPEN_POSITION_ATTRIBUTED=PASS')
  print('DEMO_REMOTE_FILLED_LEDGER_NO_DOUBLE_COUNT=PASS')
  print('DEMO_AMBIGUOUS_POSITION_ATTRIBUTION_FAIL_CLOSED=PASS')
+ print('DEMO_VALIDATED_OPEN_VENUE_REJECTION_RESTART=PASS')
+ print('DEMO_NONTERMINAL_VENUE_STATES_RECONCILIATION_ONLY=PASS')
  print('OOS_READS=0');print('FORWARD_MUTATIONS=0');print('LIVE_ORDER_PLACEMENT=0')
 if __name__=='__main__':main()
