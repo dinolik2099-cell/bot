@@ -8,7 +8,7 @@ def reconcile(ledger,adapter,tolerance=0.0):
    try:remote_order=adapter.query_order(client,row['intent']['symbol'])
    except Exception:differences.append({'signal_identity':row['signal_identity'],'reason':'unknown_remote_order'})
   if remote_order:
-   status=remote_order.get('status');mapping={'NEW':'ACKNOWLEDGED','PARTIALLY_FILLED':'PARTIALLY_FILLED','FILLED':'FILLED','CANCELED':'CANCELED','REJECTED':'REJECTED'}
+   status=remote_order.get('status');mapping={'NEW':'ACKNOWLEDGED','PARTIALLY_FILLED':'PARTIALLY_FILLED','FILLED':'FILLED','CANCELED':'CANCELED','EXPIRED':'EXPIRED','REJECTED':'REJECTED'}
    if status not in mapping:differences.append({'signal_identity':row['signal_identity'],'reason':'unknown_remote_status'})
    else:ledger.transition(row['signal_identity'],mapping[status],binance_order_id=str(remote_order.get('orderId','')),remote_status=status)
  if differences:raise FailClosedError('demo_reconciliation_discrepancy')

@@ -24,6 +24,8 @@ class Adapter:
  def positions(self):self.calls.append('positions');return []
  def position_mode(self):self.calls.append('position_mode');return {'dualSidePosition':not self.mode}
  def income_history(self,start,end):self.calls.append('income_history');return self.income
+ def change_margin_type(self,symbol,mode):self.calls.append('margin');return {}
+ def change_leverage(self,symbol,leverage):self.calls.append('leverage');return {}
  def create_order(self,row):
   self.calls.append('create_order')
   if self.post_unknown:self.remote[row['newClientOrderId']]={'status':'FILLED','orderId':'77'};raise RuntimeError('lost_response')
@@ -60,8 +62,8 @@ def main():
   recon_adapter.query_order=lambda client,symbol:{'status':'FILLED','orderId':'88'};recovered=DemoRuntime(config(),root/'recon_day0',recon_forward,recon_adapter,'e'*40);recovered.startup_reconcile();assert next(iter(recovered.ledger.rows.values()))['state']=='FILLED' and recovered.consume_once(DemoExecutionEngine(recovered.ledger,recovered.persistence,recon_adapter,recovered.config,'recon_day0'),dry_run=False)['processed']==0 and recon_adapter.calls.count('create_order')==1
   # Daily PnL is account-income evidence, not a zero literal.
   pnl_forward=root/'pnl_forward';append(pnl_forward,event('h'));pnl_adapter=Adapter(income=[{'income':'-100'}]);pnl_config=config();pnl_config['execution_policy']['risk']['max_daily_loss']=100;pnl=DemoRuntime(pnl_config,root/'pnl_day0',pnl_forward,pnl_adapter,'f'*40);pnl_result=pnl.consume_once(DemoExecutionEngine(pnl.ledger,pnl.persistence,pnl_adapter,pnl_config,'pnl_day0'),dry_run=True);assert pnl_result['fail_closed'] and pnl_adapter.calls.count('income_history')==1 and len(pnl.ledger.rows)==0
-  # Existing durable same-model intents are the auditable strategy exposure.
-  strategy_forward=root/'strategy_forward';append(strategy_forward,event('i'));append(strategy_forward,event('j'));strategy_config=config();strategy_config['execution_policy']['risk']['max_strategy_exposure']=100;strategy_adapter=Adapter();strategy=DemoRuntime(strategy_config,root/'strategy_day0',strategy_forward,strategy_adapter,'g'*40);strategy_engine=DemoExecutionEngine(strategy.ledger,strategy.persistence,strategy_adapter,strategy_config,'strategy_day0');assert strategy.consume_once(strategy_engine,dry_run=True)['processed']==1;assert strategy.consume_once(strategy_engine,dry_run=True)['fail_closed'] and len(strategy.ledger.rows)==1
+  # Dry-run evidence never becomes real exposure; consecutive dry signals remain consumable.
+  strategy_forward=root/'strategy_forward';append(strategy_forward,event('i'));append(strategy_forward,event('j'));strategy_config=config();strategy_config['execution_policy']['risk']['max_strategy_exposure']=100;strategy_adapter=Adapter();strategy=DemoRuntime(strategy_config,root/'strategy_day0',strategy_forward,strategy_adapter,'g'*40);strategy_engine=DemoExecutionEngine(strategy.ledger,strategy.persistence,strategy_adapter,strategy_config,'strategy_day0');assert strategy.consume_once(strategy_engine,dry_run=True)['processed']==2;assert not strategy.fail_closed and len(strategy.ledger.rows)==2
   unit=(Path(__file__).resolve().parents[1]/'deploy'/'quantbot-demo-execution.service').read_text(encoding='utf-8');assert '--serve' in unit and '--diagnostics' not in unit and '%H' not in unit and 'demo_execution_day0_v1' in unit
   runtime.persistence.close();restarted.persistence.close();lost.persistence.close();failing.persistence.close();recon.persistence.close();recovered.persistence.close();pnl.persistence.close();strategy.persistence.close()
  print('DEMO_LONG_RUNNING_INCREMENTAL_CURSOR=PASS')

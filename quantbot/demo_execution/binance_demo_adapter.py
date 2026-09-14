@@ -16,8 +16,9 @@ class BinanceDemoAdapter:
   data=dict(params or {})
   if signed:
    if not self.api_key or not self.api_secret:raise DemoExecutionError('demo_credentials_missing')
-   data['timestamp']=int(time.time()*1000);query=urlencode(sorted(data.items()));data['signature']=hmac.new(self.api_secret.encode(),query.encode(),hashlib.sha256).hexdigest()
-  query=urlencode(data);url=self.endpoint+path+('?' + query if query else '')
+   data['timestamp']=int(time.time()*1000);query=urlencode(sorted(data.items()));data['signature']=hmac.new(self.api_secret.encode(),query.encode(),hashlib.sha256).hexdigest();query=query+'&signature='+data['signature']
+  else:query=urlencode(sorted(data.items()))
+  url=self.endpoint+path+('?' + query if query else '')
   if self.transport:return self.transport(method,url,dict(data),signed)
   request=Request(url,method=method,headers={'X-MBX-APIKEY':self.api_key or ''})
   try:

@@ -39,9 +39,9 @@ def main():
   remote=BinanceDemoAdapter(config['endpoint'],'key',secret,transport=remote_transport);assert reconcile(ledger,remote)['differences']==[] and ledger.rows['s'*64]['state']=='FILLED'
   # Partial fill remains recoverable across restart; it is not treated as a
   # new signal or a reason to POST a second order.
-  partial_signal=signal('p'*64);partial=engine.process(partial_signal,'2026-09-14',dry_run=True,price=50000,filters=filters,health={});ledger.transition('p'*64,'PARTIALLY_FILLED',binance_order_id='43');assert ExecutionLedger(Path(root)/'demo').rows['p'*64]['state']=='PARTIALLY_FILLED';ledger.transition('p'*64,'FILLED');assert ExecutionLedger(Path(root)/'demo').rows['p'*64]['state']=='FILLED'
+  partial_signal=signal('p'*64);partial=engine.process(partial_signal,'2026-09-14',dry_run=True,price=50000,filters=filters,health={});ledger.transition('p'*64,'PARTIALLY_FILLED',binance_order_id='43');assert ExecutionLedger(Path(root)/'demo').rows['p'*64]['state']=='PARTIALLY_FILLED';ledger.transition('p'*64,'FILLED');assert ExecutionLedger(Path(root)/'demo').rows['p'*64]['state']=='FILLED';blocked(lambda:ledger.transition('p'*64,'SUBMITTED'))
   # An inexplicable remote absence is a hard new-order stop, not a retry.
-  ledger.transition('p'*64,'SUBMITTED')
+  engine.process(signal('q'*64),'2026-09-14',dry_run=True,price=50000,filters=filters,health={});ledger.transition('q'*64,'SUBMITTED')
   absent=BinanceDemoAdapter(config['endpoint'],'key',secret,transport=lambda *args: [] if '/openOrders' in args[1] else (_ for _ in ()).throw(RuntimeError('missing')))
   blocked(lambda:reconcile(ledger,absent));engine.disable('synthetic_discrepancy');blocked(lambda:engine.process(signal('z'*64),'2026-09-14',dry_run=True,price=50000,filters=filters,health={}))
   persistence.flush();persistence.close();contents=''.join(path.read_text(encoding='utf-8') for path in Path(root).rglob('*') if path.is_file());assert secret not in contents
