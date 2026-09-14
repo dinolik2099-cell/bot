@@ -15,7 +15,7 @@ def event(value):
 
 class Adapter:
  def __init__(self,*,post_unknown=False,mode=True,fail_ticker=False,income=None):self.post_unknown,self.mode,self.fail_ticker,self.income=post_unknown,mode,fail_ticker,([] if income is None else income);self.calls=[];self.remote={}
- def exchange_info(self):self.calls.append('exchange_info');return {'symbols':[{'symbol':'BTCUSDT','filters':[{'filterType':'LOT_SIZE','stepSize':'0.001','minQty':'0.001'},{'filterType':'MIN_NOTIONAL','notional':'5'}]}]}
+ def exchange_info(self):self.calls.append('exchange_info');return {'symbols':[{'symbol':'BTCUSDT','status':'TRADING','filters':[{'filterType':'LOT_SIZE','stepSize':'0.001','minQty':'0.001'},{'filterType':'MIN_NOTIONAL','notional':'5'}]}]}
  def ticker_price(self,symbol):
   self.calls.append('ticker')
   if self.fail_ticker:raise RuntimeError('metadata_unavailable')

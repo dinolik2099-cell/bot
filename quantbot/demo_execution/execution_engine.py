@@ -6,6 +6,10 @@ from .core import FailClosedError,DemoRiskRejected
 class DemoExecutionEngine:
  def __init__(self,ledger,persistence,adapter,config,epoch):self.ledger,self.persistence,self.adapter,self.config,self.epoch=ledger,persistence,adapter,config,epoch;self.fail_closed=False;self._configured_symbols=set()
  def disable(self,reason):self.fail_closed=True;return reason
+ def reject_venue(self,signal,date,reason):
+  intent=ExecutionIntent.from_signal(signal,self.config['execution_policy']['order_notional'],'OPEN');row,created=self.ledger.create(intent)
+  if not created:return row
+  self.persistence.append('venue_rejections',date,{'signal_identity':intent.signal_identity,'reason':reason,'demo_epoch':self.epoch});return self.ledger.transition(intent.signal_identity,OrderState.REJECTED_VENUE.value,reason=reason)
  def _configure_symbol(self,symbol,dry_run):
   if dry_run or symbol in self._configured_symbols:return
   policy=self.config['execution_policy']
@@ -24,14 +28,22 @@ class DemoExecutionEngine:
   policy=self.config.get('execution_policy')
   if policy is None:raise FailClosedError('demo_execution_policy_missing')
   intent=ExecutionIntent.from_signal(signal,policy['order_notional'],action);row,created=self.ledger.create(intent)
-  if not created:return row
+  if not created:
+   if row['state'] in {item.value for item in __import__('quantbot.demo_execution.models',fromlist=['TERMINAL']).TERMINAL}:return row
+   if row['state']!='VALIDATED':return row
+   if dry_run:return row
+   quantity=row['quantity'];self.ledger.transition(intent.signal_identity,OrderState.SUBMITTING.value);order={'symbol':intent.symbol,'side':('BUY' if intent.side=='LONG' else 'SELL') if intent.action=='CLOSE' else ('BUY' if intent.side=='LONG' else 'SELL'),'type':'MARKET','quantity':quantity,'newClientOrderId':intent.client_order_id}
+   if intent.action=='CLOSE':order['reduceOnly']='true'
+   try:response=self.adapter.create_order(order)
+   except Exception:return self.ledger.transition(intent.signal_identity,OrderState.RECONCILING.value,submit_response_unknown=True)
+   return self.ledger.transition(intent.signal_identity,{'FILLED':'FILLED','NEW':'ACKNOWLEDGED','PARTIALLY_FILLED':'PARTIALLY_FILLED'}.get(response.get('status'),'FAILED_SAFE'),binance_order_id=str(response.get('orderId','')),remote_status=response.get('status'))
   self.persistence.append('signals',date,{'signal':signal,'demo_epoch':self.epoch,'execution_intent_identity':intent.intent_identity})
   if action=='OPEN':
    try:check_risk(policy,signal,open_orders=(health or {}).get('open_orders',0),gross_exposure=(health or {}).get('gross_exposure',0),strategy_exposure=(health or {}).get('strategy_exposure',0),daily_pnl=(health or {}).get('daily_pnl',0))
    except DemoRiskRejected as exc:
     self.persistence.append('policy_rejections',date,{'signal_identity':intent.signal_identity,'execution_intent_identity':intent.intent_identity,'reason':exc.reason,'demo_epoch':self.epoch});return self.ledger.transition(intent.signal_identity,OrderState.REJECTED_POLICY.value,reason=exc.reason,dry_run=bool(dry_run))
   if action=='SKIP_SAME_DIRECTION':return self.ledger.transition(intent.signal_identity,OrderState.SKIPPED.value,dry_run=dry_run,reason='same_direction_position')
-  if price is None or filters is None:raise FailClosedError('demo_market_metadata_missing')
+  if action=='OPEN' and (price is None or filters is None):raise FailClosedError('demo_market_metadata_missing')
   quantity=normalize_quantity(intent.notional,price,filters) if action=='OPEN' else str(close_quantity or '')
   if not quantity:raise FailClosedError('demo_close_quantity_missing')
   self.ledger.transition(intent.signal_identity,OrderState.VALIDATED.value,quantity=quantity,position_side='LONG' if intent.side=='LONG' else 'SHORT',dry_run=bool(dry_run))

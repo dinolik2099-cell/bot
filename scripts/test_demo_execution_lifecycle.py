@@ -15,7 +15,7 @@ def append(root,row):
  with path.open('a',encoding='utf-8') as out:out.write(json.dumps(row)+'\n')
 class Demo:
  def __init__(self):self.calls=[];self.amount='0';self.orders={};self.fail_post=False
- def exchange_info(self):return {'symbols':[{'symbol':'BTCUSDT','filters':[{'filterType':'LOT_SIZE','stepSize':'0.001','minQty':'0.001'},{'filterType':'MIN_NOTIONAL','notional':'5'}]}]}
+ def exchange_info(self):return {'symbols':[{'symbol':'BTCUSDT','status':'TRADING','filters':[{'filterType':'LOT_SIZE','stepSize':'0.001','minQty':'0.001'},{'filterType':'MIN_NOTIONAL','notional':'5'}]}]}
  def ticker_price(self,s):return {'symbol':s,'price':'10000'}
  def open_orders(self):return []
  def positions(self):return [{'symbol':'BTCUSDT','positionAmt':self.amount,'markPrice':'10000'}]

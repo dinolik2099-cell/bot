@@ -77,10 +77,18 @@ class DemoRuntime:
   for marker,signal in ForwardSignalReader(self.forward_root).discover(cursor,self.epoch_start):
    durable_reconciling=False
    try:
-    action,close_quantity,close_side=self._lifecycle(signal);price=float(self.adapter.ticker_price(signal['symbol'])['price']);result=engine.process(signal,signal['created_at'][:10],dry_run=dry_run,price=price,filters=_filters(exchange,signal['symbol']),health=self._health(signal),action=action,close_quantity=close_quantity,close_side=close_side)
+    action,close_quantity,close_side=self._lifecycle(signal)
+    if action=='OPEN':
+     rows=[row for row in exchange.get('symbols',[]) if row.get('symbol')==signal['symbol']]
+     if len(rows)!=1 or rows[0].get('status')!='TRADING':result=engine.reject_venue(signal,signal['created_at'][:10],'demo_symbol_not_trading')
+     else:
+      ticker=self.adapter.ticker_price(signal['symbol'])
+      if not ticker.get('price'):result=engine.reject_venue(signal,signal['created_at'][:10],'demo_market_price_unavailable')
+      else:result=engine.process(signal,signal['created_at'][:10],dry_run=dry_run,price=float(ticker['price']),filters=_filters(exchange,signal['symbol']),health=self._health(signal),action=action,close_quantity=close_quantity,close_side=close_side)
+    else:result=engine.process(signal,signal['created_at'][:10],dry_run=dry_run,health=self._health(signal),action=action,close_quantity=close_quantity,close_side=close_side)
     self.persistence.append('orders',signal['created_at'][:10],{'signal_identity':signal['signal_identity'],'state':result['state'],'client_order_id':result['client_order_id'],'dry_run':dry_run});processed+=1
     durable_reconciling=result['state']=='RECONCILING'
-    if durable_reconciling:self.reconcile()
+    if result['state'] in {'SUBMITTING','RECONCILING','ACKNOWLEDGED','PARTIALLY_FILLED'}:self.reconcile()
    except Exception as exc:
     self._trip(engine,type(exc).__name__,signal.get('signal_identity'))
     # A deterministic intent already durably recorded as RECONCILING is safe
