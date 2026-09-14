@@ -5,7 +5,7 @@ from pathlib import Path
 from quantbot.demo_execution.config import validate_config
 from quantbot.demo_execution.runtime import DemoRuntime
 from quantbot.demo_execution.execution_engine import DemoExecutionEngine
-from quantbot.demo_execution.core import DemoExecutionError
+from quantbot.demo_execution.core import DemoExecutionError,DemoTransientAPIError
 
 def config():
  return validate_config({'environment':'DEMO','live_order_endpoint_allowed':False,'endpoint':'https://demo-fapi.binance.com','execution_policy':{'enabled':True,'position_mode':'ONE_WAY','margin_mode':'ISOLATED','leverage':1,'order_notional':100,'max_signal_age_seconds':3600,'risk':{'max_open_orders':10,'max_total_gross_exposure':10000,'max_strategy_exposure':10000,'max_order_notional':1000,'max_daily_loss':1000}}})
@@ -15,16 +15,23 @@ def event(value):
  return {'signal_identity':value*64,'symbol':'BTCUSDT','direction':'LONG','model_id':'model','declaration_identity':'declaration','signal_timestamp':now.isoformat(),'created_at':now.isoformat(),'git_commit':'g'*40,'config_identity':'c'*64,'universe_identity':'u','membership_identity':'m'}
 
 class Adapter:
- def __init__(self,*,post_unknown=False,mode=True,fail_ticker=False,income=None):self.post_unknown,self.mode,self.fail_ticker,self.income=post_unknown,mode,fail_ticker,([] if income is None else income);self.calls=[];self.remote={}
- def exchange_info(self):self.calls.append('exchange_info');return {'symbols':[{'symbol':'BTCUSDT','status':'TRADING','filters':[{'filterType':'LOT_SIZE','stepSize':'0.001','minQty':'0.001'},{'filterType':'MIN_NOTIONAL','notional':'5'}]}]}
+ def __init__(self,*,post_unknown=False,mode=True,fail_ticker=False,income=None,transient=None):self.post_unknown,self.mode,self.fail_ticker,self.income,self.transient=post_unknown,mode,fail_ticker,([] if income is None else income),transient;self.calls=[];self.remote={}
+ def _transient(self,name):
+  if self.transient==name:raise DemoTransientAPIError('request_failed')
+ def exchange_info(self):self.calls.append('exchange_info');self._transient('exchange_info');return {'symbols':[{'symbol':'BTCUSDT','status':'TRADING','filters':[{'filterType':'LOT_SIZE','stepSize':'0.001','minQty':'0.001'},{'filterType':'MIN_NOTIONAL','notional':'5'}]}]}
  def ticker_price(self,symbol):
   self.calls.append('ticker')
-  if self.fail_ticker:raise DemoExecutionError('ticker_price')
+  self._transient('ticker_price')
+  if self.fail_ticker:raise DemoTransientAPIError('request_failed')
   return {'symbol':symbol,'price':'50000'}
- def open_orders(self):self.calls.append('open_orders');return []
- def positions(self):self.calls.append('positions');return []
- def position_mode(self):self.calls.append('position_mode');return {'dualSidePosition':not self.mode}
- def income_history(self,start,end):self.calls.append('income_history');return self.income
+ def open_orders(self):self.calls.append('open_orders');self._transient('health_open_orders');return []
+ def positions(self):
+  self.calls.append('positions')
+  if self.transient=='lifecycle_positions':raise DemoTransientAPIError('request_failed')
+  if self.transient=='health_positions' and self.calls.count('positions')>1:raise DemoTransientAPIError('request_failed')
+  return []
+ def position_mode(self):self.calls.append('position_mode');self._transient('position_mode');return {'dualSidePosition':not self.mode}
+ def income_history(self,start,end):self.calls.append('income_history');self._transient('health_income_history');return self.income
  def change_margin_type(self,symbol,mode):self.calls.append('margin');return {}
  def change_leverage(self,symbol,leverage):self.calls.append('leverage');return {}
  def create_order(self,row):
@@ -54,6 +61,7 @@ def main():
   # Failure before a durable intent must leave the current marker and every
   # later signal untouched.  The long-running service only reconciles.
   failing_forward=root/'failing_forward';append(failing_forward,event('e'));append(failing_forward,event('f'));failing_adapter=Adapter(fail_ticker=True);failing=DemoRuntime(config(),root/'failing_day0',failing_forward,failing_adapter,'d'*40);failing_engine=DemoExecutionEngine(failing.ledger,failing.persistence,failing_adapter,failing.config,'failing_day0');failed=failing.consume_once(failing_engine,dry_run=True);assert failed['cursor'] is None and not failed['fail_closed'] and len(failing.ledger.rows)==0 and failing_adapter.calls.count('ticker')==1
+  failure_rows=list((failing.root/'transient_failures').glob('*/*.jsonl'));assert failure_rows and json.loads(failure_rows[0].read_text(encoding='utf-8').splitlines()[-1])['operation']=='ticker_price'
   ticks=iter((0.0,2.0,3.0));stops=iter((False,False,True));failing.serve(failing_engine,dry_run=True,poll_seconds=1,reconcile_seconds=1,stop=lambda:next(stops),sleep=lambda _:None,monotonic=lambda:next(ticks));assert (failing.persistence.read_checkpoint() or {}).get('last_signal_cursor') is None and failing_adapter.calls.count('open_orders')>=1
   # Once a POST has an ambiguous outcome, the durable RECONCILING intent may
   # advance the cursor; restart resolves it without a second POST.
@@ -66,6 +74,16 @@ def main():
   # Dry-run evidence never becomes real exposure; consecutive dry signals remain consumable.
   strategy_forward=root/'strategy_forward';append(strategy_forward,event('i'));append(strategy_forward,event('j'));strategy_config=config();strategy_config['execution_policy']['risk']['max_strategy_exposure']=100;strategy_adapter=Adapter();strategy=DemoRuntime(strategy_config,root/'strategy_day0',strategy_forward,strategy_adapter,'g'*40);strategy_engine=DemoExecutionEngine(strategy.ledger,strategy.persistence,strategy_adapter,strategy_config,'strategy_day0');assert strategy.consume_once(strategy_engine,dry_run=True)['processed']==2;assert not strategy.fail_closed and len(strategy.ledger.rows)==2
   unit=(Path(__file__).resolve().parents[1]/'deploy'/'quantbot-demo-execution.service').read_text(encoding='utf-8');assert '--serve' in unit and '--diagnostics' not in unit and '%H' not in unit and 'demo_execution_day0_v1' in unit
+  # Every known transport operation freezes its cursor without globally
+  # disabling Demo.  Restoring transport then consumes the signal once.
+  for index,operation in enumerate(('exchange_info','position_mode','lifecycle_positions','ticker_price','health_open_orders','health_positions','health_income_history')):
+   transient_forward=root/f'transient_{operation}';append(transient_forward,event(chr(107+index)));transient_adapter=Adapter(transient=operation);transient_runtime=DemoRuntime(config(),root/f'transient_day0_{index}',transient_forward,transient_adapter,'h'*40);transient_engine=DemoExecutionEngine(transient_runtime.ledger,transient_runtime.persistence,transient_adapter,transient_runtime.config,f'transient_day0_{index}');blocked_once=transient_runtime.consume_once(transient_engine,dry_run=True);assert blocked_once['cursor'] is None and not blocked_once['fail_closed'] and not transient_runtime.ledger.rows
+   transient_adapter.transient=None;assert transient_runtime.consume_once(transient_engine,dry_run=True)['processed']==1;transient_runtime.persistence.close()
+  # Forward source integrity is a permanent safety boundary, not a retryable
+  # adapter condition.  It is checkpointed so restart cannot consume later
+  # ambiguous evidence.
+  invalid_forward=root/'invalid_forward';invalid_path=invalid_forward/'signals'/'2026-09-14'/'signals.jsonl';invalid_path.parent.mkdir(parents=True,exist_ok=True);invalid_path.write_text('{"symbol":"BTCUSDT"}\n',encoding='utf-8');invalid=DemoRuntime(config(),root/'invalid_day0',invalid_forward,Adapter(),'i'*40);invalid_engine=DemoExecutionEngine(invalid.ledger,invalid.persistence,invalid.adapter,invalid.config,'invalid_day0');assert invalid.consume_once(invalid_engine,dry_run=True)['fail_closed'] and invalid.persistence.read_checkpoint()['fail_closed']
+  duplicate_forward=root/'duplicate_forward';dup=event('z');append(duplicate_forward,dup);append(duplicate_forward,dup);duplicate=DemoRuntime(config(),root/'duplicate_day0',duplicate_forward,Adapter(),'j'*40);duplicate_engine=DemoExecutionEngine(duplicate.ledger,duplicate.persistence,duplicate.adapter,duplicate.config,'duplicate_day0');assert duplicate.consume_once(duplicate_engine,dry_run=True)['fail_closed'];invalid.persistence.close();duplicate.persistence.close()
   runtime.persistence.close();restarted.persistence.close();lost.persistence.close();failing.persistence.close();recon.persistence.close();recovered.persistence.close();pnl.persistence.close();strategy.persistence.close()
  print('DEMO_LONG_RUNNING_INCREMENTAL_CURSOR=PASS')
  print('DEMO_DRY_RUN_FULL_PIPELINE=PASS')
@@ -81,5 +99,8 @@ def main():
  print('DEMO_DURABLE_RECONCILING_INTENT_RESTART_SAFE=PASS')
  print('DEMO_DAILY_LOSS_RISK_REAL_INPUT=PASS')
  print('DEMO_STRATEGY_EXPOSURE_REAL_INPUT=PASS')
+ print('DEMO_TRANSIENT_API_FAILURES_RETRY_WITH_CURSOR_FROZEN=PASS')
+ print('DEMO_TRANSIENT_OPERATION_DIAGNOSTICS=PASS')
+ print('DEMO_FORWARD_SIGNAL_INTEGRITY_FAIL_CLOSED=PASS')
  print('OOS_READS=0');print('FORWARD_MUTATIONS=0');print('LIVE_ORDER_PLACEMENT=0')
 if __name__=='__main__':main()

@@ -11,7 +11,7 @@ from quantbot.demo_execution.persistence import DemoPersistence
 from quantbot.demo_execution.execution_engine import DemoExecutionEngine
 from quantbot.demo_execution.risk import normalize_quantity
 from quantbot.demo_execution.reconciliation import reconcile
-from quantbot.demo_execution.core import DemoExecutionError,FailClosedError
+from quantbot.demo_execution.core import DemoExecutionError,FailClosedError,DemoTransientAPIError
 
 def blocked(fn):
  try:fn()
@@ -23,6 +23,11 @@ def main():
  config=validate_config(good);assert config['config_identity']
  for endpoint in ('https://fapi.binance.com','https://testnet.binancefuture.com'):
   bad=dict(good);bad['endpoint']=endpoint;blocked(lambda:validate_config(bad))
+
+ def transport_failure(*_args):raise OSError('synthetic_transport_down')
+ try:BinanceDemoAdapter(config['endpoint'],transport=transport_failure).exchange_info()
+ except DemoTransientAPIError:pass
+ else:raise AssertionError('transport_failure_not_retryable')
  secret='TOP_SECRET_SHOULD_NOT_PERSIST';adapter=BinanceDemoAdapter(config['endpoint'],'key',secret,transport=lambda method,url,params,signed:{'status':'FILLED','orderId':'42'})
  with tempfile.TemporaryDirectory() as root:
   forward=Path(root)/'forward';target=forward/'signals'/'2026-09-14';target.mkdir(parents=True);target.joinpath('signals.jsonl').write_text(json.dumps(signal())+'\n',encoding='utf-8')
@@ -45,5 +50,5 @@ def main():
   absent=BinanceDemoAdapter(config['endpoint'],'key',secret,transport=lambda *args: [] if '/openOrders' in args[1] else (_ for _ in ()).throw(RuntimeError('missing')))
   blocked(lambda:reconcile(ledger,absent));engine.disable('synthetic_discrepancy');blocked(lambda:engine.process(signal('z'*64),'2026-09-14',dry_run=True,price=50000,filters=filters,health={}))
   persistence.flush();persistence.close();contents=''.join(path.read_text(encoding='utf-8') for path in Path(root).rglob('*') if path.is_file());assert secret not in contents
- print('DEMO_ENDPOINT_FENCE=PASS');print('DEMO_EXACT_ONCE_RESTART=PASS');print('DEMO_LOST_RESPONSE_RECONCILIATION=PASS');print('DEMO_PARTIAL_FILL_STATE_MACHINE=PASS');print('DEMO_QUANTITY_FILTERS=PASS');print('DEMO_STALE_SIGNAL_REJECTED=PASS');print('DEMO_SECRET_SAFETY=PASS');print('OOS_READS=0');print('FORMAL_RESEARCH_RUNS=0');print('FORWARD_MUTATIONS=0');print('LIVE_ORDER_PLACEMENT=0')
+ print('DEMO_ENDPOINT_FENCE=PASS');print('DEMO_TRANSIENT_TRANSPORT_CLASSIFICATION=PASS');print('DEMO_EXACT_ONCE_RESTART=PASS');print('DEMO_LOST_RESPONSE_RECONCILIATION=PASS');print('DEMO_PARTIAL_FILL_STATE_MACHINE=PASS');print('DEMO_QUANTITY_FILTERS=PASS');print('DEMO_STALE_SIGNAL_REJECTED=PASS');print('DEMO_SECRET_SAFETY=PASS');print('OOS_READS=0');print('FORMAL_RESEARCH_RUNS=0');print('FORWARD_MUTATIONS=0');print('LIVE_ORDER_PLACEMENT=0')
 if __name__=='__main__':main()

@@ -4,7 +4,7 @@ import hashlib,hmac,json,time
 from urllib.parse import urlencode
 from urllib.request import Request,urlopen
 from .config import DEMO_FUTURES_ENDPOINTS
-from .core import DemoExecutionError
+from .core import DemoExecutionError,DemoTransientAPIError
 
 class BinanceDemoAdapter:
  def __init__(self,endpoint,api_key=None,api_secret=None,transport=None):
@@ -19,11 +19,14 @@ class BinanceDemoAdapter:
    data['timestamp']=int(time.time()*1000);query=urlencode(sorted(data.items()));data['signature']=hmac.new(self.api_secret.encode(),query.encode(),hashlib.sha256).hexdigest();query=query+'&signature='+data['signature']
   else:query=urlencode(sorted(data.items()))
   url=self.endpoint+path+('?' + query if query else '')
-  if self.transport:return self.transport(method,url,dict(data),signed)
+  if self.transport:
+   try:return self.transport(method,url,dict(data),signed)
+   except DemoTransientAPIError:raise
+   except Exception as exc:raise DemoTransientAPIError('demo_api_request_failed:'+type(exc).__name__) from exc
   request=Request(url,method=method,headers={'X-MBX-APIKEY':self.api_key or ''})
   try:
    with urlopen(request,timeout=20) as response:return json.loads(response.read().decode())
-  except Exception as exc:raise DemoExecutionError('demo_api_request_failed:'+type(exc).__name__) from exc
+  except Exception as exc:raise DemoTransientAPIError('demo_api_request_failed:'+type(exc).__name__) from exc
  def server_time(self):return self._request('GET','/fapi/v1/time')
  def exchange_info(self):return self._request('GET','/fapi/v1/exchangeInfo')
  def ticker_price(self,symbol):return self._request('GET','/fapi/v1/ticker/price',{'symbol':symbol})
