@@ -1,0 +1,6 @@
+{
+  "environment": "DEMO",
+  "live_order_endpoint_allowed": false,
+  "endpoint": "https://demo-fapi.binance.com",
+  "execution_policy": null
+}

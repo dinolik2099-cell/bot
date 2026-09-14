@@ -1,0 +1,20 @@
+{
+  "environment": "DEMO",
+  "live_order_endpoint_allowed": false,
+  "endpoint": "https://demo-fapi.binance.com",
+  "execution_policy": {
+    "enabled": true,
+    "position_mode": "ONE_WAY",
+    "margin_mode": "ISOLATED",
+    "leverage": 1,
+    "order_notional": 10,
+    "max_signal_age_seconds": 120,
+    "risk": {
+      "max_open_orders": 1,
+      "max_total_gross_exposure": 10,
+      "max_strategy_exposure": 10,
+      "max_order_notional": 10,
+      "max_daily_loss": 10
+    }
+  }
+}

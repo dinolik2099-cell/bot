@@ -1,0 +1,16 @@
+[Unit]
+Description=QuantBot Binance Demo Execution Consumer
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/www/wwwroot/QuantBot
+EnvironmentFile=/etc/quantbot/demo-execution.env
+ExecStart=/www/wwwroot/QuantBot/venv/bin/python -B scripts/run_demo_execution.py --config config/demo_execution.json --data-root /www/wwwroot/QuantBot/data/demo_execution_%H --forward-root /www/wwwroot/QuantBot/data/forward_research_3a457e6 --diagnostics
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
