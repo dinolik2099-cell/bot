@@ -3,7 +3,7 @@ from pathlib import Path
 import time
 from datetime import datetime,timezone
 from decimal import Decimal
-from .core import identity,utc_now,FailClosedError
+from .core import identity,utc_now,FailClosedError,DemoExecutionError
 from .signal_reader import ForwardSignalReader
 from .ledger import ExecutionLedger
 from .persistence import DemoPersistence
@@ -45,19 +45,25 @@ class DemoRuntime:
    attributed[position['symbol']]={'row':matches[0],'quantity':abs(amount),'side':side,'notional':abs(amount)*Decimal(str(position.get('markPrice',0)))}
   return attributed
  def _lifecycle(self,signal):
-  positions=self.adapter.positions();attributed=self._position_attributions(positions);current=attributed.get(signal['symbol'])
+  try:positions=self.adapter.positions()
+  except DemoExecutionError as exc:raise DemoExecutionError('lifecycle_positions') from exc
+  attributed=self._position_attributions(positions);current=attributed.get(signal['symbol'])
   if current is None:return 'OPEN',None,None
   requested=str(signal['direction']).upper()
   if current['side']==requested:return 'SKIP_SAME_DIRECTION',None,None
   return 'CLOSE',format(current['quantity'],'f'),current['side']
  def _health(self,signal):
   """Build risk inputs from durable ledger and Demo-account evidence only."""
-  orders=self.adapter.open_orders();positions=self.adapter.positions()
+  try:orders=self.adapter.open_orders()
+  except DemoExecutionError as exc:raise DemoExecutionError('health_open_orders') from exc
+  try:positions=self.adapter.positions()
+  except DemoExecutionError as exc:raise DemoExecutionError('health_positions') from exc
   attributed=self._position_attributions(positions);unresolved=self.ledger.live_exposure();gross_remote=sum(float(value['notional']) for value in attributed.values())
   gross_ledger=sum(float(row['intent']['notional']) for row in unresolved)
   strategy_ledger=sum(float(value['notional']) for value in attributed.values() if value['row']['intent'].get('model_id')==signal.get('model_id'))+sum(float(row['intent']['notional']) for row in unresolved if row['intent'].get('model_id')==signal.get('model_id'))
   now=datetime.now(timezone.utc);start=now.replace(hour=0,minute=0,second=0,microsecond=0)
-  income=self.adapter.income_history(int(start.timestamp()*1000),int(now.timestamp()*1000))
+  try:income=self.adapter.income_history(int(start.timestamp()*1000),int(now.timestamp()*1000))
+  except DemoExecutionError as exc:raise DemoExecutionError('health_income_history') from exc
   if not isinstance(income,list) or any('income' not in row for row in income):raise FailClosedError('demo_daily_pnl_evidence_invalid')
   return {'open_orders':max(len(orders),len(unresolved)),'gross_exposure':gross_remote+gross_ledger,'strategy_exposure':strategy_ledger,'daily_pnl':sum(float(row['income']) for row in income)}
  def _mode_check(self):
@@ -76,26 +82,32 @@ class DemoRuntime:
    self._trip(engine,type(exc).__name__);self.checkpoint(cursor);self.persistence.flush();return {'processed':0,'cursor':cursor,'fail_closed':True}
   for marker,signal in ForwardSignalReader(self.forward_root).discover(cursor,self.epoch_start):
    durable_reconciling=False
+   operation='lifecycle_positions'
    try:
     action,close_quantity,close_side=self._lifecycle(signal)
     if action=='OPEN':
      rows=[row for row in exchange.get('symbols',[]) if row.get('symbol')==signal['symbol']]
      if len(rows)!=1 or rows[0].get('status')!='TRADING':result=engine.reject_venue(signal,signal['created_at'][:10],'demo_symbol_not_trading')
      else:
-      ticker=self.adapter.ticker_price(signal['symbol'])
+      operation='ticker_price';ticker=self.adapter.ticker_price(signal['symbol'])
       if not ticker.get('price'):result=engine.reject_venue(signal,signal['created_at'][:10],'demo_market_price_unavailable')
-      else:result=engine.process(signal,signal['created_at'][:10],dry_run=dry_run,price=float(ticker['price']),filters=_filters(exchange,signal['symbol']),health=self._health(signal),action=action,close_quantity=close_quantity,close_side=close_side)
-    else:result=engine.process(signal,signal['created_at'][:10],dry_run=dry_run,health=self._health(signal),action=action,close_quantity=close_quantity,close_side=close_side)
+      else:operation='health';result=engine.process(signal,signal['created_at'][:10],dry_run=dry_run,price=float(ticker['price']),filters=_filters(exchange,signal['symbol']),health=self._health(signal),action=action,close_quantity=close_quantity,close_side=close_side)
+    else:operation='health';result=engine.process(signal,signal['created_at'][:10],dry_run=dry_run,health=self._health(signal),action=action,close_quantity=close_quantity,close_side=close_side)
     self.persistence.append('orders',signal['created_at'][:10],{'signal_identity':signal['signal_identity'],'state':result['state'],'client_order_id':result['client_order_id'],'dry_run':dry_run});processed+=1
     durable_reconciling=result['state']=='RECONCILING'
     if result['state'] in {'SUBMITTING','RECONCILING','ACKNOWLEDGED','PARTIALLY_FILLED'}:self.reconcile()
-   except Exception as exc:
+   except FailClosedError as exc:
     self._trip(engine,type(exc).__name__,signal.get('signal_identity'))
     # A deterministic intent already durably recorded as RECONCILING is safe
     # to resume through reconciliation.  Any earlier failure leaves this
     # marker uncommitted so it cannot be silently skipped.
     if not durable_reconciling:
      self.checkpoint(cursor);self.persistence.flush();break
+   except DemoExecutionError as exc:
+    # A pre-intent adapter failure has no durable execution outcome.  Keep the
+    # marker for retry and record the exact failed operation without freezing
+    # the entire consumer.
+    self.persistence.append('transient_failures',utc_now()[:10],{'signal_identity':signal.get('signal_identity'),'operation':str(exc) if str(exc) else operation,'error_type':type(exc).__name__});self.checkpoint(cursor);self.persistence.flush();break
    cursor=marker;self.checkpoint(cursor)
    if self.fail_closed:break
   self.persistence.flush();return {'processed':processed,'cursor':cursor,'fail_closed':self.fail_closed}

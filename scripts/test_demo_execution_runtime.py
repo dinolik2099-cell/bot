@@ -5,6 +5,7 @@ from pathlib import Path
 from quantbot.demo_execution.config import validate_config
 from quantbot.demo_execution.runtime import DemoRuntime
 from quantbot.demo_execution.execution_engine import DemoExecutionEngine
+from quantbot.demo_execution.core import DemoExecutionError
 
 def config():
  return validate_config({'environment':'DEMO','live_order_endpoint_allowed':False,'endpoint':'https://demo-fapi.binance.com','execution_policy':{'enabled':True,'position_mode':'ONE_WAY','margin_mode':'ISOLATED','leverage':1,'order_notional':100,'max_signal_age_seconds':3600,'risk':{'max_open_orders':10,'max_total_gross_exposure':10000,'max_strategy_exposure':10000,'max_order_notional':1000,'max_daily_loss':1000}}})
@@ -18,7 +19,7 @@ class Adapter:
  def exchange_info(self):self.calls.append('exchange_info');return {'symbols':[{'symbol':'BTCUSDT','status':'TRADING','filters':[{'filterType':'LOT_SIZE','stepSize':'0.001','minQty':'0.001'},{'filterType':'MIN_NOTIONAL','notional':'5'}]}]}
  def ticker_price(self,symbol):
   self.calls.append('ticker')
-  if self.fail_ticker:raise RuntimeError('metadata_unavailable')
+  if self.fail_ticker:raise DemoExecutionError('ticker_price')
   return {'symbol':symbol,'price':'50000'}
  def open_orders(self):self.calls.append('open_orders');return []
  def positions(self):self.calls.append('positions');return []
@@ -52,7 +53,7 @@ def main():
   bad=Adapter(mode=False);blocked=DemoRuntime(config(),root/'blocked_day0',root/'empty',bad,'c'*40);blocked_engine=DemoExecutionEngine(blocked.ledger,blocked.persistence,bad,blocked.config,'blocked_day0');ticks=iter((0.0,2.0,3.0));stops=iter((False,False,True));result=blocked.serve(blocked_engine,dry_run=True,poll_seconds=1,reconcile_seconds=1,stop=lambda:next(stops),sleep=lambda _:None,monotonic=lambda:next(ticks));assert result['fail_closed'] and bad.calls.count('open_orders')>=1
   # Failure before a durable intent must leave the current marker and every
   # later signal untouched.  The long-running service only reconciles.
-  failing_forward=root/'failing_forward';append(failing_forward,event('e'));append(failing_forward,event('f'));failing_adapter=Adapter(fail_ticker=True);failing=DemoRuntime(config(),root/'failing_day0',failing_forward,failing_adapter,'d'*40);failing_engine=DemoExecutionEngine(failing.ledger,failing.persistence,failing_adapter,failing.config,'failing_day0');failed=failing.consume_once(failing_engine,dry_run=True);assert failed['cursor'] is None and len(failing.ledger.rows)==0 and failing_adapter.calls.count('ticker')==1
+  failing_forward=root/'failing_forward';append(failing_forward,event('e'));append(failing_forward,event('f'));failing_adapter=Adapter(fail_ticker=True);failing=DemoRuntime(config(),root/'failing_day0',failing_forward,failing_adapter,'d'*40);failing_engine=DemoExecutionEngine(failing.ledger,failing.persistence,failing_adapter,failing.config,'failing_day0');failed=failing.consume_once(failing_engine,dry_run=True);assert failed['cursor'] is None and not failed['fail_closed'] and len(failing.ledger.rows)==0 and failing_adapter.calls.count('ticker')==1
   ticks=iter((0.0,2.0,3.0));stops=iter((False,False,True));failing.serve(failing_engine,dry_run=True,poll_seconds=1,reconcile_seconds=1,stop=lambda:next(stops),sleep=lambda _:None,monotonic=lambda:next(ticks));assert (failing.persistence.read_checkpoint() or {}).get('last_signal_cursor') is None and failing_adapter.calls.count('open_orders')>=1
   # Once a POST has an ambiguous outcome, the durable RECONCILING intent may
   # advance the cursor; restart resolves it without a second POST.
