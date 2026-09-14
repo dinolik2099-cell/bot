@@ -25,7 +25,12 @@ class BinanceDemoAdapter:
    reason=f'demo_http_{status}'+(f'_binance_{code}' if isinstance(code,(int,str)) else '')
    if status==429 or 500<=status<=599:return DemoTransientAPIError(reason)
    return DemoExecutionError(reason)
-  if isinstance(exc,(TimeoutError,socket.timeout,URLError,ConnectionError,OSError)):return DemoTransientAPIError('demo_api_transport_'+type(exc).__name__)
+  transient_types=(TimeoutError,socket.timeout,ConnectionRefusedError,ConnectionResetError,ConnectionAbortedError,BrokenPipeError,socket.gaierror)
+  if isinstance(exc,transient_types):return DemoTransientAPIError('demo_api_transport_'+type(exc).__name__)
+  if isinstance(exc,URLError):
+   reason=exc.reason
+   if isinstance(reason,transient_types):return DemoTransientAPIError('demo_api_transport_'+type(reason).__name__)
+   return DemoExecutionError('demo_api_url_error_'+type(reason).__name__)
   return DemoExecutionError('demo_api_request_failed_'+type(exc).__name__)
  def _request(self,method,path,params=None,signed=False):
   if not path.startswith('/fapi/') or 'order' in path and self.endpoint not in DEMO_FUTURES_ENDPOINTS:raise DemoExecutionError('demo_live_endpoint_forbidden')

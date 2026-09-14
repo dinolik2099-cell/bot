@@ -1,9 +1,9 @@
 from __future__ import annotations
-import json,tempfile
+import json,socket,ssl,tempfile
 from io import BytesIO
 from datetime import datetime,timezone,timedelta
 from pathlib import Path
-from urllib.error import HTTPError
+from urllib.error import HTTPError,URLError
 from quantbot.demo_execution.config import validate_config,load_credentials
 from quantbot.demo_execution.binance_demo_adapter import BinanceDemoAdapter
 from quantbot.demo_execution.signal_reader import ForwardSignalReader
@@ -26,7 +26,7 @@ def main():
  for endpoint in ('https://fapi.binance.com','https://testnet.binancefuture.com'):
   bad=dict(good);bad['endpoint']=endpoint;blocked(lambda:validate_config(bad))
 
- def transport_failure(*_args):raise OSError('synthetic_transport_down')
+ def transport_failure(*_args):raise ConnectionRefusedError('synthetic_transport_down')
  try:BinanceDemoAdapter(config['endpoint'],transport=transport_failure).exchange_info()
  except DemoTransientAPIError:pass
  else:raise AssertionError('transport_failure_not_retryable')
@@ -38,6 +38,14 @@ def main():
  assert isinstance(classified(429),DemoTransientAPIError)
  assert all(isinstance(classified(status),DemoTransientAPIError) for status in (500,502,503))
  assert isinstance(classified(400,b'{"code":-1022}'),DemoExecutionError) and not isinstance(classified(400),DemoTransientAPIError)
+ direct_transient=(TimeoutError('timeout'),socket.timeout('timeout'),ConnectionRefusedError('refused'),ConnectionResetError('reset'),ConnectionAbortedError('aborted'),BrokenPipeError('pipe'),socket.gaierror(-2,'dns'))
+ assert all(isinstance(BinanceDemoAdapter(config['endpoint'])._request_error(error),DemoTransientAPIError) for error in direct_transient)
+ assert isinstance(BinanceDemoAdapter(config['endpoint'])._request_error(URLError(socket.gaierror(-2,'dns'))),DemoTransientAPIError)
+ assert isinstance(BinanceDemoAdapter(config['endpoint'])._request_error(URLError(TimeoutError('timeout'))),DemoTransientAPIError)
+ permanent=(ssl.SSLCertVerificationError('certificate'),FileNotFoundError('missing'),PermissionError('denied'),OSError('generic'))
+ assert all(isinstance(BinanceDemoAdapter(config['endpoint'])._request_error(error),DemoExecutionError) and not isinstance(BinanceDemoAdapter(config['endpoint'])._request_error(error),DemoTransientAPIError) for error in permanent)
+ assert isinstance(BinanceDemoAdapter(config['endpoint'])._request_error(URLError(ssl.SSLCertVerificationError('certificate'))),DemoExecutionError)
+ assert isinstance(BinanceDemoAdapter(config['endpoint'])._request_error(URLError(ValueError('bad'))),DemoExecutionError)
  for injected in (DemoExecutionError('deterministic_request'),FailClosedError('unsafe_state')):
   def preserved(*_args,error=injected):raise error
   try:BinanceDemoAdapter(config['endpoint'],transport=preserved).exchange_info()
@@ -65,5 +73,5 @@ def main():
   absent=BinanceDemoAdapter(config['endpoint'],'key',secret,transport=lambda *args: [] if '/openOrders' in args[1] else (_ for _ in ()).throw(RuntimeError('missing')))
   blocked(lambda:reconcile(ledger,absent));engine.disable('synthetic_discrepancy');blocked(lambda:engine.process(signal('z'*64),'2026-09-14',dry_run=True,price=50000,filters=filters,health={}))
   persistence.flush();persistence.close();contents=''.join(path.read_text(encoding='utf-8') for path in Path(root).rglob('*') if path.is_file());assert secret not in contents
- print('DEMO_ENDPOINT_FENCE=PASS');print('DEMO_TRANSIENT_TRANSPORT_CLASSIFICATION=PASS');print('DEMO_HTTP_TRANSIENT_WHITELIST=PASS');print('DEMO_INJECTED_SAFETY_EXCEPTION_PRESERVED=PASS');print('DEMO_EXACT_ONCE_RESTART=PASS');print('DEMO_LOST_RESPONSE_RECONCILIATION=PASS');print('DEMO_PARTIAL_FILL_STATE_MACHINE=PASS');print('DEMO_QUANTITY_FILTERS=PASS');print('DEMO_STALE_SIGNAL_REJECTED=PASS');print('DEMO_SECRET_SAFETY=PASS');print('OOS_READS=0');print('FORMAL_RESEARCH_RUNS=0');print('FORWARD_MUTATIONS=0');print('LIVE_ORDER_PLACEMENT=0')
+ print('DEMO_ENDPOINT_FENCE=PASS');print('DEMO_TRANSIENT_TRANSPORT_CLASSIFICATION=PASS');print('DEMO_HTTP_TRANSIENT_WHITELIST=PASS');print('DEMO_TRANSPORT_EXCEPTION_WHITELIST=PASS');print('DEMO_PERMANENT_LOCAL_TLS_FILESYSTEM_ERRORS=PASS');print('DEMO_INJECTED_SAFETY_EXCEPTION_PRESERVED=PASS');print('DEMO_EXACT_ONCE_RESTART=PASS');print('DEMO_LOST_RESPONSE_RECONCILIATION=PASS');print('DEMO_PARTIAL_FILL_STATE_MACHINE=PASS');print('DEMO_QUANTITY_FILTERS=PASS');print('DEMO_STALE_SIGNAL_REJECTED=PASS');print('DEMO_SECRET_SAFETY=PASS');print('OOS_READS=0');print('FORMAL_RESEARCH_RUNS=0');print('FORWARD_MUTATIONS=0');print('LIVE_ORDER_PLACEMENT=0')
 if __name__=='__main__':main()
