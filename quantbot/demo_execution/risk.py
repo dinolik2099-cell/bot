@@ -17,3 +17,6 @@ def check_risk(policy,signal,*,open_orders,gross_exposure,strategy_exposure,dail
  if policy['order_notional']>risk['max_order_notional']:raise DemoRiskRejected('max_order_notional')
  if daily_pnl<=-risk['max_daily_loss']:raise DemoRiskRejected('daily_loss')
  return True
+def is_stale(policy,signal,now=None):
+ now=now or datetime.now(timezone.utc);created=datetime.fromisoformat(signal['created_at'].replace('Z','+00:00'))
+ return (now-created).total_seconds()>policy['max_signal_age_seconds']

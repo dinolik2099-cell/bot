@@ -8,6 +8,7 @@ from .signal_reader import ForwardSignalReader
 from .ledger import ExecutionLedger
 from .persistence import DemoPersistence
 from .reconciliation import reconcile
+from .risk import is_stale
 
 def _filters(exchange,symbol):
  rows=[row for row in exchange.get('symbols',[]) if row.get('symbol')==symbol]
@@ -87,20 +88,36 @@ class DemoRuntime:
   checkpoint=self.persistence.read_checkpoint() or {};cursor=checkpoint.get('last_signal_cursor');processed=0
   if self.fail_closed:
    engine.disable('persisted_fail_closed');return {'processed':0,'cursor':cursor,'fail_closed':True}
-  try:exchange=self.adapter.exchange_info()
-  except DemoTransientAPIError as exc:
-   self._record_transient(cursor,None,'exchange_info',exc);return {'processed':0,'cursor':cursor,'fail_closed':False}
-  except Exception as exc:
-   self._trip(engine,type(exc).__name__,error=str(exc));self.checkpoint(cursor);self.persistence.flush();return {'processed':0,'cursor':cursor,'fail_closed':True}
-  try:self._mode_check()
-  except DemoTransientAPIError as exc:
-   self._record_transient(cursor,None,'position_mode',exc);return {'processed':0,'cursor':cursor,'fail_closed':False}
-  except Exception as exc:
-   self._trip(engine,type(exc).__name__,error=str(exc));self.checkpoint(cursor);self.persistence.flush();return {'processed':0,'cursor':cursor,'fail_closed':True}
   try:discovered=ForwardSignalReader(self.forward_root).discover(cursor,self.epoch_start)
   except Exception as exc:
    self._trip(engine,'forward_signal_integrity',error=str(exc));self.checkpoint(cursor);self.persistence.flush();return {'processed':0,'cursor':cursor,'fail_closed':True}
+  active=[]
   for marker,signal in discovered:
+   if is_stale(self.config['execution_policy'],signal):
+    try:
+     existing=engine.ledger.rows.get(signal['signal_identity'])
+     result=engine.reject_policy(signal,signal['created_at'][:10],'stale_signal',dry_run=dry_run)
+     if result['state']!='REJECTED_POLICY':raise FailClosedError('demo_stale_policy_outcome_not_terminal')
+     if existing is None:self.persistence.append('orders',signal['created_at'][:10],{'signal_identity':signal['signal_identity'],'state':result['state'],'client_order_id':result['client_order_id'],'dry_run':dry_run})
+     processed+=1;cursor=marker;self.checkpoint(cursor)
+    except (FailClosedError,DemoExecutionError) as exc:
+     self._trip(engine,type(exc).__name__,signal.get('signal_identity'),str(exc));self.checkpoint(cursor);self.persistence.flush();break
+   else:active.append((marker,signal))
+  # An entirely stale discovered batch is complete without any venue call.
+  # With no signals at all, retain the existing cycle-level safety checks.
+  if self.fail_closed or (discovered and not active) or (not discovered and cursor is not None):
+   self.persistence.flush();return {'processed':processed,'cursor':cursor,'fail_closed':self.fail_closed}
+  try:exchange=self.adapter.exchange_info()
+  except DemoTransientAPIError as exc:
+   self._record_transient(cursor,None,'exchange_info',exc);return {'processed':processed,'cursor':cursor,'fail_closed':False}
+  except Exception as exc:
+   self._trip(engine,type(exc).__name__,error=str(exc));self.checkpoint(cursor);self.persistence.flush();return {'processed':processed,'cursor':cursor,'fail_closed':True}
+  try:self._mode_check()
+  except DemoTransientAPIError as exc:
+   self._record_transient(cursor,None,'position_mode',exc);return {'processed':processed,'cursor':cursor,'fail_closed':False}
+  except Exception as exc:
+   self._trip(engine,type(exc).__name__,error=str(exc));self.checkpoint(cursor);self.persistence.flush();return {'processed':processed,'cursor':cursor,'fail_closed':True}
+  for marker,signal in active:
    durable_reconciling=False
    operation='lifecycle_positions'
    try:

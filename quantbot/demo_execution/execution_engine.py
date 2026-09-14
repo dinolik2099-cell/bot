@@ -15,6 +15,15 @@ class DemoExecutionEngine:
    if row['state']=='VALIDATED':return self.ledger.transition(intent.signal_identity,OrderState.REJECTED_VENUE.value,reason=reason)
    return row
   self.persistence.append('venue_rejections',date,{'signal_identity':intent.signal_identity,'reason':reason,'demo_epoch':self.epoch});return self.ledger.transition(intent.signal_identity,OrderState.REJECTED_VENUE.value,reason=reason)
+ def reject_policy(self,signal,date,reason='stale_signal',dry_run=True):
+  """Create a durable terminal policy outcome without venue/API access."""
+  policy=self.config.get('execution_policy')
+  if policy is None:raise FailClosedError('demo_execution_policy_missing')
+  intent=ExecutionIntent.from_signal(signal,policy['order_notional'],'OPEN');row,created=self.ledger.create(intent)
+  if not created:return row
+  self.persistence.append('signals',date,{'signal':signal,'demo_epoch':self.epoch,'execution_intent_identity':intent.intent_identity})
+  self.persistence.append('policy_rejections',date,{'signal_identity':intent.signal_identity,'execution_intent_identity':intent.intent_identity,'reason':reason,'demo_epoch':self.epoch})
+  return self.ledger.transition(intent.signal_identity,OrderState.REJECTED_POLICY.value,reason=reason,dry_run=bool(dry_run))
  def _configure_symbol(self,symbol,dry_run):
   if dry_run or symbol in self._configured_symbols:return
   policy=self.config['execution_policy']

@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json,tempfile
+import json,tempfile,time
 from datetime import datetime,timezone,timedelta
 from pathlib import Path
 from quantbot.demo_execution.config import validate_config
@@ -10,9 +10,9 @@ from quantbot.demo_execution.core import DemoExecutionError,DemoTransientAPIErro
 def config():
  return validate_config({'environment':'DEMO','live_order_endpoint_allowed':False,'endpoint':'https://demo-fapi.binance.com','execution_policy':{'enabled':True,'position_mode':'ONE_WAY','margin_mode':'ISOLATED','leverage':1,'order_notional':100,'max_signal_age_seconds':3600,'risk':{'max_open_orders':10,'max_total_gross_exposure':10000,'max_strategy_exposure':10000,'max_order_notional':1000,'max_daily_loss':1000}}})
 
-def event(value):
+def event(value,created=None):
  now=datetime.now(timezone.utc)+timedelta(seconds=1)
- return {'signal_identity':value*64,'symbol':'BTCUSDT','direction':'LONG','model_id':'model','declaration_identity':'declaration','signal_timestamp':now.isoformat(),'created_at':now.isoformat(),'git_commit':'g'*40,'config_identity':'c'*64,'universe_identity':'u','membership_identity':'m'}
+ return {'signal_identity':value if len(value)==64 else value*64,'symbol':'BTCUSDT','direction':'LONG','model_id':'model','declaration_identity':'declaration','signal_timestamp':now.isoformat(),'created_at':created or now.isoformat(),'git_commit':'g'*40,'config_identity':'c'*64,'universe_identity':'u','membership_identity':'m'}
 
 class Adapter:
  def __init__(self,*,post_unknown=False,mode=True,fail_ticker=False,income=None,transient=None):self.post_unknown,self.mode,self.fail_ticker,self.income,self.transient=post_unknown,mode,fail_ticker,([] if income is None else income),transient;self.calls=[];self.remote={}
@@ -73,6 +73,12 @@ def main():
   pnl_forward=root/'pnl_forward';append(pnl_forward,event('h'));pnl_adapter=Adapter(income=[{'income':'-100'}]);pnl_config=config();pnl_config['execution_policy']['risk']['max_daily_loss']=100;pnl=DemoRuntime(pnl_config,root/'pnl_day0',pnl_forward,pnl_adapter,'f'*40);pnl_result=pnl.consume_once(DemoExecutionEngine(pnl.ledger,pnl.persistence,pnl_adapter,pnl_config,'pnl_day0'),dry_run=True);assert not pnl_result['fail_closed'] and pnl_adapter.calls.count('income_history')==1 and pnl.ledger.rows['h'*64]['state']=='REJECTED_POLICY'
   # Dry-run evidence never becomes real exposure; consecutive dry signals remain consumable.
   strategy_forward=root/'strategy_forward';append(strategy_forward,event('i'));append(strategy_forward,event('j'));strategy_config=config();strategy_config['execution_policy']['risk']['max_strategy_exposure']=100;strategy_adapter=Adapter();strategy=DemoRuntime(strategy_config,root/'strategy_day0',strategy_forward,strategy_adapter,'g'*40);strategy_engine=DemoExecutionEngine(strategy.ledger,strategy.persistence,strategy_adapter,strategy_config,'strategy_day0');assert strategy.consume_once(strategy_engine,dry_run=True)['processed']==2;assert not strategy.fail_closed and len(strategy.ledger.rows)==2
+  # A recovered stale backlog is settled locally before the cycle-level REST
+  # gates.  This models the production backlog without changing age policy.
+  stale_forward=root/'stale_backlog';stale_time=(datetime.now(timezone.utc)-timedelta(hours=2)).isoformat()
+  for index in range(1000):append(stale_forward,event(str(index).zfill(64),stale_time))
+  stale_adapter=Adapter();stale=DemoRuntime(config(),root/'stale_day0',stale_forward,stale_adapter,'m'*40);stale.epoch_start=(datetime.now(timezone.utc)-timedelta(hours=3)).isoformat();stale_engine=DemoExecutionEngine(stale.ledger,stale.persistence,stale_adapter,stale.config,'stale_day0');stale_started=time.perf_counter();stale_result=stale.consume_once(stale_engine,dry_run=True);stale_elapsed=time.perf_counter()-stale_started;assert stale_result['processed']==1000 and stale_result['cursor'] is not None and not stale_result['fail_closed'];assert stale_adapter.calls==[] and len(stale.ledger.rows)==1000 and all(row['state']=='REJECTED_POLICY' and row.get('reason')=='stale_signal' for row in stale.ledger.rows.values());assert len({row['intent']['intent_identity'] for row in stale.ledger.rows.values()})==1000
+  restarted_stale=DemoRuntime(config(),root/'stale_day0',stale_forward,stale_adapter,'m'*40);restarted_stale.epoch_start=stale.epoch_start;restarted_result=restarted_stale.consume_once(DemoExecutionEngine(restarted_stale.ledger,restarted_stale.persistence,stale_adapter,restarted_stale.config,'stale_day0'),dry_run=True);assert restarted_result['processed']==0 and stale_adapter.calls==[];stale.persistence.close();restarted_stale.persistence.close()
   unit=(Path(__file__).resolve().parents[1]/'deploy'/'quantbot-demo-execution.service').read_text(encoding='utf-8');assert '--serve' in unit and '--diagnostics' not in unit and '%H' not in unit and 'demo_execution_day0_v1' in unit
   # Every known transport operation freezes its cursor without globally
   # disabling Demo.  Restoring transport then consumes the signal once.
@@ -110,6 +116,10 @@ def main():
  print('DEMO_TRANSIENT_API_FAILURES_RETRY_WITH_CURSOR_FROZEN=PASS')
  print('DEMO_TRANSIENT_OPERATION_DIAGNOSTICS=PASS')
  print('DEMO_FORWARD_SIGNAL_INTEGRITY_FAIL_CLOSED=PASS')
+ print('DEMO_STALE_BACKLOG_1000_TERMINAL=PASS')
+ print('DEMO_STALE_BACKLOG_API_CALLS=0')
+ print('DEMO_STALE_BACKLOG_EXACT_ONCE=PASS')
+ print(f'DEMO_STALE_BACKLOG_THROUGHPUT={1000/stale_elapsed:.2f}_signals_per_second')
  print('DEMO_PERMANENT_ADAPTER_FAILURE_FAIL_CLOSED=PASS')
  print('DEMO_STARTUP_RECONCILIATION_FAIL_CLOSED_DURABLE=PASS')
  print('OOS_READS=0');print('FORWARD_MUTATIONS=0');print('LIVE_ORDER_PLACEMENT=0')
