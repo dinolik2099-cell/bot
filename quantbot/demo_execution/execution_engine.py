@@ -36,7 +36,9 @@ class DemoExecutionEngine:
   if not quantity:raise FailClosedError('demo_close_quantity_missing')
   self.ledger.transition(intent.signal_identity,OrderState.VALIDATED.value,quantity=quantity,position_side='LONG' if intent.side=='LONG' else 'SHORT',dry_run=bool(dry_run))
   if dry_run:return self.ledger.transition(intent.signal_identity,OrderState.INTENT_CREATED.value,dry_run=True)
-  self._configure_symbol(intent.symbol,dry_run)
+  # CLOSE is risk-reducing and relies on the already verified remote position;
+  # it must survive a process restart without replaying account configuration.
+  if action=='OPEN':self._configure_symbol(intent.symbol,dry_run)
   self.ledger.transition(intent.signal_identity,OrderState.SUBMITTING.value)
   side=close_side if action=='CLOSE' else intent.side
   order_side=('SELL' if side=='LONG' else 'BUY') if action=='CLOSE' else ('BUY' if side=='LONG' else 'SELL')

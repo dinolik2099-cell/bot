@@ -39,7 +39,7 @@ def main():
   # Same direction is a terminal, durable no-op: no second MARKET order.
   append(forward,signal('d'));assert runtime.consume_once(engine,dry_run=False)['processed']==1;assert runtime.ledger.rows['d'*64]['state']=='SKIPPED' and len([x for x in api.calls if x[0]=='order'])==1
   # Reverse signal only closes the actual remote amount; it neither reverses nor reconfigures.
-  amount=api.amount;append(forward,signal('e','SHORT'));assert runtime.consume_once(engine,dry_run=False)['processed']==1;close=api.calls[-1][1];assert close['reduceOnly']=='true' and float(close['quantity'])==abs(float(amount)) and close['side']=='SELL' and api.amount=='0.0'
+  amount=api.amount;configuration_calls=len([x for x in api.calls if x[0] in {'margin','leverage'}]);engine=DemoExecutionEngine(runtime.ledger,runtime.persistence,api,runtime.config,'day0');append(forward,signal('e','SHORT'));assert runtime.consume_once(engine,dry_run=False)['processed']==1;close=api.calls[-1][1];assert close['reduceOnly']=='true' and float(close['quantity'])==abs(float(amount)) and close['side']=='SELL' and api.amount=='0.0';assert len([x for x in api.calls if x[0] in {'margin','leverage'}])==configuration_calls
   # FILLED remote position plus its FILLED ledger row is accounted once, not doubled.
   api.amount='0.001';runtime._health(signal('z'));health=runtime._health(signal('z'));assert health['gross_exposure']==10.0 and health['strategy_exposure']==10.0
   # A second matching OPEN row makes attribution ambiguous and fences execution.
