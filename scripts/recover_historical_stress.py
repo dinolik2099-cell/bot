@@ -152,8 +152,11 @@ def main() -> int:
     parser.add_argument("--source-commit",default=SOURCE_COMMIT);parser.add_argument("--failed-chunk",default=HIGH_FAILED_CHUNK)
     parser.add_argument("--dry-run",action="store_true")
     args=parser.parse_args();repo=Path(args.repo_root).resolve();worktree=Path(args.worktree).resolve()
-    if args.source_commit!=SOURCE_COMMIT or args.failed_chunk!=HIGH_FAILED_CHUNK:
-        raise RuntimeError("historical_stress_recovery_frozen_high_identity_mismatch")
+    # HIGH_FAILED_CHUNK remains the backward-compatible default. Explicit
+    # failed identities are validated against the sealed original checkpoint
+    # inside BOOTSTRAP before any historical evaluation can start.
+    if args.source_commit!=SOURCE_COMMIT:
+        raise RuntimeError("historical_stress_recovery_source_commit_mismatch")
     output=Path(args.output_json)
     if output.resolve()==Path(args.original_execution_json).resolve():
         raise RuntimeError("historical_stress_recovery_original_overwrite_forbidden")
