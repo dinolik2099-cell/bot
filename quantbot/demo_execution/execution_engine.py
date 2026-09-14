@@ -8,7 +8,12 @@ class DemoExecutionEngine:
  def disable(self,reason):self.fail_closed=True;return reason
  def reject_venue(self,signal,date,reason):
   intent=ExecutionIntent.from_signal(signal,self.config['execution_policy']['order_notional'],'OPEN');row,created=self.ledger.create(intent)
-  if not created:return row
+  if not created:
+   # A pre-POST VALIDATED OPEN has no remote execution ambiguity and may be
+   # conclusively rejected by the current Demo venue.  Later states are
+   # evidence-bearing and must remain under reconciliation control.
+   if row['state']=='VALIDATED':return self.ledger.transition(intent.signal_identity,OrderState.REJECTED_VENUE.value,reason=reason)
+   return row
   self.persistence.append('venue_rejections',date,{'signal_identity':intent.signal_identity,'reason':reason,'demo_epoch':self.epoch});return self.ledger.transition(intent.signal_identity,OrderState.REJECTED_VENUE.value,reason=reason)
  def _configure_symbol(self,symbol,dry_run):
   if dry_run or symbol in self._configured_symbols:return
