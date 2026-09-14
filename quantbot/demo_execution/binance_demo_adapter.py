@@ -26,6 +26,7 @@ class BinanceDemoAdapter:
  def server_time(self):return self._request('GET','/fapi/v1/time')
  def exchange_info(self):return self._request('GET','/fapi/v1/exchangeInfo')
  def ticker_price(self,symbol):return self._request('GET','/fapi/v1/ticker/price',{'symbol':symbol})
+ def income_history(self,start_time,end_time):return self._request('GET','/fapi/v1/income',{'startTime':start_time,'endTime':end_time,'limit':1000},True)
  def account(self):return self._request('GET','/fapi/v2/account',signed=True)
  def balance(self):return self._request('GET','/fapi/v2/balance',signed=True)
  def positions(self):return self._request('GET','/fapi/v2/positionRisk',signed=True)
