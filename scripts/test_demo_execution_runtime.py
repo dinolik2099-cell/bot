@@ -84,6 +84,14 @@ def main():
   # ambiguous evidence.
   invalid_forward=root/'invalid_forward';invalid_path=invalid_forward/'signals'/'2026-09-14'/'signals.jsonl';invalid_path.parent.mkdir(parents=True,exist_ok=True);invalid_path.write_text('{"symbol":"BTCUSDT"}\n',encoding='utf-8');invalid=DemoRuntime(config(),root/'invalid_day0',invalid_forward,Adapter(),'i'*40);invalid_engine=DemoExecutionEngine(invalid.ledger,invalid.persistence,invalid.adapter,invalid.config,'invalid_day0');assert invalid.consume_once(invalid_engine,dry_run=True)['fail_closed'] and invalid.persistence.read_checkpoint()['fail_closed']
   duplicate_forward=root/'duplicate_forward';dup=event('z');append(duplicate_forward,dup);append(duplicate_forward,dup);duplicate=DemoRuntime(config(),root/'duplicate_day0',duplicate_forward,Adapter(),'j'*40);duplicate_engine=DemoExecutionEngine(duplicate.ledger,duplicate.persistence,duplicate.adapter,duplicate.config,'duplicate_day0');assert duplicate.consume_once(duplicate_engine,dry_run=True)['fail_closed'];invalid.persistence.close();duplicate.persistence.close()
+  # A non-transient adapter error is a permanent safety failure, while a
+  # startup reconciliation failure must be checkpointed before serving.
+  permanent_forward=root/'permanent_forward';append(permanent_forward,event('y'));permanent_adapter=Adapter();permanent_adapter.ticker_price=lambda _symbol:(_ for _ in ()).throw(DemoExecutionError('deterministic_adapter_failure'));permanent=DemoRuntime(config(),root/'permanent_day0',permanent_forward,permanent_adapter,'k'*40);permanent_engine=DemoExecutionEngine(permanent.ledger,permanent.persistence,permanent_adapter,permanent.config,'permanent_day0');assert permanent.consume_once(permanent_engine,dry_run=True)['fail_closed'] and permanent.persistence.read_checkpoint()['last_signal_cursor'] is None
+  startup_adapter=Adapter();startup_adapter.positions=lambda:(_ for _ in ()).throw(DemoExecutionError('reconciliation_evidence_invalid'));startup=DemoRuntime(config(),root/'startup_day0',root/'startup_forward',startup_adapter,'l'*40);startup.checkpoint('signals/2026-09-14/signals.jsonl:9');startup_engine=DemoExecutionEngine(startup.ledger,startup.persistence,startup_adapter,startup.config,'startup_day0')
+  try:startup.startup_reconcile()
+  except Exception as exc:startup.startup_fail_closed(startup_engine,exc)
+  checkpoint=startup.persistence.read_checkpoint();assert checkpoint['fail_closed'] and checkpoint['last_signal_cursor']=='signals/2026-09-14/signals.jsonl:9' and not startup_adapter.calls.count('create_order')
+  restarted_startup=DemoRuntime(config(),root/'startup_day0',root/'startup_forward',startup_adapter,'l'*40);assert restarted_startup.fail_closed and restarted_startup.consume_once(DemoExecutionEngine(restarted_startup.ledger,restarted_startup.persistence,startup_adapter,restarted_startup.config,'startup_day0'),dry_run=True)['processed']==0;permanent.persistence.close();startup.persistence.close();restarted_startup.persistence.close()
   runtime.persistence.close();restarted.persistence.close();lost.persistence.close();failing.persistence.close();recon.persistence.close();recovered.persistence.close();pnl.persistence.close();strategy.persistence.close()
  print('DEMO_LONG_RUNNING_INCREMENTAL_CURSOR=PASS')
  print('DEMO_DRY_RUN_FULL_PIPELINE=PASS')
@@ -102,5 +110,7 @@ def main():
  print('DEMO_TRANSIENT_API_FAILURES_RETRY_WITH_CURSOR_FROZEN=PASS')
  print('DEMO_TRANSIENT_OPERATION_DIAGNOSTICS=PASS')
  print('DEMO_FORWARD_SIGNAL_INTEGRITY_FAIL_CLOSED=PASS')
+ print('DEMO_PERMANENT_ADAPTER_FAILURE_FAIL_CLOSED=PASS')
+ print('DEMO_STARTUP_RECONCILIATION_FAIL_CLOSED_DURABLE=PASS')
  print('OOS_READS=0');print('FORWARD_MUTATIONS=0');print('LIVE_ORDER_PLACEMENT=0')
 if __name__=='__main__':main()

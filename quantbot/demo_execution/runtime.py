@@ -32,6 +32,11 @@ class DemoRuntime:
   except Exception as exc:self.fail_closed=True;self.persistence.append('reconciliation',utc_now()[:10],{'reason':str(exc),'fail_closed':True});raise
  def startup_reconcile(self):
   state=self.reconcile();self.checkpoint((self.persistence.read_checkpoint() or {}).get('last_signal_cursor'),state);return state
+ def startup_fail_closed(self,engine,exc):
+  """Persist a startup reconciliation failure before serving any signal."""
+  cursor=(self.persistence.read_checkpoint() or {}).get('last_signal_cursor')
+  self._trip(engine,'startup_reconciliation_failed',error=f'{type(exc).__name__}:{exc}')
+  self.checkpoint(cursor);self.persistence.flush()
  def _position_attributions(self,positions):
   attributed={}
   for position in positions:

@@ -17,7 +17,7 @@ def main():
  if args.execute_demo_orders and not credentials['loaded']:raise SystemExit('demo credentials required')
  engine=DemoExecutionEngine(runtime.ledger,runtime.persistence,adapter,config,Path(args.data_root).name)
  try:runtime.startup_reconcile()
- except Exception:runtime.fail_closed=True;engine.disable('startup_reconciliation_failed')
+ except Exception as exc:runtime.startup_fail_closed(engine,exc)
  if not args.serve:
   result=runtime.consume_once(engine,args.dry_run);print(json.dumps({'environment':'DEMO','live_allowed':False,'dry_run':args.dry_run,**result},sort_keys=True));return 0
  result=runtime.serve(engine,dry_run=args.dry_run,poll_seconds=args.poll_seconds,reconcile_seconds=args.reconcile_seconds)
