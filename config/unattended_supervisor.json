@@ -1,7 +1,7 @@
 {
   "schema_version": "quantbot-unattended-supervisor-v1",
   "auto_repair_enabled": false,
-  "state_path": "server_local_audit/unattended/state.json",
+  "state_path": "runtime/unattended/state.json",
   "production": {
     "forward": {
       "service": "quantbot-forward-research.service",

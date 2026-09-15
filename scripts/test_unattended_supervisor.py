@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json, multiprocessing, os, tempfile
+from unittest.mock import patch
 from pathlib import Path
 from quantbot.unattended.config import load
 from quantbot.unattended.models import Issue,Status
@@ -40,7 +41,11 @@ def runner(root,probe,sink,recovery,*,auto=False):
  config=load(None);config["state_path"]="state.json";config["thresholds"]["checkpoint_age_seconds"]=0;config["recovery"].update({"auto_repair_enabled":auto,"consecutive_threshold":2,"max_repairs_per_window":1,"repair_window_seconds":3600})
  return UnattendedSupervisor(root,config,probe=probe,recovery_adapter=recovery,notifier=sink)
 def concurrent_mutation(path,index):
- store=StateStore(Path(path),{"sent_notifications":64,"recoveries":64});stamp="2026-01-01T00:00:00+00:00";store.queue_notification(f"concurrent:{index}","ALERT",f"synthetic-{index}",stamp);store.record_repair(fingerprint=f"f{index}",lifecycle_id=f"l{index}",timestamp=stamp,status="ATTEMPT",window_seconds=3600)
+ store=StateStore(Path(path),{"sent_notifications":64,"recoveries":64});stamp="2026-01-01T00:00:00+00:00";store.queue_notification(f"concurrent:{index}","ALERT",f"synthetic-{index}",stamp);store.record_repair_outcome(fingerprint=f"f{index}",lifecycle_id=f"l{index}",timestamp=stamp,status="ATTEMPT",window_seconds=3600)
+def repair_claim_worker(path,queue,fingerprint,lifecycle_id):
+ queue.put(StateStore(Path(path)).claim_repair(fingerprint=fingerprint,lifecycle_id=lifecycle_id,timestamp="2026-01-01T00:00:00+00:00",window_seconds=3600,threshold=1,max_repairs=1))
+def notification_claim_worker(path,queue,index):
+ row=StateStore(Path(path)).claim_notification("shared","2026-01-01T00:00:00+00:00");queue.put(row["claim_token"] if row else None)
 def main():
  with tempfile.TemporaryDirectory() as temp:
   root=Path(temp);base(root);probe=Probe();sink=Sink();adapter=Recovery();supervisor=runner(root,probe,sink,adapter,auto=True);stale(root)
@@ -67,9 +72,9 @@ def main():
   safe.config["production"]["forward"]["checkpoint"]="data/forward_research/checkpoints/runtime.json";(safe_root/"docs/handoff/FROZEN_RESEARCH_PLAN_N5.json").unlink();assert "missing_plan" in codes(safe.run_once(shadow=False)) and safe_adapter.calls==[]
   safe_probe.disk=99;assert "host_disk_high" in codes(safe.run_once(shadow=False)) and safe_adapter.calls==[]
   # Notification intent is durable first, then retried at-least-once until SENT.
-  outbox_root=root/"outbox";base(outbox_root);stale(outbox_root);flaky=FlakySink();outbox=runner(outbox_root,Probe(),flaky,Recovery(),auto=False);outbox.run_once(shadow=True);pending=StateStore(outbox_root/"state.json").load()["notifications"];assert len(pending)==1 and next(iter(pending.values()))["state"]=="PENDING"
+  outbox_root=root/"outbox";base(outbox_root);stale(outbox_root);flaky=FlakySink();outbox=runner(outbox_root,Probe(),flaky,Recovery(),auto=False);outbox.run_once(shadow=True);pending=StateStore(outbox_root/"state.json").load()["notifications"];assert len(pending)==1 and next(iter(pending.values()))["state"]=="CLAIMED";StateStore(outbox_root/"state.json")._mutate(lambda state:next(iter(state["notifications"].values())).update({"lease_until":"2020-01-01T00:00:00+00:00"}))
   outbox=runner(outbox_root,Probe(),flaky,Recovery(),auto=False);outbox.run_once(shadow=True);sent=StateStore(outbox_root/"state.json").load()["notifications"];assert next(iter(sent.values()))["state"]=="SENT" and len(flaky.messages)==1;outbox.run_once(shadow=True);assert len(flaky.messages)==1
-  outbox.config["thresholds"]["checkpoint_age_seconds"]=999999;os.utime(outbox_root/"data/forward_research/checkpoints/runtime.json",None);flaky.failures=1;outbox.run_once(shadow=True);assert any(row["kind"]=="RECOVERED" and row["state"]=="PENDING" for row in StateStore(outbox_root/"state.json").load()["notifications"].values());outbox.run_once(shadow=True);assert sum(message=="QuantBot RECOVERED" for message in flaky.messages)==1
+  outbox.config["thresholds"]["checkpoint_age_seconds"]=999999;os.utime(outbox_root/"data/forward_research/checkpoints/runtime.json",None);flaky.failures=1;outbox.run_once(shadow=True);assert any(row["kind"]=="RECOVERED" and row["state"]=="CLAIMED" for row in StateStore(outbox_root/"state.json").load()["notifications"].values());StateStore(outbox_root/"state.json")._mutate(lambda state:[row.update({"lease_until":"2020-01-01T00:00:00+00:00"}) for row in state["notifications"].values() if row.get("kind")=="RECOVERED"]);outbox.run_once(shadow=True);assert sum(message=="QuantBot RECOVERED" for message in flaky.messages)==1
   # Future, rollback and malformed repair timestamps permanently fail safe.
   for label,row in (("future",{"timestamp":"2999-01-01T00:00:00+00:00"}),("rollback",{"timestamp":"2026-01-02T00:00:00+00:00","clock":"2027-01-01T00:00:00+00:00"}),("malformed",{"timestamp":"not-a-time"})):
    time_root=root/label;base(time_root);store=StateStore(time_root/"state.json");state=store.load();state["repairs"]=[{"timestamp":row["timestamp"],"status":"ATTEMPT"}];
@@ -84,11 +89,23 @@ def main():
   # Bounded sent/recovered history never removes PENDING or active lifecycle evidence.
   retained=StateStore(root/"retained.json",{"sent_notifications":3,"recoveries":2});stamp="2026-01-01T00:00:00+00:00"
   for index in range(10):
-   key=f"sent:{index}";retained.queue_notification(key,"ALERT","safe",f"2026-01-01T00:00:{index:02d}+00:00");retained.delivery_attempt(key,stamp);retained.mark_sent(key,f"2026-01-01T00:00:{index:02d}+00:00")
+   key=f"sent:{index}";created=f"2026-01-01T00:00:{index:02d}+00:00";retained.queue_notification(key,"ALERT","safe",created);claim=retained.claim_notification(key,created);retained.mark_sent(key,claim["claim_token"],created)
   retained.queue_notification("pending","ALERT","safe",stamp);active=Issue("active","FORWARD",Status.ALERT,"safe",stamp,{},True,True);retained.observe([active],stamp,3600);kept=retained.load();assert sum(row["state"]=="SENT" for row in kept["notifications"].values())<=3 and kept["notifications"]["pending"]["state"]=="PENDING" and active.fingerprint in kept["issues"]
   # Process-level writes retain every independent intent and attempt without shared tmp collision.
   concurrent_path=root/"concurrent.json";workers=[multiprocessing.Process(target=concurrent_mutation,args=(str(concurrent_path),index)) for index in range(8)]
   [worker.start() for worker in workers];[worker.join(20) for worker in workers];assert all(worker.exitcode==0 for worker in workers);concurrent=StateStore(concurrent_path).load();assert len(concurrent["notifications"])==8 and len(concurrent["repairs"])==8
+  # Exactly one process can reserve a repair or delivery claim; stale delivery claim is recoverable.
+  claim_path=root/"repair_claim.json";claim_store=StateStore(claim_path);claim_issue=Issue("shared","FORWARD",Status.ALERT,"safe","2026-01-01T00:00:00+00:00",{},True,True);claim_state=claim_store.observe([claim_issue],"2026-01-01T00:00:00+00:00",3600);claim_fingerprint=claim_issue.fingerprint;claim_lifecycle=claim_state["issues"][claim_fingerprint]["lifecycle_id"];queue=multiprocessing.Queue();workers=[multiprocessing.Process(target=repair_claim_worker,args=(str(claim_path),queue,claim_fingerprint,claim_lifecycle)) for _ in range(8)];[worker.start() for worker in workers];[worker.join(20) for worker in workers];assert all(worker.exitcode==0 for worker in workers);claims=[queue.get() for _ in workers];assert claims.count("REPAIR_CLAIMED")==1 and sum(row.get("status")=="ATTEMPT" for row in claim_store.load()["repairs"])==1
+  notification_path=root/"notification_claim.json";notification_store=StateStore(notification_path);notification_store.queue_notification("shared","ALERT","safe","2026-01-01T00:00:00+00:00");queue=multiprocessing.Queue();workers=[multiprocessing.Process(target=notification_claim_worker,args=(str(notification_path),queue,index)) for index in range(8)];[worker.start() for worker in workers];[worker.join(20) for worker in workers];tokens=[queue.get() for _ in workers];token=next(row for row in tokens if row);assert all(worker.exitcode==0 for worker in workers) and sum(bool(row) for row in tokens)==1 and notification_store.mark_sent("shared",token,"2026-01-01T00:00:00+00:00") and notification_store.claim_notification("shared","2026-01-01T00:02:00+00:00") is None
+  notification_store.queue_notification("stale","ALERT","safe","2026-01-01T00:00:00+00:00");first_claim=notification_store.claim_notification("stale","2026-01-01T00:00:00+00:00");second_claim=notification_store.claim_notification("stale","2026-01-01T00:02:00+00:00");assert first_claim and second_claim and first_claim["claim_token"]!=second_claim["claim_token"]
+  # Temp fsync is part of every successful durable write path.
+  durable_path=root/"durable.json"
+  with patch("quantbot.unattended.state.os.fsync",wraps=os.fsync) as synced:StateStore(durable_path).queue_notification("fsync","ALERT","safe","2026-01-01T00:00:00+00:00");assert synced.called
+  try:
+   with patch("quantbot.unattended.state.os.fsync",side_effect=OSError("synthetic_fsync_failure")):StateStore(root/"fsync_failure.json").queue_notification("fsync","ALERT","safe","2026-01-01T00:00:00+00:00")
+   raise AssertionError("fsync_failure_was_accepted")
+  except OSError:pass
+  assert load(None)["state_path"].startswith("runtime/") and "server_local_audit" not in load(None)["state_path"]
   assert StateStore(root/"state.json").load()["schema_version"]=="quantbot-unattended-state-v1"
  print("UNATTENDED_HEALTHY_ALL_CHAIN=PASS")
  print("CONSECUTIVE_STRIKES=PASS");print("REPAIR_STATE_DURABLE=PASS");print("REPAIR_BUDGET_RESTART_SAFE=PASS");print("REPAIR_FAILURE_DURABLE=PASS")
@@ -96,5 +113,6 @@ def main():
  print("SHADOW_NEVER_REPAIRS=PASS");print("STATE_ATOMIC_WRITE=PASS");print("SECRET_REDACTION=PASS")
  print("NOTIFICATION_DURABLE_AT_LEAST_ONCE=PASS");print("REPAIR_WINDOW_TIME_FAIL_SAFE=PASS")
  print("STATE_CROSS_PROCESS_LOCKING=PASS");print("STATE_RETENTION_BOUNDED=PASS");print("REPAIR_WINDOW_EXPLICIT_REARM=PASS")
+ print("ATOMIC_REPAIR_CLAIM=PASS");print("ATOMIC_NOTIFICATION_CLAIM=PASS");print("DURABLE_WRITE_FSYNC=PASS");print("RUNTIME_STATE_PATH_ISOLATED=PASS")
  print("OOS_READS=0");print("REAL_SYSTEMCTL_MUTATIONS=0");print("LIVE_ORDER_PLACEMENT=0")
 if __name__=="__main__":main()

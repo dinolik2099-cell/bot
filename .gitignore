@@ -8,6 +8,7 @@ data/
 reports/
 logs/
 server_local_audit/
+runtime/unattended/
 
 # Historical delivery archives remain local-only.
 *.tar.gz

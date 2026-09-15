@@ -19,7 +19,9 @@ are never repairable.  Only explicitly allowlisted Forward service/checkpoint
 faults can become eligible for recovery after consecutive confirmation, a
 cooldown/repair budget and an injected recovery adapter.
 
-Runtime state is atomic and local-only under `server_local_audit/unattended/`.
+Runtime state is atomic and local-only under `runtime/unattended/`. This
+gitignored project-local runtime directory is distinct from audit evidence;
+the supervisor does not use `server_local_audit/` for its mutable state.
 It is ignored by Git and contains no credentials, endpoint query strings,
 tokens, order requests or trading authority.  The proposed systemd unit/timer
 are templates only; this change neither installs nor enables them.
