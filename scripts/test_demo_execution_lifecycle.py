@@ -3,9 +3,10 @@ import json,tempfile
 from datetime import datetime,timezone,timedelta
 from pathlib import Path
 from quantbot.demo_execution.config import validate_config
-from quantbot.demo_execution.runtime import DemoRuntime
+from quantbot.demo_execution.runtime import DemoRuntime,_filters
 from quantbot.demo_execution.execution_engine import DemoExecutionEngine
 from quantbot.demo_execution.core import FailClosedError
+from quantbot.demo_execution.risk import normalize_quantity
 
 def cfg():return validate_config({'environment':'DEMO','live_order_endpoint_allowed':False,'endpoint':'https://demo-fapi.binance.com','execution_policy':{'enabled':True,'position_mode':'ONE_WAY','margin_mode':'ISOLATED','leverage':1,'order_notional':10,'max_signal_age_seconds':3600,'risk':{'max_open_orders':10,'max_total_gross_exposure':100,'max_strategy_exposure':100,'max_order_notional':20,'max_daily_loss':100}}})
 def signal(seed,direction='LONG',model='model'):
@@ -28,6 +29,10 @@ class Demo:
   if self.fail_post:raise RuntimeError('lost_post')
   qty=float(row['quantity']);self.amount=str((float(self.amount)+qty) if row['side']=='BUY' else (float(self.amount)-qty));self.orders[row['newClientOrderId']]={'status':'FILLED','orderId':str(len(self.orders)+1)};return self.orders[row['newClientOrderId']]
  def query_order(self,c,s):return self.orders.get(c,{'status':'FILLED','orderId':'1'})
+class AaveMinimumDemo(Demo):
+ """Valid LOT_SIZE/MIN_NOTIONAL metadata that cannot execute frozen $10."""
+ def exchange_info(self):return {'symbols':[{'symbol':'AAVEUSDT','status':'TRADING','filters':[{'filterType':'LOT_SIZE','stepSize':'0.1','minQty':'0.1'},{'filterType':'MARKET_LOT_SIZE','stepSize':'0.01','minQty':'0.01'},{'filterType':'MIN_NOTIONAL','notional':'20'}]}]}
+ def ticker_price(self,s):return {'symbol':s,'price':'100'}
 def main():
  with tempfile.TemporaryDirectory() as tmp:
   root=Path(tmp);forward=root/'forward';api=Demo();runtime=DemoRuntime(cfg(),root/'day0',forward,api,'a'*40);engine=DemoExecutionEngine(runtime.ledger,runtime.persistence,api,runtime.config,'day0');runtime.startup_reconcile()
@@ -51,6 +56,17 @@ def main():
   pending=signal('p');intent=__import__('quantbot.demo_execution.models',fromlist=['ExecutionIntent']).ExecutionIntent.from_signal(pending,10,'OPEN');venue_ledger=__import__('quantbot.demo_execution.ledger',fromlist=['ExecutionLedger']).ExecutionLedger(root/'venue');venue_ledger.create(intent);venue_ledger.transition(pending['signal_identity'],'VALIDATED',quantity='0.001',dry_run=False);venue_engine=DemoExecutionEngine(venue_ledger,runtime.persistence,api,runtime.config,'day0');result=venue_engine.reject_venue(pending,'2026-09-15','demo_symbol_not_trading');assert result['state']=='REJECTED_VENUE' and result['client_order_id']==intent.client_order_id and result['execution_intent_identity']==intent.intent_identity
   for state in ('SUBMITTING','RECONCILING','ACKNOWLEDGED','PARTIALLY_FILLED'):
    row_signal=signal(state[0].lower());other=__import__('quantbot.demo_execution.ledger',fromlist=['ExecutionLedger']).ExecutionLedger(root/state);other_intent=__import__('quantbot.demo_execution.models',fromlist=['ExecutionIntent']).ExecutionIntent.from_signal(row_signal,10,'OPEN');other.create(other_intent);other.transition(row_signal['signal_identity'],state,quantity='0.001',dry_run=False);assert DemoExecutionEngine(other,runtime.persistence,api,runtime.config,'day0').reject_venue(row_signal,'2026-09-15','demo_symbol_not_trading')['state']==state
+  # Valid exchange metadata can show that the frozen $10 budget is not
+  # executable.  That must terminally reject only this signal: no quantity
+  # increase, no remote order and no runtime-wide fail-close.
+  aave_forward=root/'aave_forward';aave=signal('v');aave['symbol']='AAVEUSDT';append(aave_forward,aave);aave_api=AaveMinimumDemo();aave_runtime=DemoRuntime(cfg(),root/'aave_day0',aave_forward,aave_api,'b'*40);aave_engine=DemoExecutionEngine(aave_runtime.ledger,aave_runtime.persistence,aave_api,aave_runtime.config,'aave_day0');aave_result=aave_runtime.consume_once(aave_engine,dry_run=False);aave_row=aave_runtime.ledger.rows[aave['signal_identity']];assert aave_result['processed']==1 and not aave_result['fail_closed'] and aave_row['state']=='REJECTED_POLICY' and aave_row['reason']=='quantity_filter_unexecutable' and not [call for call in aave_api.calls if call[0]=='order'];assert (aave_runtime.persistence.read_checkpoint() or {})['last_signal_cursor']==aave_result['cursor'];rejection_files=list((aave_runtime.root/'policy_rejections').glob('*/*.jsonl'));assert rejection_files and json.loads(rejection_files[0].read_text(encoding='utf-8').splitlines()[-1])['reason']=='quantity_filter_unexecutable'
+  # This change leaves the established LOT_SIZE parser alone: it does not
+  # substitute MARKET_LOT_SIZE semantics by assumption.
+  parsed=_filters(aave_api.exchange_info(),'AAVEUSDT');assert parsed=={'stepSize':'0.1','minQty':'0.1','minNotional':'20'}
+  try:normalize_quantity(10,100,{'stepSize':'0','minQty':'0.1','minNotional':'20'})
+  except FailClosedError:pass
+  else:raise AssertionError('malformed_filter_not_fail_closed')
+  aave_runtime.persistence.close()
   runtime.persistence.close()
  print('DEMO_MARGIN_LEVERAGE_EXECUTE_ONLY=PASS')
  print('DEMO_DRY_RUN_NEVER_MUTATES_ACCOUNT_CONFIGURATION=PASS')
@@ -62,5 +78,10 @@ def main():
  print('DEMO_AMBIGUOUS_POSITION_ATTRIBUTION_FAIL_CLOSED=PASS')
  print('DEMO_VALIDATED_OPEN_VENUE_REJECTION_RESTART=PASS')
  print('DEMO_NONTERMINAL_VENUE_STATES_RECONCILIATION_ONLY=PASS')
+ print('DEMO_QUANTITY_FILTER_UNEXECUTABLE_REJECTED_POLICY=PASS')
+ print('DEMO_QUANTITY_FILTER_REJECTION_CURSOR_ADVANCES=PASS')
+ print('DEMO_QUANTITY_FILTER_REJECTION_NO_ORDER_POST=PASS')
+ print('DEMO_LOT_SIZE_MIN_NOTIONAL_PARSING_UNCHANGED=PASS')
+ print('DEMO_MALFORMED_FILTER_FAIL_CLOSED=PASS')
  print('OOS_READS=0');print('FORWARD_MUTATIONS=0');print('LIVE_ORDER_PLACEMENT=0')
 if __name__=='__main__':main()

@@ -61,12 +61,14 @@ class DemoExecutionEngine:
    return self.ledger.transition(intent.signal_identity,{'FILLED':'FILLED','NEW':'ACKNOWLEDGED','PARTIALLY_FILLED':'PARTIALLY_FILLED'}.get(response.get('status'),'FAILED_SAFE'),binance_order_id=str(response.get('orderId','')),remote_status=response.get('status'))
   self.persistence.append('signals',date,{'signal':signal,'demo_epoch':self.epoch,'execution_intent_identity':intent.intent_identity})
   if action=='OPEN':
-   try:check_risk(policy,signal,open_orders=(health or {}).get('open_orders',0),gross_exposure=(health or {}).get('gross_exposure',0),strategy_exposure=(health or {}).get('strategy_exposure',0),daily_pnl=(health or {}).get('daily_pnl',0))
+   try:
+    check_risk(policy,signal,open_orders=(health or {}).get('open_orders',0),gross_exposure=(health or {}).get('gross_exposure',0),strategy_exposure=(health or {}).get('strategy_exposure',0),daily_pnl=(health or {}).get('daily_pnl',0))
+    if price is None or filters is None:raise FailClosedError('demo_market_metadata_missing')
+    quantity=normalize_quantity(intent.notional,price,filters)
    except DemoRiskRejected as exc:
     self.persistence.append('policy_rejections',date,{'signal_identity':intent.signal_identity,'execution_intent_identity':intent.intent_identity,'reason':exc.reason,'demo_epoch':self.epoch});return self.ledger.transition(intent.signal_identity,OrderState.REJECTED_POLICY.value,reason=exc.reason,dry_run=bool(dry_run))
   if action=='SKIP_SAME_DIRECTION':return self.ledger.transition(intent.signal_identity,OrderState.SKIPPED.value,dry_run=dry_run,reason='same_direction_position')
-  if action=='OPEN' and (price is None or filters is None):raise FailClosedError('demo_market_metadata_missing')
-  quantity=normalize_quantity(intent.notional,price,filters) if action=='OPEN' else str(close_quantity or '')
+  quantity=quantity if action=='OPEN' else str(close_quantity or '')
   if not quantity:raise FailClosedError('demo_close_quantity_missing')
   self.ledger.transition(intent.signal_identity,OrderState.VALIDATED.value,quantity=quantity,position_side='LONG' if intent.side=='LONG' else 'SHORT',dry_run=bool(dry_run))
   if dry_run:return self.ledger.transition(intent.signal_identity,OrderState.INTENT_CREATED.value,dry_run=True)

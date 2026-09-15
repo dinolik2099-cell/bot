@@ -1,12 +1,19 @@
 from __future__ import annotations
-from decimal import Decimal,ROUND_DOWN
+from decimal import Decimal,InvalidOperation,ROUND_DOWN
 from datetime import datetime,timezone
 from .core import FailClosedError,DemoRiskRejected
 
 def normalize_quantity(notional,price,filters):
- quantity=Decimal(str(notional))/Decimal(str(price));step=Decimal(str(filters['stepSize']));minimum=Decimal(str(filters['minQty']));min_notional=Decimal(str(filters['minNotional']))
+ # Do not increase quantity/notional to satisfy a venue minimum.  Invalid
+ # metadata is unsafe; a valid filter that cannot accommodate the frozen
+ # request is a normal per-signal policy rejection.
+ try:
+  requested_notional=Decimal(str(notional));market_price=Decimal(str(price));step=Decimal(str(filters['stepSize']));minimum=Decimal(str(filters['minQty']));min_notional=Decimal(str(filters['minNotional']))
+ except (KeyError,InvalidOperation,TypeError,ValueError) as exc:raise FailClosedError('demo_symbol_filters_invalid') from exc
+ if requested_notional<=0 or market_price<=0 or step<=0 or minimum<=0 or min_notional<=0:raise FailClosedError('demo_symbol_filters_invalid')
+ quantity=requested_notional/market_price
  quantity=(quantity/step).to_integral_value(rounding=ROUND_DOWN)*step
- if quantity<minimum or quantity*Decimal(str(price))<min_notional:raise FailClosedError('demo_quantity_filter_rejected')
+ if quantity<minimum or quantity*market_price<min_notional:raise DemoRiskRejected('quantity_filter_unexecutable')
  return format(quantity,'f')
 def check_risk(policy,signal,*,open_orders,gross_exposure,strategy_exposure,daily_pnl,now=None):
  risk=policy['risk'];now=now or datetime.now(timezone.utc);created=datetime.fromisoformat(signal['created_at'].replace('Z','+00:00'))
