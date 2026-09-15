@@ -4,7 +4,7 @@ from pathlib import Path
 
 DEFAULT={"schema_version":"quantbot-unattended-supervisor-v1","auto_repair_enabled":False,
  "state_path":"server_local_audit/unattended/state.json","thresholds":{"checkpoint_age_seconds":300,"demo_consumption_lag_seconds":300,"disk_percent":90,"memory_available_mb":256,"swap_percent":90},
- "recovery":{"auto_repair_enabled":False,"consecutive_threshold":2,"max_repairs_per_window":2},
+ "recovery":{"auto_repair_enabled":False,"consecutive_threshold":2,"max_repairs_per_window":2,"repair_window_seconds":3600},
  "paths":{"plan":"docs/handoff/FROZEN_RESEARCH_PLAN_N5.json","boundary":"data/reports/research_boundary_lock.json","manifest":"data/reports/research_manifest.json"},
  "production":{"forward":{"service":"quantbot-forward-research.service","data_root":"data/forward_research","checkpoint":"data/forward_research/checkpoints/runtime.json","checkpoint_schema":"quantbot-forward-checkpoint-v2"},"demo":{"service":"quantbot-demo-execution.service","data_root":"data/demo_execution_day0_v1","checkpoint":"data/demo_execution_day0_v1/checkpoints/runtime.json","checkpoint_schema":"quantbot-demo-checkpoint-v1","forward_signals":"data/forward_research/signals"}}}
 def load(path):
