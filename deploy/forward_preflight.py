@@ -102,11 +102,11 @@ def main() -> int:
     parser.add_argument("--release", required=True)
     parser.add_argument("--checkpoint", required=True)
     parser.add_argument("--target-commit", required=True)
-    parser.add_argument("--upgrade-mode", action="store_true")
+    parser.add_argument("--upgrade-resume", action="store_true")
     parser.add_argument("--approved-predecessor-commit")
     args = parser.parse_args()
     value = validate_startup(release_root=args.release, checkpoint_path=args.checkpoint,
-                             target_commit=args.target_commit, upgrade_mode=args.upgrade_mode,
+                             target_commit=args.target_commit, upgrade_mode=args.upgrade_resume,
                              approved_predecessor_commit=args.approved_predecessor_commit)
     print(json.dumps({"FORWARD_RELEASE_PREFLIGHT_OK": True, **value}, sort_keys=True))
     return 0

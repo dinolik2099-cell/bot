@@ -21,6 +21,12 @@ and `deploy/forward_watchdog.py`.  They bind a release root to an exact target
 Git commit and validate an existing Forward checkpoint without rewriting it.
 Normal startup and watchdog operation require the checkpoint commit to equal
 the target.  A one-time cutover invocation may additionally name exactly one
-approved predecessor commit with `--upgrade-mode`; this compatibility expires
+approved predecessor commit with `--upgrade-resume`; this compatibility expires
 as soon as the new process writes its natural target-bound checkpoint.  The
 watchdog has no predecessor option and remains target-only.
+
+For the corresponding runtime start, use the same exact predecessor SHA only
+with `scripts/run_forward_research.py --serve --upgrade-resume
+--approved-predecessor-commit <SHA>`.  Both flags are required together and
+the authorization is process-local: it is not written into the checkpoint.
+Later target-only starts use neither flag.

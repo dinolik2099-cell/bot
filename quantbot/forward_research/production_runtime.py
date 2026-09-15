@@ -9,6 +9,7 @@ import signal
 import subprocess
 import threading
 import time
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -25,6 +26,8 @@ from .service_runtime import build_service
 from .universe import refresh_universe
 from .bootstrap import fetch_completed_1h_candles, frozen_warmup_bars
 from .daily_manifest import seal_daily_manifest, verify_daily_manifest
+
+_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _retire_reader_generation(workers, transport, *, pipeline=None, join_timeout=35, drain_timeout=30):
@@ -70,7 +73,8 @@ def _public_json(url: str, session):
 
 class ForwardServiceAuthority:
     """One authority object binds all service lifecycle provenance."""
-    def __init__(self, *, config_path, plan_path, declaration_path, data_root, checkpoint_path, repo_root=".", _session=None):
+    def __init__(self, *, config_path, plan_path, declaration_path, data_root, checkpoint_path, repo_root=".",
+                 upgrade_resume=False, approved_predecessor_commit=None, _session=None):
         assert_shadow_only()
         from .config import validate_config
         self.config_path, self.plan_path, self.declaration_path = config_path, plan_path, declaration_path
@@ -78,6 +82,12 @@ class ForwardServiceAuthority:
         self.plan = load_n5_plan(plan_path)
         self.manifest = load_forward_declaration_manifest(declaration_path, self.plan)
         self.git_commit = current_git_commit(repo_root)
+        if bool(upgrade_resume) != bool(approved_predecessor_commit):
+            raise ForwardResearchError("forward_upgrade_resume_authorization_invalid")
+        if approved_predecessor_commit is not None and (not isinstance(approved_predecessor_commit, str) or not _COMMIT.fullmatch(approved_predecessor_commit) or approved_predecessor_commit == self.git_commit):
+            raise ForwardResearchError("forward_upgrade_predecessor_invalid")
+        self._upgrade_resume = bool(upgrade_resume)
+        self._approved_predecessor_commit = approved_predecessor_commit
         if _session is None:
             import requests
             _session = requests.Session()
@@ -146,8 +156,17 @@ class ForwardServiceAuthority:
     def resume(self):
         if not self.checkpoint_path.exists():
             return None
-        return load_checkpoint(self.checkpoint_path, config_identity=self.config["config_identity"], git_commit=self.git_commit,
-                               research_plan_identity=self.plan["research_plan_identity"], declaration_manifest_identity=self.manifest["manifest_identity"])
+        # Keep every existing identity check.  Only the Git provenance fence is
+        # conditionally widened for one explicit, non-persistent cutover start.
+        checkpoint = load_checkpoint(self.checkpoint_path, config_identity=self.config["config_identity"],
+                                     research_plan_identity=self.plan["research_plan_identity"],
+                                     declaration_manifest_identity=self.manifest["manifest_identity"])
+        if checkpoint.get("schema_version") != "quantbot-forward-checkpoint-v2" or checkpoint.get("forward_research_only") is not True or checkpoint.get("oos_allowed") is not False or not isinstance(checkpoint.get("runtime"), dict):
+            raise ForwardResearchError("forward_resume_checkpoint_safety_invalid")
+        actual = checkpoint.get("git_commit")
+        if actual != self.git_commit and (not self._upgrade_resume or actual != self._approved_predecessor_commit):
+            raise ValueError("forward_checkpoint_git_drift")
+        return checkpoint
 
     def checkpoint(self):
         if self.orchestrator is not None:
@@ -240,10 +259,11 @@ class ForwardServiceAuthority:
             raise ForwardResearchError('forward_pipeline_shutdown_timeout')
 
 
-def build_production_authority(*, config_path, plan_path, declaration_path, data_root, checkpoint_path, repo_root="."):
+def build_production_authority(*, config_path, plan_path, declaration_path, data_root, checkpoint_path, repo_root=".", upgrade_resume=False, approved_predecessor_commit=None):
     """Public constructor used only by the explicit --serve CLI authority mode."""
     return ForwardServiceAuthority(config_path=config_path, plan_path=plan_path, declaration_path=declaration_path,
-                                   data_root=data_root, checkpoint_path=checkpoint_path, repo_root=repo_root)
+                                   data_root=data_root, checkpoint_path=checkpoint_path, repo_root=repo_root,
+                                   upgrade_resume=upgrade_resume, approved_predecessor_commit=approved_predecessor_commit)
 
 
 def _build_authority_for_test(**kwargs):
