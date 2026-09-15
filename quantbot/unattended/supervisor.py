@@ -101,22 +101,26 @@ class UnattendedSupervisor:
         return row
     def run_once(self,shadow=True):
         issues=[];plan,boundary,manifest=self._historical(issues);forward_service,forward=self._forward(plan or {},issues);demo_service,demo=self._demo(issues);self._cross_chain(plan or {},forward,demo,issues);host=self._host(issues)
-        timestamp=self.clock();state=self.state.observe(issues,timestamp);actions=[]
+        timestamp=self.clock();state=self.state.observe(issues,timestamp,self.config["recovery"]["repair_window_seconds"]);actions=[]
         for item in issues:
             lifecycle=state["issues"][item.fingerprint]["lifecycle_id"]
-            if item.severity in {Status.ALERT,Status.BLOCKED} and self.state.mark_notified(f"alert:{item.fingerprint}:{lifecycle}",timestamp):self.notifier.notify(f"QuantBot {item.severity.value}: {item.code}")
+            if item.severity in {Status.ALERT,Status.BLOCKED}:self.state.queue_notification(f"alert:{item.fingerprint}:{lifecycle}","ALERT",f"QuantBot {item.severity.value}: {item.code}",timestamp)
             action="SHADOW_ONLY" if shadow else self.recovery.decide(item,state,lifecycle)
             action_details={}
             if action=="REPAIR_ELIGIBLE":
                 self.state.record_repair(fingerprint=item.fingerprint,lifecycle_id=lifecycle,timestamp=timestamp,status="ATTEMPT",window_seconds=self.config["recovery"]["repair_window_seconds"])
                 try:
                     self.recovery.execute(item);self.state.record_repair(fingerprint=item.fingerprint,lifecycle_id=lifecycle,timestamp=timestamp,status="SUCCESS",window_seconds=self.config["recovery"]["repair_window_seconds"]);action="REPAIRED"
-                    if self.state.mark_notified(f"repair_success:{item.fingerprint}:{lifecycle}",timestamp):self.notifier.notify(f"QuantBot auto-repair attempt success: {item.code}")
+                    self.state.queue_notification(f"repair_success:{item.fingerprint}:{lifecycle}","REPAIR_SUCCESS",f"QuantBot auto-repair attempt success: {item.code}",timestamp)
                 except Exception as exc:
                     error_type=type(exc).__name__;self.state.record_repair(fingerprint=item.fingerprint,lifecycle_id=lifecycle,timestamp=timestamp,status="FAILURE",error_type=error_type,window_seconds=self.config["recovery"]["repair_window_seconds"]);action="REPAIR_FAILED";action_details={"error_type":error_type}
             actions.append({"fingerprint":item.fingerprint,"action":action,**action_details})
-        for recovered in self.state.pending_recoveries():
-            if self.state.mark_recovered_notified(recovered["fingerprint"],recovered["lifecycle_id"],timestamp):self.notifier.notify("QuantBot RECOVERED")
+        for recovered in self.state.load()["recoveries"]:self.state.queue_notification(f"recovered:{recovered['fingerprint']}:{recovered['lifecycle_id']}","RECOVERED","QuantBot RECOVERED",timestamp)
+        for identity,row in self.state.pending_notifications():
+            self.state.delivery_attempt(identity,timestamp)
+            try:self.notifier.notify(row["message"])
+            except Exception:continue
+            self.state.mark_sent(identity,timestamp)
         return {"schema_version":"quantbot-unattended-report-v1","timestamp":timestamp,"overall":overall(issues).value,"issues":[item.as_dict() for item in issues],"actions":actions,"shadow":bool(shadow),"services":{"forward":forward_service,"demo":demo_service},"host":host,"identities":{"research_plan_identity":(plan or {}).get("research_plan_identity"),"forward_checkpoint_plan":(forward or {}).get("research_plan_identity")}}
 
 def now_timestamp(path):

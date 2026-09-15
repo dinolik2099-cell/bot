@@ -22,6 +22,11 @@ class Sink:
  def __init__(self):self.messages=[]
  def enabled(self):return True
  def notify(self,message):self.messages.append(message)
+class FlakySink(Sink):
+ def __init__(self,failures=1):super().__init__();self.failures=failures
+ def notify(self,message):
+  if self.failures:self.failures-=1;raise RuntimeError("synthetic_notification_failure")
+  super().notify(message)
 def write(root,name,value):
  path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(value),encoding="utf-8")
 def base(root):
@@ -40,7 +45,7 @@ def main():
   # Consecutive strikes, stable fingerprint, durable success and restart-safe budget.
   first=supervisor.run_once(shadow=False);fault=next(row for row in first["issues"] if row["code"]=="forward_checkpoint_stale");assert first["overall"]=="ALERT" and adapter.calls==[] and first["actions"][0]["action"]=="AWAIT_CONFIRMATION"
   second=supervisor.run_once(shadow=False);assert adapter.calls==["quantbot-forward-research.service"] and next(row for row in second["issues"] if row["code"]=="forward_checkpoint_stale")["fingerprint"]==fault["fingerprint"]
-  durable=StateStore(root/"state.json").load();assert len(durable["repairs"])==2 and {row["status"] for row in durable["repairs"]}=={"ATTEMPT","SUCCESS"}
+  durable=StateStore(root/"state.json").load();assert len(durable["repairs"])==2 and {row["status"] for row in durable["repairs"]}=={"ATTEMPT","SUCCESS"} and any(row["kind"]=="REPAIR_SUCCESS" and row["state"]=="SENT" for row in durable["notifications"].values())
   restarted=runner(root,probe,sink,adapter,auto=True);locked=restarted.run_once(shadow=False);assert adapter.calls==["quantbot-forward-research.service"] and "AUTO_REPAIR_LOCKED" in {row["action"] for row in locked["actions"]}
   # Actual health disappearance produces one recovered event, never merely adapter success.
   restarted.config["thresholds"]["checkpoint_age_seconds"]=999999;os.utime(root/"data/forward_research/checkpoints/runtime.json",None);healthy=restarted.run_once(shadow=False);assert healthy["overall"]=="HEALTHY" and sum(message=="QuantBot RECOVERED" for message in sink.messages)==1
@@ -59,10 +64,21 @@ def main():
   safe.config["production"]["forward"]["checkpoint"]="data/forward_research/checkpoints/missing.json";assert "missing_forward_checkpoint" in codes(safe.run_once(shadow=False)) and safe_adapter.calls==[]
   safe.config["production"]["forward"]["checkpoint"]="data/forward_research/checkpoints/runtime.json";(safe_root/"docs/handoff/FROZEN_RESEARCH_PLAN_N5.json").unlink();assert "missing_plan" in codes(safe.run_once(shadow=False)) and safe_adapter.calls==[]
   safe_probe.disk=99;assert "host_disk_high" in codes(safe.run_once(shadow=False)) and safe_adapter.calls==[]
+  # Notification intent is durable first, then retried at-least-once until SENT.
+  outbox_root=root/"outbox";base(outbox_root);stale(outbox_root);flaky=FlakySink();outbox=runner(outbox_root,Probe(),flaky,Recovery(),auto=False);outbox.run_once(shadow=True);pending=StateStore(outbox_root/"state.json").load()["notifications"];assert len(pending)==1 and next(iter(pending.values()))["state"]=="PENDING"
+  outbox=runner(outbox_root,Probe(),flaky,Recovery(),auto=False);outbox.run_once(shadow=True);sent=StateStore(outbox_root/"state.json").load()["notifications"];assert next(iter(sent.values()))["state"]=="SENT" and len(flaky.messages)==1;outbox.run_once(shadow=True);assert len(flaky.messages)==1
+  outbox.config["thresholds"]["checkpoint_age_seconds"]=999999;os.utime(outbox_root/"data/forward_research/checkpoints/runtime.json",None);flaky.failures=1;outbox.run_once(shadow=True);assert any(row["kind"]=="RECOVERED" and row["state"]=="PENDING" for row in StateStore(outbox_root/"state.json").load()["notifications"].values());outbox.run_once(shadow=True);assert sum(message=="QuantBot RECOVERED" for message in flaky.messages)==1
+  # Future, rollback and malformed repair timestamps permanently fail safe.
+  for label,row in (("future",{"timestamp":"2999-01-01T00:00:00+00:00"}),("rollback",{"timestamp":"2026-01-02T00:00:00+00:00","clock":"2027-01-01T00:00:00+00:00"}),("malformed",{"timestamp":"not-a-time"})):
+   time_root=root/label;base(time_root);store=StateStore(time_root/"state.json");state=store.load();state["repairs"]=[{"timestamp":row["timestamp"],"status":"ATTEMPT"}];
+   if "clock" in row:state["repair_clock"]=row["clock"]
+   store.write(state);checked=store.observe([],"2026-01-01T00:00:00+00:00",3600);assert checked["repair_window_untrusted"] is True
+  stale(time_root);locked_time=runner(time_root,Probe(),Sink(),Recovery(),auto=True).run_once(shadow=False);assert "AUTO_REPAIR_LOCKED" in {row["action"] for row in locked_time["actions"]}
   assert StateStore(root/"state.json").load()["schema_version"]=="quantbot-unattended-state-v1"
  print("UNATTENDED_HEALTHY_ALL_CHAIN=PASS")
  print("CONSECUTIVE_STRIKES=PASS");print("REPAIR_STATE_DURABLE=PASS");print("REPAIR_BUDGET_RESTART_SAFE=PASS");print("REPAIR_FAILURE_DURABLE=PASS")
  print("RECOVERED_EXACTLY_ONCE=PASS");print("FAULT_RECURRENCE_NEW_LIFECYCLE=PASS");print("RECURRENCE_CANNOT_BYPASS_BUDGET=PASS");print("REPAIR_SUCCESS_NOT_EQUAL_RECOVERED=PASS")
  print("SHADOW_NEVER_REPAIRS=PASS");print("STATE_ATOMIC_WRITE=PASS");print("SECRET_REDACTION=PASS")
+ print("NOTIFICATION_DURABLE_AT_LEAST_ONCE=PASS");print("REPAIR_WINDOW_TIME_FAIL_SAFE=PASS")
  print("OOS_READS=0");print("REAL_SYSTEMCTL_MUTATIONS=0");print("LIVE_ORDER_PLACEMENT=0")
 if __name__=="__main__":main()

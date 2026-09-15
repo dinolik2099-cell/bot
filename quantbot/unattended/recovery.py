@@ -9,6 +9,7 @@ class RecoveryController:
     def decide(self,issue:Issue,state,lifecycle_id):
         policy=self.config["recovery"]
         if not policy.get("auto_repair_enabled",False) or issue.code in NEVER_REPAIR or not issue.auto_repair_allowed:return "SHADOW_ONLY"
+        if state.get("repair_window_untrusted") is True:return "AUTO_REPAIR_LOCKED"
         row=state.get("issues",{}).get(issue.fingerprint,{})
         if int(row.get("count",0))<int(policy.get("consecutive_threshold",2)):return "AWAIT_CONFIRMATION"
         repairs=state.get("repairs",[])
