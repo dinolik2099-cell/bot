@@ -7,6 +7,7 @@ __pycache__/
 data/
 reports/
 logs/
+server_local_audit/
 
 # Historical delivery archives remain local-only.
 *.tar.gz

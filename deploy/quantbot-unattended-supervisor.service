@@ -1,0 +1,9 @@
+[Unit]
+Description=QuantBot whole-project unattended supervisor (shadow)
+After=network-online.target
+[Service]
+Type=oneshot
+WorkingDirectory=/www/wwwroot/QuantBot
+EnvironmentFile=-/etc/quantbot/unattended-supervisor.env
+ExecStart=/www/wwwroot/QuantBot/venv/bin/python -B scripts/run_unattended_supervisor.py --once --shadow --json
+NoNewPrivileges=true
