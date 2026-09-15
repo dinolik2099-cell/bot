@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
+import uuid
 from pathlib import Path
 
 from .core import DemoExecutionError, canon, identity, utc_now
@@ -55,6 +57,7 @@ def _validate_checkpoint(checkpoint: dict, *, expected_git_commit: str, expected
         raise DemoExecutionError('demo_recovery_predecessor_cursor_invalid')
     if type(checkpoint.get('fills_seen')) is not int or checkpoint['fills_seen'] != 0:
         raise DemoExecutionError('demo_recovery_predecessor_fills_not_safe')
+    _require_sha(checkpoint.get('source_forward_identity'), 'predecessor_forward_identity', 64)
 
 
 def _validate_ledger(rows) -> None:
@@ -77,6 +80,7 @@ def create_recovery_epoch(*, predecessor_root, predecessor_checkpoint, expected_
     predecessor_root = Path(predecessor_root).resolve()
     predecessor_checkpoint = Path(predecessor_checkpoint).resolve()
     target_root = Path(target_root).resolve()
+    forward_root = Path(forward_root).resolve()
     expected_predecessor_git_commit = _require_sha(expected_predecessor_git_commit, 'predecessor_git_commit', 40)
     expected_predecessor_config_identity = _require_sha(expected_predecessor_config_identity, 'predecessor_config_identity', 64)
     target_git_commit = _require_sha(target_git_commit, 'target_git_commit', 40)
@@ -89,7 +93,7 @@ def create_recovery_epoch(*, predecessor_root, predecessor_checkpoint, expected_
     ledger_path = predecessor_root / 'runtime' / 'ledger.json'
     if not ledger_path.is_file():
         raise DemoExecutionError('demo_recovery_predecessor_ledger_missing')
-    if target_root.exists():
+    if target_root.exists() or not target_root.parent.is_dir():
         raise DemoExecutionError('demo_recovery_target_root_exists')
 
     checkpoint_hash_before = _sha256_bytes(predecessor_checkpoint)
@@ -99,6 +103,9 @@ def create_recovery_epoch(*, predecessor_root, predecessor_checkpoint, expected_
     _validate_checkpoint(checkpoint, expected_git_commit=expected_predecessor_git_commit,
                          expected_config_identity=expected_predecessor_config_identity)
     _validate_ledger(ledger_rows)
+    source_forward_identity = identity({'root': str(forward_root)})
+    if source_forward_identity != checkpoint['source_forward_identity']:
+        raise DemoExecutionError('demo_recovery_predecessor_forward_mismatch')
 
     provenance = {
         'schema_version': 'quantbot-demo-recovery-v1',
@@ -110,15 +117,19 @@ def create_recovery_epoch(*, predecessor_root, predecessor_checkpoint, expected_
         'predecessor_cursor': checkpoint['last_signal_cursor'],
         'predecessor_git_commit': expected_predecessor_git_commit,
         'predecessor_config_identity': expected_predecessor_config_identity,
+        'source_forward_identity': source_forward_identity,
+        'forward_root': str(forward_root),
         'target_git_commit': target_git_commit,
         'target_config_identity': target_config_identity,
         'recovery_reason': recovery_reason,
         'old_intents_not_replayed': True,
     }
     provenance['recovery_identity'] = identity(provenance)
-    target_root.mkdir(parents=True, exist_ok=False)
-    persistence = DemoPersistence(target_root)
+    staging_root = target_root.parent / f'.{target_root.name}.recovery-staging-{uuid.uuid4().hex}'
+    persistence = None
     try:
+        staging_root.mkdir()
+        persistence = DemoPersistence(staging_root)
         persistence.append('recovery', utc_now()[:10], provenance)
         new_checkpoint = {
             'schema_version': CHECKPOINT_SCHEMA,
@@ -126,7 +137,7 @@ def create_recovery_epoch(*, predecessor_root, predecessor_checkpoint, expected_
             'demo_epoch': target_root.name,
             'demo_epoch_start': utc_now(),
             'config_identity': target_config_identity,
-            'source_forward_identity': identity({'root': str(Path(forward_root))}),
+            'source_forward_identity': source_forward_identity,
             'last_signal_cursor': checkpoint['last_signal_cursor'],
             'orders_seen': 0,
             'fills_seen': 0,
@@ -138,9 +149,35 @@ def create_recovery_epoch(*, predecessor_root, predecessor_checkpoint, expected_
         new_checkpoint['checkpoint_identity'] = identity(new_checkpoint)
         persistence.write_checkpoint(new_checkpoint)
         persistence.flush()
-    finally:
         persistence.close()
-    if _sha256_bytes(predecessor_checkpoint) != checkpoint_hash_before or _sha256_bytes(ledger_path) != ledger_hash_before:
-        raise DemoExecutionError('demo_recovery_predecessor_mutation_detected')
+        staged_checkpoint = _read_json(staging_root / 'checkpoints' / 'runtime.json', 'staged_checkpoint')
+        if staged_checkpoint.get('checkpoint_identity') != identity({key: value for key, value in staged_checkpoint.items() if key != 'checkpoint_identity'}):
+            raise DemoExecutionError('demo_recovery_staged_checkpoint_identity_invalid')
+        staged_provenance = _read_json(next((staging_root / 'recovery').glob('*/*.jsonl')), 'staged_provenance')
+        if staged_provenance.get('recovery_identity') != identity({key: value for key, value in staged_provenance.items() if key not in {'created_at', 'recovery_identity'}}):
+            raise DemoExecutionError('demo_recovery_staged_provenance_identity_invalid')
+        if _sha256_bytes(predecessor_checkpoint) != checkpoint_hash_before or _sha256_bytes(ledger_path) != ledger_hash_before:
+            raise DemoExecutionError('demo_recovery_predecessor_mutation_detected')
+        if target_root.exists():
+            raise DemoExecutionError('demo_recovery_target_root_exists')
+        staging_root.rename(target_root)
+    except DemoExecutionError:
+        if persistence is not None:
+            try:
+                persistence.close()
+            except Exception:
+                pass
+        if staging_root.exists():
+            shutil.rmtree(staging_root)
+        raise
+    except Exception as exc:
+        if persistence is not None:
+            try:
+                persistence.close()
+            except Exception:
+                pass
+        if staging_root.exists():
+            shutil.rmtree(staging_root)
+        raise DemoExecutionError('demo_recovery_target_write_failed') from exc
     return {'target_root': str(target_root), 'checkpoint_identity': new_checkpoint['checkpoint_identity'],
             'recovery_identity': provenance['recovery_identity'], 'cursor': checkpoint['last_signal_cursor']}

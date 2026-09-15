@@ -8,6 +8,7 @@ from pathlib import Path
 from quantbot.demo_execution.config import validate_config
 from quantbot.demo_execution.core import DemoExecutionError, identity
 from quantbot.demo_execution.epoch_recovery import create_recovery_epoch
+from quantbot.demo_execution.persistence import DemoPersistence
 from quantbot.demo_execution.runtime import DemoRuntime
 from quantbot.demo_execution.execution_engine import DemoExecutionEngine
 
@@ -38,13 +39,14 @@ def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def write_predecessor(root, cfg, *, state='INTENT_CREATED', fills=0, malformed=False):
+def write_predecessor(root, cfg, *, state='INTENT_CREATED', fills=0, malformed=False, forward_root=None):
     root = Path(root)
+    forward_root = Path(forward_root or root.parent / 'forward_read_only').resolve()
     (root / 'checkpoints').mkdir(parents=True)
     (root / 'runtime').mkdir(parents=True)
     checkpoint = {'schema_version': 'quantbot-demo-checkpoint-v1', 'git_commit': PREDECESSOR_COMMIT,
                   'demo_epoch': root.name, 'demo_epoch_start': '2026-09-15T00:00:00+00:00',
-                  'config_identity': cfg['config_identity'], 'source_forward_identity': 'f' * 64,
+                  'config_identity': cfg['config_identity'], 'source_forward_identity': identity({'root': str(forward_root)}),
                   'last_signal_cursor': 'signals/2026-09-15/signals.jsonl:15967', 'orders_seen': 1,
                   'fills_seen': fills, 'reconciliation': {}, 'fail_closed': True,
                   'runtime_health': {'live_order_endpoint_allowed': False}}
@@ -98,8 +100,11 @@ def main():
         assert result['cursor'] == old_checkpoint['last_signal_cursor'] == checkpoint['last_signal_cursor']
         assert checkpoint['fail_closed'] is False and checkpoint['git_commit'] == TARGET_COMMIT
         assert checkpoint['config_identity'] == cfg['config_identity'] and checkpoint['recovery']['recovery_identity'] == result['recovery_identity']
+        assert checkpoint['checkpoint_identity'] == identity({key: value for key, value in checkpoint.items() if key != 'checkpoint_identity'})
+        assert provenance['recovery_identity'] == identity({key: value for key, value in provenance.items() if key not in {'created_at', 'recovery_identity'}})
         assert provenance['predecessor_epoch'] == predecessor.name and provenance['predecessor_checkpoint_identity'] == old_checkpoint['checkpoint_identity']
         assert provenance['predecessor_cursor'] == old_checkpoint['last_signal_cursor'] and provenance['old_intents_not_replayed'] is True
+        assert provenance['source_forward_identity'] == old_checkpoint['source_forward_identity'] and provenance['forward_root'] == str((root / 'forward_read_only').resolve())
         assert checkpoint_hash == sha(checkpoint_path) and ledger_hash == sha(ledger_path)
         assert not (target / 'runtime' / 'ledger.json').exists()
 
@@ -131,9 +136,24 @@ def main():
         malformed = root / 'malformed'
         write_predecessor(malformed, cfg, malformed=True)
         blocked(lambda: recover(malformed, root / 'target_malformed', cfg))
+        wrong_forward = root / 'wrong_forward'
+        write_predecessor(wrong_forward, cfg)
+        blocked(lambda: recover(wrong_forward, root / 'target_wrong_forward', cfg, forward_root=root / 'other_forward'))
         existing = root / 'existing_target'
         existing.mkdir()
         blocked(lambda: recover(wrong_git, existing, cfg))
+        failing_target = root / 'target_mid_write_failure'
+        failing_checkpoint_hash, failing_ledger_hash = sha(checkpoint_path), sha(ledger_path)
+        original_write_checkpoint = DemoPersistence.write_checkpoint
+        def fail_mid_write(self, _row):
+            raise OSError('synthetic_checkpoint_write_failure')
+        DemoPersistence.write_checkpoint = fail_mid_write
+        try:
+            blocked(lambda: recover(predecessor, failing_target, cfg))
+        finally:
+            DemoPersistence.write_checkpoint = original_write_checkpoint
+        assert not failing_target.exists() and not list(root.glob(f'.{failing_target.name}.recovery-staging-*'))
+        assert failing_checkpoint_hash == sha(checkpoint_path) and failing_ledger_hash == sha(ledger_path)
     print('DEMO_RECOVERY_SAFE_PREDECESSOR_CREATE_ONLY=PASS')
     print('DEMO_RECOVERY_CURSOR_EXACT_INHERITANCE=PASS')
     print('DEMO_RECOVERY_PROVENANCE_COMPLETE=PASS')
@@ -142,7 +162,10 @@ def main():
     print('DEMO_RECOVERY_AMBIGUOUS_RECONCILING_REJECTED=PASS')
     print('DEMO_RECOVERY_FILLED_OR_NONZERO_FILLS_REJECTED=PASS')
     print('DEMO_RECOVERY_WRONG_IDENTITY_AND_MALFORMED_REJECTED=PASS')
+    print('DEMO_RECOVERY_WRONG_FORWARD_ROOT_REJECTED=PASS')
     print('DEMO_RECOVERY_EXISTING_TARGET_REJECTED=PASS')
+    print('DEMO_RECOVERY_MID_WRITE_FAILURE_ATOMIC=PASS')
+    print('DEMO_RECOVERY_FINAL_IDENTITIES_RECOMPUTE=PASS')
     print('DEMO_RECOVERY_NO_BINANCE_OR_ORDER_ACCESS=PASS')
     print('DEMO_RECOVERY_STARTUP_RECONCILIATION_STILL_FAIL_CLOSED=PASS')
     print('OOS_READS=0')
