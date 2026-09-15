@@ -176,7 +176,6 @@ class ForwardServiceAuthority:
     def serve(self):
         """Explicit production mode.  Uses public websocket-client only."""
         self.resume()
-        service = self.build_service()
         try:
             import websocket
         except ImportError as exc:
@@ -189,48 +188,54 @@ class ForwardServiceAuthority:
             return websocket.create_connection(url, timeout=30)
         # Transport owns reconnect/backoff.  Each shard runs independently;
         # only this supervisor owns checkpointing and universe membership.
-        generation_stop = threading.Event()
-        def should_stop(): return self._shutdown.is_set() or generation_stop.is_set()
-        def stream_connection(url):
-            ws = websocket.create_connection(url, timeout=30)
-            def messages():
-                try:
-                    while not should_stop():
-                        yield ws.recv()
-                finally:
-                    ws.close()
-            return messages()
-        workers = [threading.Thread(target=service["transport"].run_shard,
-                                    args=(url, stream_connection, lambda: datetime.now(timezone.utc).isoformat(), should_stop),
-                                    daemon=True, name=f"forward-public-{index}")
-                   for index, url in enumerate(service["transport"].shard_urls())]
-        for worker in workers: worker.start()
         refresh_seconds = max(1, int(self.config.get("universe_refresh_seconds", 300)))
         checkpoint_seconds = max(1, int(self.config.get("snapshot_seconds", 60)))
-        last_refresh = last_checkpoint = time.monotonic()
-        while not self._shutdown.wait(1):
-            now = time.monotonic()
-            if now - last_checkpoint >= checkpoint_seconds:
-                self.checkpoint(); last_checkpoint = now
-            if now - last_refresh >= refresh_seconds:
-                previous = self.universe["membership_identity"]
-                self.refresh_universe()
-                last_refresh = now
-                if self.universe["membership_identity"] != previous:
-                    generation_stop.set()
-                    break
-        generation_stop.set()
-        try:
-            _retire_reader_generation(workers,service['transport'],pipeline=self.pipeline)
-        finally:
-            # Once ingress is closed, both graceful retirement and a surfaced
-            # fail-closed transport error must durably flush accepted rows.
-            self.orchestrator.persistence.flush()
-            self.checkpoint()
-        # A changed membership gets a fresh transport generation, while the
-        # coordinator retains surviving-symbol state and preserves evidence.
-        if not self._shutdown.is_set():
-            return self.serve()
+        # The coordinator is deliberately iterative.  A membership change
+        # retires one bounded reader generation before this loop creates its
+        # replacement; recursive self.serve() would otherwise grow the stack
+        # for every ordinary universe rollover.
+        while not self._shutdown.is_set():
+            service = self.build_service()
+            generation_stop = threading.Event()
+            rollover = False
+            def should_stop(): return self._shutdown.is_set() or generation_stop.is_set()
+            def stream_connection(url):
+                ws = websocket.create_connection(url, timeout=30)
+                def messages():
+                    try:
+                        while not should_stop():
+                            yield ws.recv()
+                    finally:
+                        ws.close()
+                return messages()
+            workers = [threading.Thread(target=service["transport"].run_shard,
+                                        args=(url, stream_connection, lambda: datetime.now(timezone.utc).isoformat(), should_stop),
+                                        daemon=True, name=f"forward-public-{index}")
+                       for index, url in enumerate(service["transport"].shard_urls())]
+            for worker in workers: worker.start()
+            last_refresh = last_checkpoint = time.monotonic()
+            while not self._shutdown.wait(1):
+                now = time.monotonic()
+                if now - last_checkpoint >= checkpoint_seconds:
+                    self.checkpoint(); last_checkpoint = now
+                if now - last_refresh >= refresh_seconds:
+                    previous = self.universe["membership_identity"]
+                    self.refresh_universe()
+                    last_refresh = now
+                    if self.universe["membership_identity"] != previous:
+                        rollover = True
+                        generation_stop.set()
+                        break
+            generation_stop.set()
+            try:
+                _retire_reader_generation(workers,service['transport'],pipeline=self.pipeline)
+            finally:
+                # Once ingress is closed, both graceful retirement and a surfaced
+                # fail-closed transport error must durably flush accepted rows.
+                self.orchestrator.persistence.flush()
+                self.checkpoint()
+            if not rollover:
+                break
         if self.pipeline is not None and not self.pipeline.close(timeout=30):
             raise ForwardResearchError('forward_pipeline_shutdown_timeout')
 
