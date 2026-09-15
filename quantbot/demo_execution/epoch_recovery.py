@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .core import DemoExecutionError, canon, identity, utc_now
@@ -20,6 +22,7 @@ SAFE_PREDECESSOR_STATES = {
     OrderState.REJECTED_VENUE.value,
     OrderState.SKIPPED.value,
 }
+FILLED_AUTHORIZATION_SCHEMA = 'quantbot-demo-filled-recovery-authorization-v1'
 
 
 def _sha256_bytes(path: Path) -> str:
@@ -41,7 +44,7 @@ def _read_json(path: Path, name: str):
     return value
 
 
-def _validate_checkpoint(checkpoint: dict, *, expected_git_commit: str, expected_config_identity: str) -> None:
+def _validate_checkpoint(checkpoint: dict, *, expected_git_commit: str, expected_config_identity: str, require_zero_fills=True) -> None:
     if not isinstance(checkpoint, dict) or checkpoint.get('schema_version') != CHECKPOINT_SCHEMA:
         raise DemoExecutionError('demo_recovery_checkpoint_schema_invalid')
     stored_identity = checkpoint.get('checkpoint_identity')
@@ -55,7 +58,7 @@ def _validate_checkpoint(checkpoint: dict, *, expected_git_commit: str, expected
         raise DemoExecutionError('demo_recovery_predecessor_not_fail_closed')
     if not isinstance(checkpoint.get('last_signal_cursor'), str) or not checkpoint['last_signal_cursor']:
         raise DemoExecutionError('demo_recovery_predecessor_cursor_invalid')
-    if type(checkpoint.get('fills_seen')) is not int or checkpoint['fills_seen'] != 0:
+    if type(checkpoint.get('fills_seen')) is not int or (require_zero_fills and checkpoint['fills_seen'] != 0):
         raise DemoExecutionError('demo_recovery_predecessor_fills_not_safe')
     _require_sha(checkpoint.get('source_forward_identity'), 'predecessor_forward_identity', 64)
 
@@ -66,6 +69,61 @@ def _validate_ledger(rows) -> None:
     for signal_identity, row in rows.items():
         if not isinstance(signal_identity, str) or not isinstance(row, dict) or row.get('state') not in SAFE_PREDECESSOR_STATES:
             raise DemoExecutionError('demo_recovery_predecessor_execution_ambiguity')
+
+
+def _parse_timestamp(value, name):
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        if parsed.tzinfo is None:
+            raise ValueError('timezone_required')
+        return parsed.astimezone(timezone.utc)
+    except Exception as exc:
+        raise DemoExecutionError(f'demo_recovery_{name}_invalid') from exc
+
+
+def _filled_predecessor(checkpoint, rows):
+    if not isinstance(rows, dict) or not rows:
+        raise DemoExecutionError('demo_recovery_filled_ledger_invalid')
+    filled = 0
+    terminal = {item.value for item in __import__('quantbot.demo_execution.models', fromlist=['TERMINAL']).TERMINAL}
+    for signal_identity, row in rows.items():
+        intent = row.get('intent') if isinstance(row, dict) else None
+        if not isinstance(signal_identity, str) or not isinstance(row, dict) or row.get('state') not in terminal or not isinstance(intent, dict):
+            raise DemoExecutionError('demo_recovery_filled_lifecycle_ambiguity')
+        if not isinstance(row.get('execution_intent_identity'), str) or not isinstance(row.get('client_order_id'), str) or intent.get('action') not in {'OPEN', 'CLOSE'}:
+            raise DemoExecutionError('demo_recovery_filled_lifecycle_ambiguity')
+        if row['state'] == OrderState.FILLED.value:
+            filled += 1
+    if filled == 0 or checkpoint.get('fills_seen') != filled:
+        raise DemoExecutionError('demo_recovery_filled_count_mismatch')
+
+
+def _filled_remote_result(ledger, adapter):
+    """Reuse canonical reconciliation and position attribution without writing predecessor evidence."""
+    from .reconciliation import reconcile
+    from .runtime import DemoRuntime
+
+    # The supplied ledger is already durable and contains terminal rows only;
+    # canonical reconcile therefore performs read-only remote inspection.
+    state = reconcile(ledger, adapter)
+    if state.get('open_orders') != 0:
+        raise DemoExecutionError('demo_recovery_remote_open_orders_present')
+    positions = adapter.positions()
+    class Context:
+        _filled_at = DemoRuntime._filled_at
+        _later_filled_open = DemoRuntime._later_filled_open
+        def __init__(self, ledger): self.ledger = ledger
+    context = Context(ledger)
+    attributed = DemoRuntime._position_attributions(context, positions)
+    for row in ledger.rows.values():
+        current = attributed.get(row['intent'].get('symbol'))
+        if row['state'] == OrderState.FILLED.value and row['intent'].get('action') == 'CLOSE' and current is not None and not context._later_filled_open(row, current['row']):
+            raise DemoExecutionError('demo_recovery_close_position_not_flat')
+    summary = [{'symbol': symbol, 'side': value['side'], 'quantity': format(value['quantity'], 'f'),
+                'execution_intent_identity': value['row']['execution_intent_identity'],
+                'client_order_id': value['row']['client_order_id']}
+               for symbol, value in sorted(attributed.items())]
+    return {'open_orders': state['open_orders'], 'attributed_positions': summary}
 
 
 def create_recovery_epoch(*, predecessor_root, predecessor_checkpoint, expected_predecessor_git_commit: str,
@@ -181,3 +239,130 @@ def create_recovery_epoch(*, predecessor_root, predecessor_checkpoint, expected_
         raise DemoExecutionError('demo_recovery_target_write_failed') from exc
     return {'target_root': str(target_root), 'checkpoint_identity': new_checkpoint['checkpoint_identity'],
             'recovery_identity': provenance['recovery_identity'], 'cursor': checkpoint['last_signal_cursor']}
+
+
+def create_filled_recovery_authorization(*, predecessor_root, predecessor_checkpoint, expected_predecessor_git_commit,
+                                         expected_predecessor_config_identity, target_git_commit, target_config_identity,
+                                         forward_root, authorization_path, adapter, recovery_reason, now=None,
+                                         authorization_ttl_seconds=300):
+    """Create one sealed, read-only reconciliation authorization for a filled predecessor.
+
+    This function deliberately has no order-submission path.  It uses the
+    existing reconciliation and position-attribution logic solely to prove the
+    remote state before a separate local epoch-creation step.
+    """
+    from .ledger import ExecutionLedger
+    predecessor_root, predecessor_checkpoint = Path(predecessor_root).resolve(), Path(predecessor_checkpoint).resolve()
+    forward_root, authorization_path = Path(forward_root).resolve(), Path(authorization_path).resolve()
+    predecessor_git = _require_sha(expected_predecessor_git_commit, 'predecessor_git_commit', 40)
+    predecessor_config = _require_sha(expected_predecessor_config_identity, 'predecessor_config_identity', 64)
+    target_git = _require_sha(target_git_commit, 'target_git_commit', 40)
+    target_config = _require_sha(target_config_identity, 'target_config_identity', 64)
+    if authorization_path.exists() or not authorization_path.parent.is_dir() or not isinstance(recovery_reason, str) or not recovery_reason.strip() or type(authorization_ttl_seconds) is not int or authorization_ttl_seconds <= 0:
+        raise DemoExecutionError('demo_recovery_authorization_path_or_policy_invalid')
+    if predecessor_checkpoint != predecessor_root / 'checkpoints' / 'runtime.json' or not predecessor_checkpoint.is_file():
+        raise DemoExecutionError('demo_recovery_predecessor_checkpoint_path_invalid')
+    ledger_path = predecessor_root / 'runtime' / 'ledger.json'
+    if not ledger_path.is_file():
+        raise DemoExecutionError('demo_recovery_predecessor_ledger_missing')
+    checkpoint_hash, ledger_hash = _sha256_bytes(predecessor_checkpoint), _sha256_bytes(ledger_path)
+    checkpoint, rows = _read_json(predecessor_checkpoint, 'checkpoint'), _read_json(ledger_path, 'ledger')
+    _validate_checkpoint(checkpoint, expected_git_commit=predecessor_git, expected_config_identity=predecessor_config, require_zero_fills=False)
+    _filled_predecessor(checkpoint, rows)
+    source_forward_identity = identity({'root': str(forward_root)})
+    if source_forward_identity != checkpoint['source_forward_identity']:
+        raise DemoExecutionError('demo_recovery_predecessor_forward_mismatch')
+    remote_result = _filled_remote_result(ExecutionLedger(predecessor_root), adapter)
+    verified_at = _parse_timestamp(now or utc_now(), 'authorization_timestamp')
+    authorization = {'schema_version': FILLED_AUTHORIZATION_SCHEMA, 'verified_at': verified_at.isoformat(),
+                     'expires_at': (verified_at + timedelta(seconds=authorization_ttl_seconds)).isoformat(),
+                     'predecessor_epoch': checkpoint['demo_epoch'], 'predecessor_root': str(predecessor_root),
+                     'predecessor_checkpoint_identity': checkpoint['checkpoint_identity'], 'predecessor_checkpoint_sha256': checkpoint_hash,
+                     'predecessor_ledger_sha256': ledger_hash, 'predecessor_cursor': checkpoint['last_signal_cursor'],
+                     'predecessor_git_commit': predecessor_git, 'predecessor_config_identity': predecessor_config,
+                     'source_forward_identity': source_forward_identity, 'forward_root': str(forward_root),
+                     'target_git_commit': target_git, 'target_config_identity': target_config,
+                     'recovery_reason': recovery_reason, 'predecessor_executed_fills': True,
+                     'old_intents_not_replayed': True, 'remote_reconciliation': remote_result}
+    authorization['authorization_identity'] = identity(authorization)
+    try:
+        with authorization_path.open('x', encoding='utf-8') as handle:
+            handle.write(canon(authorization) + '\n'); handle.flush(); os.fsync(handle.fileno())
+    except FileExistsError as exc:
+        raise DemoExecutionError('demo_recovery_authorization_exists') from exc
+    except Exception as exc:
+        if authorization_path.exists(): authorization_path.unlink()
+        raise DemoExecutionError('demo_recovery_authorization_write_failed') from exc
+    if _sha256_bytes(predecessor_checkpoint) != checkpoint_hash or _sha256_bytes(ledger_path) != ledger_hash:
+        raise DemoExecutionError('demo_recovery_predecessor_mutation_detected')
+    return {'authorization_path': str(authorization_path), 'authorization_identity': authorization['authorization_identity'],
+            'expires_at': authorization['expires_at'], 'remote_reconciliation': remote_result}
+
+
+def create_filled_recovery_epoch(*, predecessor_root, predecessor_checkpoint, expected_predecessor_git_commit,
+                                 expected_predecessor_config_identity, target_root, target_git_commit,
+                                 target_config_identity, forward_root, authorization_path, now=None):
+    """Consume one valid filled-predecessor authorization without exchange access."""
+    predecessor_root, predecessor_checkpoint, target_root = Path(predecessor_root).resolve(), Path(predecessor_checkpoint).resolve(), Path(target_root).resolve()
+    forward_root, authorization_path = Path(forward_root).resolve(), Path(authorization_path).resolve()
+    used_path = authorization_path.with_name(authorization_path.name + '.consumed')
+    if predecessor_checkpoint != predecessor_root / 'checkpoints' / 'runtime.json' or not predecessor_checkpoint.is_file():
+        raise DemoExecutionError('demo_recovery_predecessor_checkpoint_path_invalid')
+    if target_root.exists() or not target_root.parent.is_dir() or used_path.exists():
+        raise DemoExecutionError('demo_recovery_target_or_authorization_used')
+    checkpoint_hash, ledger_path = _sha256_bytes(predecessor_checkpoint), predecessor_root / 'runtime' / 'ledger.json'
+    if not ledger_path.is_file(): raise DemoExecutionError('demo_recovery_predecessor_ledger_missing')
+    ledger_hash = _sha256_bytes(ledger_path)
+    checkpoint, rows, authorization = _read_json(predecessor_checkpoint, 'checkpoint'), _read_json(ledger_path, 'ledger'), _read_json(authorization_path, 'authorization')
+    predecessor_git = _require_sha(expected_predecessor_git_commit, 'predecessor_git_commit', 40)
+    predecessor_config = _require_sha(expected_predecessor_config_identity, 'predecessor_config_identity', 64)
+    target_git = _require_sha(target_git_commit, 'target_git_commit', 40)
+    target_config = _require_sha(target_config_identity, 'target_config_identity', 64)
+    _validate_checkpoint(checkpoint, expected_git_commit=predecessor_git, expected_config_identity=predecessor_config, require_zero_fills=False); _filled_predecessor(checkpoint, rows)
+    if not isinstance(authorization, dict) or authorization.get('schema_version') != FILLED_AUTHORIZATION_SCHEMA or authorization.get('authorization_identity') != identity({key: value for key, value in authorization.items() if key != 'authorization_identity'}):
+        raise DemoExecutionError('demo_recovery_authorization_invalid')
+    verified_at, expires_at, current = _parse_timestamp(authorization.get('verified_at'), 'authorization_timestamp'), _parse_timestamp(authorization.get('expires_at'), 'authorization_expiry'), _parse_timestamp(now or utc_now(), 'authorization_now')
+    if current < verified_at or current > expires_at:
+        raise DemoExecutionError('demo_recovery_authorization_stale')
+    expected = {'predecessor_epoch': checkpoint.get('demo_epoch'), 'predecessor_root': str(predecessor_root),
+                'predecessor_checkpoint_identity': checkpoint.get('checkpoint_identity'), 'predecessor_checkpoint_sha256': checkpoint_hash,
+                'predecessor_ledger_sha256': ledger_hash, 'predecessor_cursor': checkpoint.get('last_signal_cursor'),
+                'predecessor_git_commit': predecessor_git, 'predecessor_config_identity': predecessor_config,
+                'source_forward_identity': identity({'root': str(forward_root)}), 'forward_root': str(forward_root),
+                'target_git_commit': target_git, 'target_config_identity': target_config, 'predecessor_executed_fills': True,
+                'old_intents_not_replayed': True}
+    if any(authorization.get(key) != value for key, value in expected.items()) or not isinstance(authorization.get('remote_reconciliation'), dict) or authorization['remote_reconciliation'].get('open_orders') != 0:
+        raise DemoExecutionError('demo_recovery_authorization_provenance_mismatch')
+    provenance = {'schema_version': 'quantbot-demo-recovery-v1', **expected, 'recovery_reason': authorization.get('recovery_reason'),
+                  'filled_recovery_authorization_identity': authorization['authorization_identity'],
+                  'remote_reconciliation': authorization['remote_reconciliation']}
+    provenance['recovery_identity'] = identity(provenance)
+    staging_root, persistence = target_root.parent / f'.{target_root.name}.recovery-staging-{uuid.uuid4().hex}', None
+    try:
+        staging_root.mkdir(); persistence = DemoPersistence(staging_root); persistence.append('recovery', utc_now()[:10], provenance)
+        new_checkpoint = {'schema_version': CHECKPOINT_SCHEMA, 'git_commit': target_git, 'demo_epoch': target_root.name,
+                          'demo_epoch_start': utc_now(), 'config_identity': target_config, 'source_forward_identity': expected['source_forward_identity'],
+                          'last_signal_cursor': checkpoint['last_signal_cursor'], 'orders_seen': 0, 'fills_seen': 0, 'reconciliation': {}, 'fail_closed': False,
+                          'runtime_health': {'live_order_endpoint_allowed': False}, 'recovery': provenance}
+        new_checkpoint['checkpoint_identity'] = identity(new_checkpoint); persistence.write_checkpoint(new_checkpoint); persistence.flush(); persistence.close()
+        staged_checkpoint = _read_json(staging_root / 'checkpoints' / 'runtime.json', 'staged_checkpoint')
+        if staged_checkpoint.get('checkpoint_identity') != identity({key: value for key, value in staged_checkpoint.items() if key != 'checkpoint_identity'}): raise DemoExecutionError('demo_recovery_staged_checkpoint_identity_invalid')
+        if _sha256_bytes(predecessor_checkpoint) != checkpoint_hash or _sha256_bytes(ledger_path) != ledger_hash: raise DemoExecutionError('demo_recovery_predecessor_mutation_detected')
+        staging_root.rename(target_root)
+        with used_path.open('x', encoding='utf-8') as handle:
+            handle.write(canon({'authorization_identity': authorization['authorization_identity'], 'consumed_at': utc_now(), 'target_root': str(target_root)}) + '\n'); handle.flush(); os.fsync(handle.fileno())
+    except DemoExecutionError:
+        if persistence is not None:
+            try:persistence.close()
+            except Exception:pass
+        if staging_root.exists(): shutil.rmtree(staging_root)
+        raise
+    except Exception as exc:
+        if persistence is not None:
+            try:persistence.close()
+            except Exception:pass
+        if staging_root.exists(): shutil.rmtree(staging_root)
+        raise DemoExecutionError('demo_recovery_target_write_failed') from exc
+    return {'target_root': str(target_root), 'checkpoint_identity': new_checkpoint['checkpoint_identity'],
+            'recovery_identity': provenance['recovery_identity'], 'authorization_identity': authorization['authorization_identity'],
+            'cursor': checkpoint['last_signal_cursor']}
