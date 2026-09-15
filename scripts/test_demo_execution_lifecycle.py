@@ -7,6 +7,7 @@ from quantbot.demo_execution.runtime import DemoRuntime,_filters
 from quantbot.demo_execution.execution_engine import DemoExecutionEngine
 from quantbot.demo_execution.core import FailClosedError
 from quantbot.demo_execution.risk import normalize_quantity
+from quantbot.demo_execution.models import ExecutionIntent
 
 def cfg():return validate_config({'environment':'DEMO','live_order_endpoint_allowed':False,'endpoint':'https://demo-fapi.binance.com','execution_policy':{'enabled':True,'position_mode':'ONE_WAY','margin_mode':'ISOLATED','leverage':1,'order_notional':10,'max_signal_age_seconds':3600,'risk':{'max_open_orders':10,'max_total_gross_exposure':100,'max_strategy_exposure':100,'max_order_notional':20,'max_daily_loss':100}}})
 def signal(seed,direction='LONG',model='model'):
@@ -33,6 +34,15 @@ class AaveMinimumDemo(Demo):
  """Valid LOT_SIZE/MIN_NOTIONAL metadata that cannot execute frozen $10."""
  def exchange_info(self):return {'symbols':[{'symbol':'AAVEUSDT','status':'TRADING','filters':[{'filterType':'LOT_SIZE','stepSize':'0.1','minQty':'0.1'},{'filterType':'MARKET_LOT_SIZE','stepSize':'0.01','minQty':'0.01'},{'filterType':'MIN_NOTIONAL','notional':'20'}]}]}
  def ticker_price(self,s):return {'symbol':s,'price':'100'}
+def reconciliation_sequence(root,*,amount='63',later_state='FILLED',close_at='2026-09-15T00:01:00+00:00',later_at='2026-09-15T00:02:00+00:00'):
+ """Build durable OPEN -> CLOSE -> OPEN chronology without any network."""
+ api=Demo();api.amount=amount;runtime=DemoRuntime(cfg(),root,root/'forward',api,'r'*40)
+ def record(seed,direction,action,state,at):
+  row=signal(seed,direction);intent=ExecutionIntent.from_signal(row,10,action);runtime.ledger.create(intent);runtime.ledger.transition(intent.signal_identity,'VALIDATED',quantity='63',dry_run=False);runtime.ledger.transition(intent.signal_identity,state,binance_order_id=seed,remote_status=state)
+  if state=='FILLED':runtime.ledger.rows[intent.signal_identity]['events'][-1]['at']=at;runtime.ledger._save()
+  return runtime.ledger.rows[intent.signal_identity]
+ old=record('q','SHORT','OPEN','FILLED','2026-09-15T00:00:00+00:00');close=record('r','LONG','CLOSE','FILLED',close_at);later=record('s','LONG','OPEN',later_state,later_at)
+ return runtime,api,old,close,later
 def main():
  with tempfile.TemporaryDirectory() as tmp:
   root=Path(tmp);forward=root/'forward';api=Demo();runtime=DemoRuntime(cfg(),root/'day0',forward,api,'a'*40);engine=DemoExecutionEngine(runtime.ledger,runtime.persistence,api,runtime.config,'day0');runtime.startup_reconcile()
@@ -45,6 +55,21 @@ def main():
   append(forward,signal('d'));assert runtime.consume_once(engine,dry_run=False)['processed']==1;assert runtime.ledger.rows['d'*64]['state']=='SKIPPED' and len([x for x in api.calls if x[0]=='order'])==1
   # Reverse signal only closes the actual remote amount; it neither reverses nor reconfigures.
   amount=api.amount;configuration_calls=len([x for x in api.calls if x[0] in {'margin','leverage'}]);engine=DemoExecutionEngine(runtime.ledger,runtime.persistence,api,runtime.config,'day0');append(forward,signal('e','SHORT'));assert runtime.consume_once(engine,dry_run=False)['processed']==1;close=api.calls[-1][1];assert close['reduceOnly']=='true' and float(close['quantity'])==abs(float(amount)) and close['side']=='SELL' and api.amount=='0.0';assert len([x for x in api.calls if x[0] in {'margin','leverage'}])==configuration_calls
+  # A later durable OPEN may legitimately re-establish a symbol after a
+  # FILLED CLOSE.  This is accepted only through strict ledger chronology.
+  sequence,sequence_api,_old,_close,_later=reconciliation_sequence(root/'sequence');assert sequence.reconcile()['attributed_positions']==1 and not sequence.fail_closed;sequence.persistence.close()
+  # A remaining pre-close position is not explained by a later OPEN.
+  residual,residual_api,_old,_close,_later=reconciliation_sequence(root/'residual',amount='-63')
+  try:residual.reconcile();raise AssertionError('residual_close_position_accepted')
+  except FailClosedError:pass
+  residual.persistence.close()
+  # Nonterminal, malformed, or non-later rows cannot explain the current
+  # position and must retain the original fail-closed posture.
+  for label,kwargs in (("nonterminal",{"later_state":"VALIDATED"}),("malformed",{"later_at":"not-a-timestamp"}),("nonlater",{"later_at":"2026-09-15T00:01:00+00:00"})):
+   unsafe,unsafe_api,_old,_close,_later=reconciliation_sequence(root/label,**kwargs)
+   try:unsafe.reconcile();raise AssertionError(f'{label}_close_position_accepted')
+   except FailClosedError:pass
+   unsafe.persistence.close()
   # FILLED remote position plus its FILLED ledger row is accounted once, not doubled.
   api.amount='0.001';runtime._health(signal('z'));health=runtime._health(signal('z'));assert health['gross_exposure']==10.0 and health['strategy_exposure']==10.0
   # A second matching OPEN row makes attribution ambiguous and fences execution.
@@ -72,6 +97,9 @@ def main():
  print('DEMO_DRY_RUN_NEVER_MUTATES_ACCOUNT_CONFIGURATION=PASS')
  print('DEMO_SAME_DIRECTION_NO_ADD_EXPOSURE=PASS')
  print('DEMO_OPPOSITE_SIGNAL_REDUCE_ONLY_CLOSE=PASS')
+ print('DEMO_FILLED_CLOSE_LATER_FILLED_OPEN_RECONCILES=PASS')
+ print('DEMO_FILLED_CLOSE_RESIDUAL_POSITION_FAIL_CLOSED=PASS')
+ print('DEMO_FILLED_CLOSE_AMBIGUOUS_CHRONOLOGY_FAIL_CLOSED=PASS')
  print('DEMO_CLOSE_QUANTITY_REMOTE_POSITION=PASS')
  print('DEMO_FILLED_OPEN_POSITION_ATTRIBUTED=PASS')
  print('DEMO_REMOTE_FILLED_LEDGER_NO_DOUBLE_COUNT=PASS')

@@ -25,12 +25,33 @@ class DemoRuntime:
  def reconcile(self):
   try:
    state=reconcile(self.ledger,self.adapter);positions=self.adapter.positions();attributed=self._position_attributions(positions)
-   # A terminal close is only trusted once the matching remote position is
-   # absent.  This catches partial/late close evidence without re-posting.
+   # A terminal CLOSE normally requires its symbol to be flat.  The sole
+   # exception is a remote position uniquely attributable to a different,
+   # later, durably FILLED OPEN.  Current symbol membership alone is never
+   # sufficient: that would either accept a partial CLOSE or retroactively
+   # invalidate a valid later re-entry.
    for row in self.ledger.rows.values():
-    if row['state']=='FILLED' and row['intent'].get('action')=='CLOSE' and row['intent']['symbol'] in attributed:raise FailClosedError('demo_close_position_not_flat')
+    current=attributed.get(row['intent'].get('symbol'))
+    if row['state']=='FILLED' and row['intent'].get('action')=='CLOSE' and current is not None and not self._later_filled_open(row,current['row']):raise FailClosedError('demo_close_position_not_flat')
    state['attributed_positions']=len(attributed);return state
   except Exception as exc:self.fail_closed=True;self.persistence.append('reconciliation',utc_now()[:10],{'reason':str(exc),'fail_closed':True});raise
+ def _filled_at(self,row):
+  events=row.get('events')
+  if not isinstance(events,list):raise FailClosedError('demo_close_chronology_invalid')
+  matches=[event for event in events if isinstance(event,dict) and event.get('state')=='FILLED']
+  if len(matches)!=1 or not isinstance(matches[0].get('at'),str):raise FailClosedError('demo_close_chronology_invalid')
+  try:
+   timestamp=datetime.fromisoformat(matches[0]['at'].replace('Z','+00:00'))
+   if timestamp.tzinfo is None:raise ValueError('timezone_required')
+   return timestamp.astimezone(timezone.utc)
+  except Exception as exc:raise FailClosedError('demo_close_chronology_invalid') from exc
+ def _later_filled_open(self,close_row,open_row):
+  """Prove that an attributed position was recreated after this CLOSE."""
+  if not isinstance(open_row,dict) or open_row.get('state')!='FILLED' or open_row.get('intent',{}).get('action')!='OPEN':return False
+  close_identity=close_row.get('execution_intent_identity');open_identity=open_row.get('execution_intent_identity')
+  if not isinstance(close_identity,str) or not isinstance(open_identity,str) or open_identity==close_identity:return False
+  if open_row.get('signal_identity')==close_row.get('signal_identity') or open_row.get('client_order_id')==close_row.get('client_order_id'):return False
+  return self._filled_at(open_row)>self._filled_at(close_row)
  def startup_reconcile(self):
   state=self.reconcile();self.checkpoint((self.persistence.read_checkpoint() or {}).get('last_signal_cursor'),state);return state
  def startup_fail_closed(self,engine,exc):
