@@ -59,17 +59,39 @@ class DemoRuntime:
   cursor=(self.persistence.read_checkpoint() or {}).get('last_signal_cursor')
   self._trip(engine,'startup_reconciliation_failed',error=f'{type(exc).__name__}:{exc}')
   self.checkpoint(cursor);self.persistence.flush()
+ def _inherited_position_attribution(self,symbol,side,quantity):
+  # A predecessor attribution is only a bridge into this recovery epoch.
+  # Once this epoch durably FILLS a CLOSE for the symbol, the bridge is
+  # permanently retired; any later exposure must be proven by this epoch.
+  for ledger_row in self.ledger.rows.values():
+   intent=ledger_row.get('intent',{})
+   if ledger_row.get('state')=='FILLED' and not ledger_row.get('dry_run') and intent.get('action')=='CLOSE' and intent.get('symbol')==symbol:return None
+  checkpoint=self.persistence.read_checkpoint() or {};recovery=checkpoint.get('recovery')
+  if not isinstance(recovery,dict) or recovery.get('predecessor_executed_fills') is not True or recovery.get('old_intents_not_replayed') is not True:return None
+  if not isinstance(recovery.get('filled_recovery_authorization_identity'),str) or not isinstance(recovery.get('filled_recovery_authorization_claim_identity'),str):raise FailClosedError('demo_inherited_position_evidence_invalid')
+  remote=recovery.get('remote_reconciliation')
+  if not isinstance(remote,dict) or remote.get('open_orders')!=0 or not isinstance(remote.get('attributed_positions'),list):raise FailClosedError('demo_inherited_position_evidence_invalid')
+  matches=[row for row in remote['attributed_positions'] if isinstance(row,dict) and row.get('symbol')==symbol and row.get('side')==side and Decimal(str(row.get('quantity','0')))==quantity]
+  if len(matches)!=1:return None
+  row=matches[0]
+  if not isinstance(row.get('execution_intent_identity'),str) or not isinstance(row.get('client_order_id'),str):raise FailClosedError('demo_inherited_position_evidence_invalid')
+  return {'state':'FILLED','execution_intent_identity':row['execution_intent_identity'],'client_order_id':row['client_order_id'],'signal_identity':None,'quantity':format(quantity,'f'),'inherited_recovery_position':True,'intent':{'action':'OPEN','symbol':symbol,'side':side}}
+
  def _position_attributions(self,positions):
   attributed={}
   for position in positions:
    amount=Decimal(str(position.get('positionAmt',0)))
    if not amount:continue
-   side='LONG' if amount>0 else 'SHORT';matches=[]
+   side='LONG' if amount>0 else 'SHORT';quantity=abs(amount);matches=[]
    for row in self.ledger.rows.values():
     intent=row['intent']
-    if row['state']=='FILLED' and not row.get('dry_run') and intent.get('action')=='OPEN' and intent['symbol']==position.get('symbol') and intent.get('side')==side and Decimal(str(row.get('quantity','0')))==abs(amount):matches.append(row)
-   if len(matches)!=1:raise FailClosedError('demo_position_attribution_ambiguous')
-   attributed[position['symbol']]={'row':matches[0],'quantity':abs(amount),'side':side,'notional':abs(amount)*Decimal(str(position.get('markPrice',0)))}
+    if row['state']=='FILLED' and not row.get('dry_run') and intent.get('action')=='OPEN' and intent['symbol']==position.get('symbol') and intent.get('side')==side and Decimal(str(row.get('quantity','0')))==quantity:matches.append(row)
+   if len(matches)>1:raise FailClosedError('demo_position_attribution_ambiguous')
+   if len(matches)==1:matched=matches[0]
+   else:
+    matched=self._inherited_position_attribution(position.get('symbol'),side,quantity)
+    if matched is None:raise FailClosedError('demo_position_attribution_ambiguous')
+   attributed[position['symbol']]={'row':matched,'quantity':quantity,'side':side,'notional':quantity*Decimal(str(position.get('markPrice',0)))}
   return attributed
  def _lifecycle(self,signal):
   try:positions=self.adapter.positions()
