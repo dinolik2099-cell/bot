@@ -23,3 +23,12 @@ Runtime state is atomic and local-only under `server_local_audit/unattended/`.
 It is ignored by Git and contains no credentials, endpoint query strings,
 tokens, order requests or trading authority.  The proposed systemd unit/timer
 are templates only; this change neither installs nor enables them.
+
+State mutation uses a local cross-process exclusive lock for the complete
+read-modify-write transaction. Notification intents are durable `PENDING`
+outbox entries and become `SENT` only after the sink returns successfully.
+Delivery is recoverable at-least-once, not falsely claimed exactly-once.
+Sent/recovered history has bounded retention while active issues and pending
+notifications are retained. A time-window safety lock is never cleared
+automatically; an operator may use the explicit `--once --rearm-repair-window`
+command only when existing clock and repair evidence validate safely.

@@ -36,7 +36,7 @@ class NoopRecovery:
 class UnattendedSupervisor:
     def __init__(self,root,config,probe=None,recovery_adapter=None,notifier=None,clock=now):
         self.root=Path(root);self.config=config;self.probe=probe or SystemProbe();self.clock=clock
-        self.state=StateStore(self.root/config["state_path"]);self.recovery=RecoveryController(config,recovery_adapter or NoopRecovery());self.notifier=notifier or NotificationSink()
+        self.state=StateStore(self.root/config["state_path"],config.get("state_retention"));self.recovery=RecoveryController(config,recovery_adapter or NoopRecovery());self.notifier=notifier or NotificationSink()
     def _json(self,name,issues,*,category="HISTORICAL",path=None):
         target=self.root/(path if path is not None else self.config["paths"][name])
         try:return json.loads(target.read_text(encoding="utf-8"))

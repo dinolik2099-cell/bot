@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, os, tempfile
+import json, multiprocessing, os, tempfile
 from pathlib import Path
 from quantbot.unattended.config import load
 from quantbot.unattended.models import Issue,Status
@@ -39,6 +39,8 @@ def stale(root):os.utime(root/"data/forward_research/checkpoints/runtime.json",(
 def runner(root,probe,sink,recovery,*,auto=False):
  config=load(None);config["state_path"]="state.json";config["thresholds"]["checkpoint_age_seconds"]=0;config["recovery"].update({"auto_repair_enabled":auto,"consecutive_threshold":2,"max_repairs_per_window":1,"repair_window_seconds":3600})
  return UnattendedSupervisor(root,config,probe=probe,recovery_adapter=recovery,notifier=sink)
+def concurrent_mutation(path,index):
+ store=StateStore(Path(path),{"sent_notifications":64,"recoveries":64});stamp="2026-01-01T00:00:00+00:00";store.queue_notification(f"concurrent:{index}","ALERT",f"synthetic-{index}",stamp);store.record_repair(fingerprint=f"f{index}",lifecycle_id=f"l{index}",timestamp=stamp,status="ATTEMPT",window_seconds=3600)
 def main():
  with tempfile.TemporaryDirectory() as temp:
   root=Path(temp);base(root);probe=Probe();sink=Sink();adapter=Recovery();supervisor=runner(root,probe,sink,adapter,auto=True);stale(root)
@@ -72,13 +74,27 @@ def main():
   for label,row in (("future",{"timestamp":"2999-01-01T00:00:00+00:00"}),("rollback",{"timestamp":"2026-01-02T00:00:00+00:00","clock":"2027-01-01T00:00:00+00:00"}),("malformed",{"timestamp":"not-a-time"})):
    time_root=root/label;base(time_root);store=StateStore(time_root/"state.json");state=store.load();state["repairs"]=[{"timestamp":row["timestamp"],"status":"ATTEMPT"}];
    if "clock" in row:state["repair_clock"]=row["clock"]
-   store.write(state);checked=store.observe([],"2026-01-01T00:00:00+00:00",3600);assert checked["repair_window_untrusted"] is True
+   store._mutate(lambda current:(current.clear(),current.update(state)));checked=store.observe([],"2026-01-01T00:00:00+00:00",3600);assert checked["repair_window_untrusted"] is True
   stale(time_root);locked_time=runner(time_root,Probe(),Sink(),Recovery(),auto=True).run_once(shadow=False);assert "AUTO_REPAIR_LOCKED" in {row["action"] for row in locked_time["actions"]}
+  # Explicit operator re-arm validates persisted clock/records and never clears budget.
+  rearm_root=root/"rearm";base(rearm_root);rearm_store=StateStore(rearm_root/"state.json");rearm_store._mutate(lambda state:state.update({"repair_window_untrusted":True,"repair_clock":"2026-01-01T00:00:00+00:00","repairs":[{"timestamp":"2026-01-01T00:00:00+00:00","status":"ATTEMPT"}]}));rearm_store.rearm_repair_window("2026-01-01T00:01:00+00:00",3600);rearmed=rearm_store.load();assert not rearmed["repair_window_untrusted"] and len(rearmed["repairs"])==1 and rearmed["operator_events"][-1]["operation"]=="repair_window_rearm" and not StateStore(rearm_root/"state.json").load()["repair_window_untrusted"]
+  invalid_store=StateStore(time_root/"state.json")
+  try:invalid_store.rearm_repair_window("2026-01-01T00:00:00+00:00",3600);raise AssertionError("invalid_rearm_accepted")
+  except ValueError:pass
+  # Bounded sent/recovered history never removes PENDING or active lifecycle evidence.
+  retained=StateStore(root/"retained.json",{"sent_notifications":3,"recoveries":2});stamp="2026-01-01T00:00:00+00:00"
+  for index in range(10):
+   key=f"sent:{index}";retained.queue_notification(key,"ALERT","safe",f"2026-01-01T00:00:{index:02d}+00:00");retained.delivery_attempt(key,stamp);retained.mark_sent(key,f"2026-01-01T00:00:{index:02d}+00:00")
+  retained.queue_notification("pending","ALERT","safe",stamp);active=Issue("active","FORWARD",Status.ALERT,"safe",stamp,{},True,True);retained.observe([active],stamp,3600);kept=retained.load();assert sum(row["state"]=="SENT" for row in kept["notifications"].values())<=3 and kept["notifications"]["pending"]["state"]=="PENDING" and active.fingerprint in kept["issues"]
+  # Process-level writes retain every independent intent and attempt without shared tmp collision.
+  concurrent_path=root/"concurrent.json";workers=[multiprocessing.Process(target=concurrent_mutation,args=(str(concurrent_path),index)) for index in range(8)]
+  [worker.start() for worker in workers];[worker.join(20) for worker in workers];assert all(worker.exitcode==0 for worker in workers);concurrent=StateStore(concurrent_path).load();assert len(concurrent["notifications"])==8 and len(concurrent["repairs"])==8
   assert StateStore(root/"state.json").load()["schema_version"]=="quantbot-unattended-state-v1"
  print("UNATTENDED_HEALTHY_ALL_CHAIN=PASS")
  print("CONSECUTIVE_STRIKES=PASS");print("REPAIR_STATE_DURABLE=PASS");print("REPAIR_BUDGET_RESTART_SAFE=PASS");print("REPAIR_FAILURE_DURABLE=PASS")
  print("RECOVERED_EXACTLY_ONCE=PASS");print("FAULT_RECURRENCE_NEW_LIFECYCLE=PASS");print("RECURRENCE_CANNOT_BYPASS_BUDGET=PASS");print("REPAIR_SUCCESS_NOT_EQUAL_RECOVERED=PASS")
  print("SHADOW_NEVER_REPAIRS=PASS");print("STATE_ATOMIC_WRITE=PASS");print("SECRET_REDACTION=PASS")
  print("NOTIFICATION_DURABLE_AT_LEAST_ONCE=PASS");print("REPAIR_WINDOW_TIME_FAIL_SAFE=PASS")
+ print("STATE_CROSS_PROCESS_LOCKING=PASS");print("STATE_RETENTION_BOUNDED=PASS");print("REPAIR_WINDOW_EXPLICIT_REARM=PASS")
  print("OOS_READS=0");print("REAL_SYSTEMCTL_MUTATIONS=0");print("LIVE_ORDER_PLACEMENT=0")
 if __name__=="__main__":main()
