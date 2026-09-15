@@ -6,6 +6,8 @@ from .models import Issue, Status, overall
 from .state import StateStore
 from .recovery import RecoveryController
 from .notifications import NotificationSink
+from quantbot.demo_execution.signal_reader import ForwardSignalReader
+from quantbot.demo_execution.core import identity
 
 def now():return datetime.now(timezone.utc).isoformat()
 def issue(code,category,severity,message,**details):
@@ -60,19 +62,32 @@ class SystemProbe:
         signals=self._production_path("demo","forward_signals")
         try:checkpoint=json.loads(checkpoint_path.read_text(encoding="utf-8"))
         except Exception as exc:raise RuntimeError("demo_consumption_checkpoint_invalid") from exc
-        if not isinstance(checkpoint,dict) or not isinstance(checkpoint.get("demo_epoch_start"),str) or not isinstance(checkpoint.get("last_signal_cursor"),str):raise RuntimeError("demo_consumption_checkpoint_invalid")
-        epoch_start=self._timestamp(checkpoint["demo_epoch_start"]);cursor=checkpoint["last_signal_cursor"];records=[]
+        if not isinstance(checkpoint,dict) or not isinstance(checkpoint.get("last_signal_cursor"),str):raise RuntimeError("demo_consumption_checkpoint_invalid")
+        cursor=checkpoint["last_signal_cursor"]
+        recovery_paths=list((self._production_path("demo","data_root")/"recovery").glob("*/*.jsonl"))
+        if recovery_paths:
+            if len(recovery_paths)!=1:raise RuntimeError("demo_recovery_evidence_ambiguous")
+            try:
+                rows=[json.loads(line) for line in recovery_paths[0].read_text(encoding="utf-8").splitlines()]
+            except Exception as exc:raise RuntimeError("demo_recovery_evidence_invalid") from exc
+            if len(rows)!=1 or not isinstance(rows[0],dict):raise RuntimeError("demo_recovery_evidence_ambiguous")
+            recovery=rows[0];stored_identity=recovery.get("recovery_identity")
+            if recovery.get("schema_version")!="quantbot-demo-recovery-v1" or not isinstance(stored_identity,str) or stored_identity!=identity({key:value for key,value in recovery.items() if key not in {"created_at","recovery_identity"}}):raise RuntimeError("demo_recovery_evidence_invalid")
+            expected_forward=str(signals.parent.resolve());expected_identity=identity({"root":expected_forward})
+            if recovery.get("target_git_commit")!=checkpoint.get("git_commit") or recovery.get("target_config_identity")!=checkpoint.get("config_identity") or recovery.get("source_forward_identity")!=expected_identity or recovery.get("forward_root")!=expected_forward or checkpoint.get("source_forward_identity")!=expected_identity:raise RuntimeError("demo_recovery_provenance_mismatch")
+            epoch_start=self._timestamp(recovery.get("created_at"))
+        else:
+            if not isinstance(checkpoint.get("demo_epoch_start"),str):raise RuntimeError("demo_consumption_checkpoint_invalid")
+            epoch_start=self._timestamp(checkpoint["demo_epoch_start"])
         try:
-            for path in sorted(signals.glob("*/*.jsonl")):
-                for offset,line in enumerate(path.read_text(encoding="utf-8").splitlines()):
-                    row=json.loads(line)
-                    if not isinstance(row,dict) or not isinstance(row.get("created_at"),str):raise RuntimeError("demo_consumption_signal_invalid")
-                    records.append((f"{path.relative_to(signals).as_posix()}:{offset}",self._timestamp(row["created_at"])))
+            records=ForwardSignalReader(signals.parent).discover()
         except RuntimeError:raise
         except Exception as exc:raise RuntimeError("demo_consumption_signal_invalid") from exc
-        markers=[marker for marker,_created in records]
+        markers=[marker for marker,_signal in records]
         if cursor not in markers:raise RuntimeError("demo_consumption_cursor_invalid")
-        index=markers.index(cursor);pending=[created for _marker,created in records[index+1:] if created>=epoch_start]
+        index=markers.index(cursor)
+        try:pending=[self._timestamp(signal["created_at"]) for _marker,signal in records[index+1:] if self._timestamp(signal["created_at"])>=epoch_start]
+        except Exception as exc:raise RuntimeError("demo_consumption_signal_invalid") from exc
         if not pending:return {"forward_new":False,"cursor_stuck":False,"age_seconds":0}
         age=max(0.0,datetime.now(timezone.utc).timestamp()-min(pending).timestamp())
         return {"forward_new":True,"cursor_stuck":True,"age_seconds":age}

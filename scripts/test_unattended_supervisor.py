@@ -8,6 +8,7 @@ from quantbot.unattended.models import Issue,Status
 from quantbot.unattended.state import StateStore
 from quantbot.unattended.supervisor import UnattendedSupervisor, SystemProbe
 from quantbot.unattended.notifications import NotificationSink
+from quantbot.demo_execution.core import identity
 
 PLAN="a"*64
 class Probe:
@@ -32,10 +33,21 @@ class FlakySink(Sink):
   super().notify(message)
 def write(root,name,value):
  path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(value),encoding="utf-8")
-def signal(root,index,created):
+def signal_row(index,created):
+ return {"signal_identity":f"{index:064x}","symbol":"BTCUSDT","direction":"LONG","signal_timestamp":created.isoformat(),"model_id":"synthetic-model","declaration_identity":"d"*64,"created_at":created.isoformat()}
+def write_signals(root,through,created):
  path=root/"data/forward_research_3a457e6/signals/2026-09-15/signals.jsonl";path.parent.mkdir(parents=True,exist_ok=True)
- with path.open("a",encoding="utf-8") as out:out.write(json.dumps({"signal_identity":str(index)*64,"created_at":created.isoformat()})+"\n")
- return f"2026-09-15/signals.jsonl:{index}"
+ path.write_text("\n".join(json.dumps(signal_row(index,created),sort_keys=True) for index in range(through+1))+"\n",encoding="utf-8")
+ return path
+def append_signal(root,index,created):
+ path=root/"data/forward_research_3a457e6/signals/2026-09-15/signals.jsonl"
+ with path.open("a",encoding="utf-8") as out:out.write(json.dumps(signal_row(index,created),sort_keys=True)+"\n")
+ return f"signals/2026-09-15/signals.jsonl:{index}"
+def recovery_evidence(epoch_root,checkpoint,forward_root,created):
+ row={"schema_version":"quantbot-demo-recovery-v1","predecessor_epoch":"demo_execution_44c630d_day2","predecessor_cursor":"signals/2026-09-15/signals.jsonl:15967","source_forward_identity":checkpoint["source_forward_identity"],"forward_root":str(forward_root.resolve()),"target_git_commit":checkpoint["git_commit"],"target_config_identity":checkpoint["config_identity"],"recovery_reason":"synthetic_safe_recovery","old_intents_not_replayed":True}
+ row["recovery_identity"]=identity(row);row["created_at"]=created.isoformat()
+ path=epoch_root/"recovery/2026-09-15/recovery.jsonl";path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(row,sort_keys=True)+"\n",encoding="utf-8")
+ return path,row
 def production_probe_config():return load("config/unattended_supervisor.json")
 def base(root):
  write(root,"docs/handoff/FROZEN_RESEARCH_PLAN_N5.json",{"research_plan_identity":PLAN,"research_freeze_identity":"f"*64})
@@ -58,12 +70,26 @@ def main():
   root=Path(temp);base(root);probe=Probe();sink=Sink();adapter=Recovery();supervisor=runner(root,probe,sink,adapter,auto=True);stale(root)
   # Production declarations target the recovery epoch, never frozen Day-2.
   production=production_probe_config();assert production["production"]["demo"]["data_root"]=="data/demo_execution_c60a235_recovery1" and "44c630d_day2" not in production["production"]["demo"]["data_root"]
-  epoch_root=root/production["production"]["demo"]["data_root"];epoch_start=datetime.now(timezone.utc)-timedelta(minutes=10);signals_root=root/"data/forward_research_3a457e6";cursor=signal(root,0,epoch_start-timedelta(minutes=5));signal(root,1,epoch_start-timedelta(minutes=1));write(root,production["production"]["demo"]["checkpoint"],{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":epoch_root.name,"demo_epoch_start":epoch_start.isoformat(),"last_signal_cursor":cursor,"orders_seen":0,"fail_closed":False,"reconciliation":{}});real_probe=SystemProbe(root,production);assert real_probe.demo_nonterminals()==[];(epoch_root/"runtime").mkdir(parents=True,exist_ok=True);(epoch_root/"runtime/ledger.json").write_text(json.dumps({"old":{"state":"REJECTED_POLICY","events":[{"at":epoch_start.isoformat()}]}}),encoding="utf-8")
+  epoch_root=root/production["production"]["demo"]["data_root"];forward_root=root/"data/forward_research_3a457e6";recovery_start=datetime.now(timezone.utc)-timedelta(minutes=10);historical=recovery_start-timedelta(seconds=1);cursor="signals/2026-09-15/signals.jsonl:15967";write_signals(root,28697,historical)
+  checkpoint={"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":epoch_root.name,"git_commit":"a"*40,"config_identity":"c"*64,"source_forward_identity":identity({"root":str(forward_root.resolve())}),"last_signal_cursor":cursor,"orders_seen":0,"fail_closed":False,"reconciliation":{}}
+  write(root,production["production"]["demo"]["checkpoint"],checkpoint);recovery_path,recovery=recovery_evidence(epoch_root,checkpoint,forward_root,recovery_start);real_probe=SystemProbe(root,production);assert real_probe.demo_nonterminals()==[];(epoch_root/"runtime").mkdir(parents=True,exist_ok=True);(epoch_root/"runtime/ledger.json").write_text(json.dumps({"old":{"state":"REJECTED_POLICY","events":[{"at":recovery_start.isoformat()}]}}),encoding="utf-8")
+  # ForwardSignalReader's canonical marker semantics begin immediately after inherited :15967.
   assert real_probe.demo_consumption()=={"forward_new":False,"cursor_stuck":False,"age_seconds":0} and real_probe.demo_nonterminals()==[]
-  advanced=signal(root,2,datetime.now(timezone.utc)-timedelta(minutes=1));write(root,production["production"]["demo"]["checkpoint"],{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":epoch_root.name,"demo_epoch_start":epoch_start.isoformat(),"last_signal_cursor":advanced,"fail_closed":False,"reconciliation":{}});assert real_probe.demo_consumption()["forward_new"] is False
-  stuck_cursor=cursor;signal(root,3,datetime.now(timezone.utc)-timedelta(minutes=6));write(root,production["production"]["demo"]["checkpoint"],{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":epoch_root.name,"demo_epoch_start":epoch_start.isoformat(),"last_signal_cursor":stuck_cursor,"fail_closed":False,"reconciliation":{}});lag=real_probe.demo_consumption();assert lag["forward_new"] and lag["cursor_stuck"] and lag["age_seconds"]>300
+  post_marker=append_signal(root,28698,datetime.now(timezone.utc)-timedelta(minutes=6));lag=real_probe.demo_consumption();assert lag["forward_new"] and lag["cursor_stuck"] and lag["age_seconds"]>300
+  checkpoint["last_signal_cursor"]=post_marker;write(root,production["production"]["demo"]["checkpoint"],checkpoint);assert real_probe.demo_consumption()=={"forward_new":False,"cursor_stuck":False,"age_seconds":0}
+  # Missing, malformed, and conflicting recovery evidence must never default healthy.
+  recovery_path.unlink()
+  try:real_probe.demo_consumption();raise AssertionError("missing_recovery_evidence_healthy")
+  except RuntimeError:pass
+  recovery_path.write_text("not-json\n",encoding="utf-8")
+  try:real_probe.demo_consumption();raise AssertionError("malformed_recovery_evidence_healthy")
+  except RuntimeError:pass
+  recovery_path.write_text(json.dumps(recovery,sort_keys=True)+"\n",encoding="utf-8");conflict=epoch_root/"recovery/2026-09-16/recovery.jsonl";conflict.parent.mkdir(parents=True,exist_ok=True);conflict.write_text(json.dumps(recovery,sort_keys=True)+"\n",encoding="utf-8")
+  try:real_probe.demo_consumption();raise AssertionError("ambiguous_recovery_evidence_healthy")
+  except RuntimeError:pass
+  conflict.unlink()
   (epoch_root/"runtime/ledger.json").write_text(json.dumps({"open":{"execution_intent_identity":"intent","state":"VALIDATED","events":[{"at":(datetime.now(timezone.utc)-timedelta(minutes=6)).isoformat()}]}}),encoding="utf-8");assert real_probe.demo_nonterminals()[0]["state"]=="VALIDATED"
-  write(root,production["production"]["demo"]["checkpoint"],{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":epoch_root.name,"demo_epoch_start":epoch_start.isoformat(),"last_signal_cursor":"malformed","fail_closed":False,"reconciliation":{}})
+  checkpoint["last_signal_cursor"]="malformed";write(root,production["production"]["demo"]["checkpoint"],checkpoint)
   try:real_probe.demo_consumption();raise AssertionError("malformed_cursor_healthy")
   except RuntimeError:pass
   (epoch_root/"runtime/ledger.json").write_text("not-json",encoding="utf-8")
