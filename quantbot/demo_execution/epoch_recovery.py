@@ -81,6 +81,29 @@ def _parse_timestamp(value, name):
         raise DemoExecutionError(f'demo_recovery_{name}_invalid') from exc
 
 
+def _claim_authorization(path, authorization_identity, target_root):
+    """Durably reserve one sealed authorization for exactly one target root.
+
+    A claim survives pre-publication failures and allows retrying that same
+    target only.  It is intentionally never removed or redirected.
+    """
+    claim_path = Path(path).with_name(Path(path).name + '.claim')
+    claim = {'schema_version': 'quantbot-demo-filled-recovery-claim-v1',
+             'authorization_identity': authorization_identity, 'target_root': str(target_root)}
+    claim['claim_identity'] = identity(claim)
+    try:
+        with claim_path.open('x', encoding='utf-8') as handle:
+            handle.write(canon(claim) + '\n'); handle.flush(); os.fsync(handle.fileno())
+    except FileExistsError:
+        existing = _read_json(claim_path, 'authorization_claim')
+        if not isinstance(existing, dict) or existing.get('claim_identity') != identity({key: value for key, value in existing.items() if key != 'claim_identity'}) or any(existing.get(key) != value for key, value in claim.items() if key != 'claim_identity'):
+            raise DemoExecutionError('demo_recovery_authorization_claim_mismatch')
+        claim = existing
+    except Exception as exc:
+        raise DemoExecutionError('demo_recovery_authorization_claim_write_failed') from exc
+    return claim_path, claim
+
+
 def _filled_predecessor(checkpoint, rows):
     if not isinstance(rows, dict) or not rows:
         raise DemoExecutionError('demo_recovery_filled_ledger_invalid')
@@ -243,7 +266,7 @@ def create_recovery_epoch(*, predecessor_root, predecessor_checkpoint, expected_
 
 def create_filled_recovery_authorization(*, predecessor_root, predecessor_checkpoint, expected_predecessor_git_commit,
                                          expected_predecessor_config_identity, target_git_commit, target_config_identity,
-                                         forward_root, authorization_path, adapter, recovery_reason, now=None,
+                                         forward_root, target_root, authorization_path, adapter, recovery_reason, now=None,
                                          authorization_ttl_seconds=300):
     """Create one sealed, read-only reconciliation authorization for a filled predecessor.
 
@@ -253,12 +276,12 @@ def create_filled_recovery_authorization(*, predecessor_root, predecessor_checkp
     """
     from .ledger import ExecutionLedger
     predecessor_root, predecessor_checkpoint = Path(predecessor_root).resolve(), Path(predecessor_checkpoint).resolve()
-    forward_root, authorization_path = Path(forward_root).resolve(), Path(authorization_path).resolve()
+    forward_root, target_root, authorization_path = Path(forward_root).resolve(), Path(target_root).resolve(), Path(authorization_path).resolve()
     predecessor_git = _require_sha(expected_predecessor_git_commit, 'predecessor_git_commit', 40)
     predecessor_config = _require_sha(expected_predecessor_config_identity, 'predecessor_config_identity', 64)
     target_git = _require_sha(target_git_commit, 'target_git_commit', 40)
     target_config = _require_sha(target_config_identity, 'target_config_identity', 64)
-    if authorization_path.exists() or not authorization_path.parent.is_dir() or not isinstance(recovery_reason, str) or not recovery_reason.strip() or type(authorization_ttl_seconds) is not int or authorization_ttl_seconds <= 0:
+    if authorization_path.exists() or target_root.exists() or not target_root.parent.is_dir() or not authorization_path.parent.is_dir() or not isinstance(recovery_reason, str) or not recovery_reason.strip() or type(authorization_ttl_seconds) is not int or authorization_ttl_seconds <= 0:
         raise DemoExecutionError('demo_recovery_authorization_path_or_policy_invalid')
     if predecessor_checkpoint != predecessor_root / 'checkpoints' / 'runtime.json' or not predecessor_checkpoint.is_file():
         raise DemoExecutionError('demo_recovery_predecessor_checkpoint_path_invalid')
@@ -281,7 +304,7 @@ def create_filled_recovery_authorization(*, predecessor_root, predecessor_checkp
                      'predecessor_ledger_sha256': ledger_hash, 'predecessor_cursor': checkpoint['last_signal_cursor'],
                      'predecessor_git_commit': predecessor_git, 'predecessor_config_identity': predecessor_config,
                      'source_forward_identity': source_forward_identity, 'forward_root': str(forward_root),
-                     'target_git_commit': target_git, 'target_config_identity': target_config,
+                     'target_git_commit': target_git, 'target_config_identity': target_config, 'authorized_target_root': str(target_root),
                      'recovery_reason': recovery_reason, 'predecessor_executed_fills': True,
                      'old_intents_not_replayed': True, 'remote_reconciliation': remote_result}
     authorization['authorization_identity'] = identity(authorization)
@@ -305,10 +328,9 @@ def create_filled_recovery_epoch(*, predecessor_root, predecessor_checkpoint, ex
     """Consume one valid filled-predecessor authorization without exchange access."""
     predecessor_root, predecessor_checkpoint, target_root = Path(predecessor_root).resolve(), Path(predecessor_checkpoint).resolve(), Path(target_root).resolve()
     forward_root, authorization_path = Path(forward_root).resolve(), Path(authorization_path).resolve()
-    used_path = authorization_path.with_name(authorization_path.name + '.consumed')
     if predecessor_checkpoint != predecessor_root / 'checkpoints' / 'runtime.json' or not predecessor_checkpoint.is_file():
         raise DemoExecutionError('demo_recovery_predecessor_checkpoint_path_invalid')
-    if target_root.exists() or not target_root.parent.is_dir() or used_path.exists():
+    if target_root.exists() or not target_root.parent.is_dir():
         raise DemoExecutionError('demo_recovery_target_or_authorization_used')
     checkpoint_hash, ledger_path = _sha256_bytes(predecessor_checkpoint), predecessor_root / 'runtime' / 'ledger.json'
     if not ledger_path.is_file(): raise DemoExecutionError('demo_recovery_predecessor_ledger_missing')
@@ -329,12 +351,14 @@ def create_filled_recovery_epoch(*, predecessor_root, predecessor_checkpoint, ex
                 'predecessor_ledger_sha256': ledger_hash, 'predecessor_cursor': checkpoint.get('last_signal_cursor'),
                 'predecessor_git_commit': predecessor_git, 'predecessor_config_identity': predecessor_config,
                 'source_forward_identity': identity({'root': str(forward_root)}), 'forward_root': str(forward_root),
-                'target_git_commit': target_git, 'target_config_identity': target_config, 'predecessor_executed_fills': True,
+                'target_git_commit': target_git, 'target_config_identity': target_config, 'authorized_target_root': str(target_root), 'predecessor_executed_fills': True,
                 'old_intents_not_replayed': True}
     if any(authorization.get(key) != value for key, value in expected.items()) or not isinstance(authorization.get('remote_reconciliation'), dict) or authorization['remote_reconciliation'].get('open_orders') != 0:
         raise DemoExecutionError('demo_recovery_authorization_provenance_mismatch')
+    claim_path, claim = _claim_authorization(authorization_path, authorization['authorization_identity'], target_root)
     provenance = {'schema_version': 'quantbot-demo-recovery-v1', **expected, 'recovery_reason': authorization.get('recovery_reason'),
                   'filled_recovery_authorization_identity': authorization['authorization_identity'],
+                  'filled_recovery_authorization_claim_identity': claim['claim_identity'],
                   'remote_reconciliation': authorization['remote_reconciliation']}
     provenance['recovery_identity'] = identity(provenance)
     staging_root, persistence = target_root.parent / f'.{target_root.name}.recovery-staging-{uuid.uuid4().hex}', None
@@ -349,8 +373,6 @@ def create_filled_recovery_epoch(*, predecessor_root, predecessor_checkpoint, ex
         if staged_checkpoint.get('checkpoint_identity') != identity({key: value for key, value in staged_checkpoint.items() if key != 'checkpoint_identity'}): raise DemoExecutionError('demo_recovery_staged_checkpoint_identity_invalid')
         if _sha256_bytes(predecessor_checkpoint) != checkpoint_hash or _sha256_bytes(ledger_path) != ledger_hash: raise DemoExecutionError('demo_recovery_predecessor_mutation_detected')
         staging_root.rename(target_root)
-        with used_path.open('x', encoding='utf-8') as handle:
-            handle.write(canon({'authorization_identity': authorization['authorization_identity'], 'consumed_at': utc_now(), 'target_root': str(target_root)}) + '\n'); handle.flush(); os.fsync(handle.fileno())
     except DemoExecutionError:
         if persistence is not None:
             try:persistence.close()
