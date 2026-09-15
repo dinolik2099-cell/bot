@@ -13,3 +13,14 @@ service is allowed to route models, an external versioned decision artifact
 must declare fixed model parameters and bind each row to the accepted N5 plan,
 N3 freeze, grid hash, strategy hash, and module hash. Verify an artifact with
 `scripts/run_forward_research.py --config config/forward_research.yaml --preflight --plan docs/handoff/FROZEN_RESEARCH_PLAN_N5.json --declarations <artifact.json>`.
+
+## Release cutover preflight
+
+The repository contains, but does not install, `deploy/forward_preflight.py`
+and `deploy/forward_watchdog.py`.  They bind a release root to an exact target
+Git commit and validate an existing Forward checkpoint without rewriting it.
+Normal startup and watchdog operation require the checkpoint commit to equal
+the target.  A one-time cutover invocation may additionally name exactly one
+approved predecessor commit with `--upgrade-mode`; this compatibility expires
+as soon as the new process writes its natural target-bound checkpoint.  The
+watchdog has no predecessor option and remains target-only.
