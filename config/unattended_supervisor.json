@@ -10,8 +10,8 @@
     },
     "demo": {
       "service": "quantbot-demo-execution.service",
-      "data_root": "data/demo_execution_c60a235_recovery1",
-      "checkpoint": "data/demo_execution_c60a235_recovery1/checkpoints/runtime.json",
+      "data_root": "data/demo_execution_aa4e588_recovery2",
+      "checkpoint": "data/demo_execution_aa4e588_recovery2/checkpoints/runtime.json",
       "forward_signals": "data/forward_research_3a457e6/signals"
     }
   }

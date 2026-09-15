@@ -69,7 +69,7 @@ def main():
  with tempfile.TemporaryDirectory() as temp:
   root=Path(temp);base(root);probe=Probe();sink=Sink();adapter=Recovery();supervisor=runner(root,probe,sink,adapter,auto=True);stale(root)
   # Production declarations target the recovery epoch, never frozen Day-2.
-  production=production_probe_config();assert production["production"]["demo"]["data_root"]=="data/demo_execution_c60a235_recovery1" and "44c630d_day2" not in production["production"]["demo"]["data_root"]
+  production=production_probe_config();assert production["production"]["demo"]["data_root"]=="data/demo_execution_aa4e588_recovery2" and "44c630d_day2" not in production["production"]["demo"]["data_root"]
   epoch_root=root/production["production"]["demo"]["data_root"];forward_root=root/"data/forward_research_3a457e6";recovery_start=datetime.now(timezone.utc)-timedelta(minutes=10);historical=recovery_start-timedelta(seconds=1);cursor="signals/2026-09-15/signals.jsonl:15967";write_signals(root,28697,historical)
   checkpoint={"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":epoch_root.name,"git_commit":"a"*40,"config_identity":"c"*64,"source_forward_identity":identity({"root":str(forward_root.resolve())}),"last_signal_cursor":cursor,"orders_seen":0,"fail_closed":False,"reconciliation":{}}
   write(root,production["production"]["demo"]["checkpoint"],checkpoint);recovery_path,recovery=recovery_evidence(epoch_root,checkpoint,forward_root,recovery_start);real_probe=SystemProbe(root,production);assert real_probe.demo_nonterminals()==[];(epoch_root/"runtime").mkdir(parents=True,exist_ok=True);(epoch_root/"runtime/ledger.json").write_text(json.dumps({"old":{"state":"REJECTED_POLICY","events":[{"at":recovery_start.isoformat()}]}}),encoding="utf-8")

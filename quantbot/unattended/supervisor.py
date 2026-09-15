@@ -74,7 +74,7 @@ class SystemProbe:
             recovery=rows[0];stored_identity=recovery.get("recovery_identity")
             if recovery.get("schema_version")!="quantbot-demo-recovery-v1" or not isinstance(stored_identity,str) or stored_identity!=identity({key:value for key,value in recovery.items() if key not in {"created_at","recovery_identity"}}):raise RuntimeError("demo_recovery_evidence_invalid")
             expected_forward=str(signals.parent.resolve());expected_identity=identity({"root":expected_forward})
-            if recovery.get("target_git_commit")!=checkpoint.get("git_commit") or recovery.get("target_config_identity")!=checkpoint.get("config_identity") or recovery.get("source_forward_identity")!=expected_identity or recovery.get("forward_root")!=expected_forward or checkpoint.get("source_forward_identity")!=expected_identity:raise RuntimeError("demo_recovery_provenance_mismatch")
+            if not isinstance(recovery.get("target_git_commit"),str) or not recovery["target_git_commit"] or recovery.get("target_config_identity")!=checkpoint.get("config_identity") or recovery.get("source_forward_identity")!=expected_identity or recovery.get("forward_root")!=expected_forward or checkpoint.get("source_forward_identity")!=expected_identity:raise RuntimeError("demo_recovery_provenance_mismatch")
             epoch_start=self._timestamp(recovery.get("created_at"))
         else:
             if not isinstance(checkpoint.get("demo_epoch_start"),str):raise RuntimeError("demo_consumption_checkpoint_invalid")
