@@ -4,6 +4,14 @@ The unattended supervisor is an independent, read-only control-plane observer.
 Its default mode is `--once --shadow --json`; automatic recovery is disabled by
 default and production deployment is intentionally outside this artifact.
 
+It observes immutable historical identity artifacts and explicitly declared
+current Forward/Demo production resources. Service working directories and data
+roots are distinct. The JSON configuration declares each service, data root and
+checkpoint so release/data epochs can change without source changes. A missing
+or identity-invalid declared checkpoint is a resource configuration fault, not
+a stale checkpoint and never repairable. Demo checkpoints are DEMO health
+resources; they are not historical required artifacts.
+
 It observes immutable historical identity artifacts, Forward/Demo checkpoints,
 cross-chain plan identity, service metadata and host resources.  Identity,
 authority, fail-closed and reconciliation ambiguity faults are `BLOCKED` and

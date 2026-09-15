@@ -27,17 +27,26 @@ def base(root):
  write(root,"docs/handoff/FROZEN_RESEARCH_PLAN_N5.json",{"research_plan_identity":PLAN,"research_freeze_identity":"f"*64})
  write(root,"data/reports/research_boundary_lock.json",{"status":"LOCKED"})
  write(root,"data/reports/research_manifest.json",{"manifest_version":"1"})
- write(root,"data/forward_research/checkpoints/runtime.json",{"research_plan_identity":PLAN,"forward_research_only":True,"oos_allowed":False})
- write(root,"data/demo_execution_day0_v1/checkpoints/runtime.json",{"fail_closed":False,"reconciliation":{},"last_signal_cursor":"signals/x:1"})
+ write(root,"data/forward_research/checkpoints/runtime.json",{"schema_version":"quantbot-forward-checkpoint-v2","research_plan_identity":PLAN,"forward_research_only":True,"oos_allowed":False})
+ write(root,"data/demo_execution_day0_v1/checkpoints/runtime.json",{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":"demo_execution_day0_v1","fail_closed":False,"reconciliation":{},"last_signal_cursor":"signals/x:1"})
 def codes(result):return {row["code"] for row in result["issues"]}
 def main():
  with tempfile.TemporaryDirectory() as temp:
   root=Path(temp);base(root);config=load(None);config["state_path"]="state.json";config["thresholds"]["checkpoint_age_seconds"]=999999;probe=Probe();sink=Sink();runner=UnattendedSupervisor(root,config,probe=probe,notifier=sink)
   healthy=runner.run_once();assert healthy["overall"]=="HEALTHY"
   probe.forward="inactive";assert "forward_service_down" in codes(runner.run_once());probe.forward="active"
-  config["thresholds"]["checkpoint_age_seconds"]=0;assert "forward_checkpoint_stale" in codes(runner.run_once());config["thresholds"]["checkpoint_age_seconds"]=999999
-  write(root,"data/forward_research/checkpoints/runtime.json",{"research_plan_identity":"bad","forward_research_only":True,"oos_allowed":False});assert "frozen_plan_drift" in codes(runner.run_once());write(root,"data/forward_research/checkpoints/runtime.json",{"research_plan_identity":PLAN,"forward_research_only":True,"oos_allowed":False})
-  write(root,"data/demo_execution_day0_v1/checkpoints/runtime.json",{"fail_closed":True,"reconciliation":{},"last_signal_cursor":"x"});assert "demo_fail_closed" in codes(runner.run_once());write(root,"data/demo_execution_day0_v1/checkpoints/runtime.json",{"fail_closed":False,"reconciliation":{},"last_signal_cursor":"x"})
+  config["thresholds"]["checkpoint_age_seconds"]=0;stale=runner.run_once();assert "forward_checkpoint_stale" in codes(stale) and next(row for row in stale["issues"] if row["code"]=="forward_checkpoint_stale")["auto_repair_allowed"];config["thresholds"]["checkpoint_age_seconds"]=999999
+  write(root,"data/forward_research/checkpoints/runtime.json",{"schema_version":"quantbot-forward-checkpoint-v2","research_plan_identity":"bad","forward_research_only":True,"oos_allowed":False});assert "frozen_plan_drift" in codes(runner.run_once());write(root,"data/forward_research/checkpoints/runtime.json",{"schema_version":"quantbot-forward-checkpoint-v2","research_plan_identity":PLAN,"forward_research_only":True,"oos_allowed":False})
+  write(root,"data/demo_execution_day0_v1/checkpoints/runtime.json",{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":"demo_execution_day0_v1","fail_closed":True,"reconciliation":{},"last_signal_cursor":"x"});assert "demo_fail_closed" in codes(runner.run_once());write(root,"data/demo_execution_day0_v1/checkpoints/runtime.json",{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":"demo_execution_day0_v1","fail_closed":False,"reconciliation":{},"last_signal_cursor":"x"})
+  # Resource declarations, not static source paths, select the current epochs.
+  current="data/forward_research_current";old="data/forward_research_old";write(root,f"{current}/checkpoints/runtime.json",{"schema_version":"quantbot-forward-checkpoint-v2","research_plan_identity":PLAN,"forward_research_only":True,"oos_allowed":False});write(root,f"{old}/checkpoints/runtime.json",{"schema_version":"quantbot-forward-checkpoint-v2","research_plan_identity":PLAN,"forward_research_only":True,"oos_allowed":False})
+  config["production"]["forward"].update({"data_root":current,"checkpoint":f"{current}/checkpoints/runtime.json"});config["thresholds"]["checkpoint_age_seconds"]=999999;assert "forward_checkpoint_stale" not in codes(runner.run_once())
+  old_path=root/f"{old}/checkpoints/runtime.json";old_path.touch();old_path.chmod(0o644);import os;os.utime(old_path,(1,1));assert "forward_checkpoint_stale" not in codes(runner.run_once())
+  config["production"]["forward"]["checkpoint"]=f"{current}/checkpoints/missing.json";missing=runner.run_once();assert "missing_forward_checkpoint" in codes(missing);assert not next(row for row in missing["issues"] if row["code"]=="missing_forward_checkpoint")["auto_repair_allowed"]
+  config["production"]["forward"].update({"data_root":"data/forward_research","checkpoint":"data/forward_research/checkpoints/runtime.json"})
+  config["production"]["demo"].update({"data_root":"data/demo_execution_current","checkpoint":"data/demo_execution_current/checkpoints/runtime.json"});write(root,"data/demo_execution_current/checkpoints/runtime.json",{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":"demo_execution_current","fail_closed":False,"reconciliation":{},"last_signal_cursor":"x"});assert "missing_demo_checkpoint" not in codes(runner.run_once())
+  config["production"]["demo"]["checkpoint"]="data/demo_execution_current/checkpoints/missing.json";missing_demo=runner.run_once();assert "missing_demo_checkpoint" in codes(missing_demo);demo_issue=next(row for row in missing_demo["issues"] if row["code"]=="missing_demo_checkpoint");assert demo_issue["category"]=="DEMO" and not demo_issue["auto_repair_allowed"]
+  config["production"]["demo"].update({"data_root":"data/demo_execution_day0_v1","checkpoint":"data/demo_execution_day0_v1/checkpoints/runtime.json"})
   probe.nonterminals=[{"intent_id":"one","state":"INTENT_CREATED","age_seconds":1}];assert "demo_nonterminal_orphan" not in codes(runner.run_once());probe.nonterminals=[{"intent_id":"one","state":"SUBMITTING","age_seconds":999}];assert "demo_nonterminal_orphan" in codes(runner.run_once());probe.nonterminals=[]
   probe.lag={"forward_new":False,"cursor_stuck":True,"age_seconds":999};assert "demo_consumption_lag" not in codes(runner.run_once());probe.lag={"forward_new":True,"cursor_stuck":True,"age_seconds":999};assert "demo_consumption_lag" in codes(runner.run_once());probe.lag={"forward_new":False,"cursor_stuck":False,"age_seconds":0}
   probe.disk=99;assert "host_disk_high" in codes(runner.run_once());probe.disk=20
@@ -52,6 +61,8 @@ def main():
  print("UNATTENDED_STATE_ATOMIC=PASS")
  print("UNATTENDED_ALERT_DEDUPE_AND_RECOVERY_NOTIFICATION=PASS")
  print("UNATTENDED_DYNAMIC_UNIVERSE_UNAVAILABLE_NOT_FAIL=PASS")
+ print("UNATTENDED_DECLARED_PRODUCTION_RESOURCES=PASS")
+ print("UNATTENDED_HISTORICAL_NEVER_REQUIRES_DEMO_CHECKPOINT=PASS")
  print("UNATTENDED_SECRET_REDACTION=PASS")
  print("OOS_READS=0");print("REAL_SYSTEMCTL_MUTATIONS=0");print("LIVE_ORDER_PLACEMENT=0")
 if __name__=="__main__":main()

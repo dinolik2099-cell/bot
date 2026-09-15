@@ -8,7 +8,9 @@ from .recovery import RecoveryController
 from .notifications import NotificationSink
 
 def now():return datetime.now(timezone.utc).isoformat()
-def issue(code,category,severity,message,**details):return Issue(code,category,severity,message,now(),details,actionable=severity==Status.ALERT,auto_repair_allowed=code in {"forward_service_down","forward_checkpoint_stale"})
+def issue(code,category,severity,message,**details):
+    return Issue(code,category,severity,message,now(),details,actionable=severity==Status.ALERT,
+                 auto_repair_allowed=code in {"forward_service_down","forward_checkpoint_stale"} and details.get("resource_verified") is True)
 
 class SystemProbe:
     """Production read-only probe.  Its recovery counterpart is injected separately."""
@@ -35,32 +37,45 @@ class UnattendedSupervisor:
     def __init__(self,root,config,probe=None,recovery_adapter=None,notifier=None,clock=now):
         self.root=Path(root);self.config=config;self.probe=probe or SystemProbe();self.clock=clock
         self.state=StateStore(self.root/config["state_path"]);self.recovery=RecoveryController(config,recovery_adapter or NoopRecovery());self.notifier=notifier or NotificationSink()
-    def _json(self,name,issues):
-        path=self.root/self.config["paths"][name]
-        try:return json.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError:issues.append(issue(f"missing_{name}","HISTORICAL",Status.ALERT,"required artifact is missing",path=str(path)));return None
-        except Exception as exc:issues.append(issue(f"malformed_{name}","HISTORICAL",Status.BLOCKED,"artifact is not parseable",error=type(exc).__name__));return None
+    def _json(self,name,issues,*,category="HISTORICAL",path=None):
+        target=self.root/(path if path is not None else self.config["paths"][name])
+        try:return json.loads(target.read_text(encoding="utf-8"))
+        except FileNotFoundError:issues.append(issue(f"missing_{name}",category,Status.ALERT,"required resource is missing",path=str(target),resource_verified=False));return None
+        except Exception as exc:issues.append(issue(f"malformed_{name}",category,Status.BLOCKED,"resource is not parseable",error=type(exc).__name__,path=str(target),resource_verified=False));return None
     def _historical(self,issues):
         plan=self._json("plan",issues);boundary=self._json("boundary",issues);manifest=self._json("manifest",issues)
         if plan and plan.get("research_plan_identity") is None:issues.append(issue("frozen_plan_drift","HISTORICAL",Status.BLOCKED,"frozen plan identity absent"))
         if boundary and boundary.get("status")!="LOCKED":issues.append(issue("research_boundary_drift","HISTORICAL",Status.BLOCKED,"research boundary is not locked"))
         return plan,boundary,manifest
     def _service(self,key,issues):
-        unit=self.config["services"][key];row=self.probe.service(unit)
+        unit=self.config["production"][key]["service"];row=self.probe.service(unit)
         if row.get("ActiveState")!="active":issues.append(issue(f"{key}_service_down",key.upper(),Status.ALERT,"service is not active",unit=unit,state=row.get("ActiveState")))
         return row
+    def _resource(self,key,issues):
+        declaration=self.config["production"][key];data_root=self.root/declaration["data_root"];checkpoint_path=self.root/declaration["checkpoint"]
+        try: belongs=checkpoint_path.resolve().is_relative_to(data_root.resolve())
+        except (OSError,ValueError):belongs=False
+        if not data_root.is_dir() or not belongs:
+            issues.append(issue(f"{key}_resource_configuration_invalid",key.upper(),Status.ALERT,"declared production resource is invalid",data_root=str(data_root),checkpoint=str(checkpoint_path),resource_verified=False));return None,None
+        checkpoint=self._json(f"{key}_checkpoint",issues,category=key.upper(),path=declaration["checkpoint"])
+        if not checkpoint:return None,checkpoint
+        if checkpoint.get("schema_version")!=declaration["checkpoint_schema"]:
+            issues.append(issue(f"{key}_checkpoint_identity_invalid",key.upper(),Status.BLOCKED,"checkpoint does not match declared production instance",path=str(checkpoint_path),resource_verified=False));return None,checkpoint
+        if key=="demo" and checkpoint.get("demo_epoch")!=data_root.name:
+            issues.append(issue("demo_checkpoint_identity_invalid","DEMO",Status.BLOCKED,"checkpoint epoch does not match declared data root",path=str(checkpoint_path),resource_verified=False));return None,checkpoint
+        return checkpoint_path,checkpoint
     def _forward(self,plan,issues):
-        service=self._service("forward",issues);checkpoint=self._json("forward_checkpoint",issues)
+        service=self._service("forward",issues);path,checkpoint=self._resource("forward",issues)
         if not checkpoint:return service,None
         if checkpoint.get("research_plan_identity")!=plan.get("research_plan_identity"):
             issues.append(issue("frozen_plan_drift","CROSS_CHAIN",Status.BLOCKED,"forward checkpoint plan mismatch"))
         if checkpoint.get("forward_research_only") is not True or checkpoint.get("oos_allowed") is not False:
             issues.append(issue("forward_authority_invalid","FORWARD",Status.BLOCKED,"forward authority boundary invalid"))
-        path=self.root/self.config["paths"]["forward_checkpoint"]
-        if path.exists() and now_timestamp(path)>self.config["thresholds"]["checkpoint_age_seconds"]:issues.append(issue("forward_checkpoint_stale","FORWARD",Status.ALERT,"forward checkpoint is stale",unit=self.config["services"]["forward"]))
+        verified=path is not None and checkpoint.get("research_plan_identity")==plan.get("research_plan_identity") and checkpoint.get("forward_research_only") is True and checkpoint.get("oos_allowed") is False
+        if path and now_timestamp(path)>self.config["thresholds"]["checkpoint_age_seconds"]:issues.append(issue("forward_checkpoint_stale","FORWARD",Status.ALERT,"forward checkpoint is stale",unit=self.config["production"]["forward"]["service"],resource_verified=verified))
         return service,checkpoint
     def _demo(self,issues):
-        service=self._service("demo",issues);checkpoint=self._json("demo_checkpoint",issues)
+        service=self._service("demo",issues);_path,checkpoint=self._resource("demo",issues)
         if not checkpoint:return service,None
         if checkpoint.get("fail_closed") is True:issues.append(issue("demo_fail_closed","DEMO",Status.BLOCKED,"Demo runtime is fail-closed"))
         reconciliation=checkpoint.get("reconciliation",{})
@@ -73,7 +88,7 @@ class UnattendedSupervisor:
         if forward.get("research_plan_identity")!=plan.get("research_plan_identity"):return
         # Demo source_forward_identity has no declared semantic equality with
         # individual signal fields, so it is reported only as provenance.
-        signals=self.root/self.config["paths"]["forward_signals"]
+        signals=self.root/self.config["production"]["demo"]["forward_signals"]
         if signals.exists() and demo.get("last_signal_cursor") is None:
             issues.append(issue("demo_cursor_uninitialized","CROSS_CHAIN",Status.WARN,"forward signals exist but Demo cursor is absent"))
         lag=self.probe.demo_consumption()
