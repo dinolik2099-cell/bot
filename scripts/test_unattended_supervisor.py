@@ -1,11 +1,13 @@
 from __future__ import annotations
 import json, multiprocessing, os, tempfile
+from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 from pathlib import Path
 from quantbot.unattended.config import load
 from quantbot.unattended.models import Issue,Status
 from quantbot.unattended.state import StateStore
-from quantbot.unattended.supervisor import UnattendedSupervisor
+from quantbot.unattended.supervisor import UnattendedSupervisor, SystemProbe
+from quantbot.unattended.notifications import NotificationSink
 
 PLAN="a"*64
 class Probe:
@@ -30,6 +32,11 @@ class FlakySink(Sink):
   super().notify(message)
 def write(root,name,value):
  path=root/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(value),encoding="utf-8")
+def signal(root,index,created):
+ path=root/"data/forward_research_3a457e6/signals/2026-09-15/signals.jsonl";path.parent.mkdir(parents=True,exist_ok=True)
+ with path.open("a",encoding="utf-8") as out:out.write(json.dumps({"signal_identity":str(index)*64,"created_at":created.isoformat()})+"\n")
+ return f"2026-09-15/signals.jsonl:{index}"
+def production_probe_config():return load("config/unattended_supervisor.json")
 def base(root):
  write(root,"docs/handoff/FROZEN_RESEARCH_PLAN_N5.json",{"research_plan_identity":PLAN,"research_freeze_identity":"f"*64})
  write(root,"data/reports/research_boundary_lock.json",{"status":"LOCKED"});write(root,"data/reports/research_manifest.json",{"manifest_version":"1"})
@@ -49,6 +56,29 @@ def notification_claim_worker(path,queue,index):
 def main():
  with tempfile.TemporaryDirectory() as temp:
   root=Path(temp);base(root);probe=Probe();sink=Sink();adapter=Recovery();supervisor=runner(root,probe,sink,adapter,auto=True);stale(root)
+  # Production declarations target the recovery epoch, never frozen Day-2.
+  production=production_probe_config();assert production["production"]["demo"]["data_root"]=="data/demo_execution_c60a235_recovery1" and "44c630d_day2" not in production["production"]["demo"]["data_root"]
+  epoch_root=root/production["production"]["demo"]["data_root"];epoch_start=datetime.now(timezone.utc)-timedelta(minutes=10);signals_root=root/"data/forward_research_3a457e6";cursor=signal(root,0,epoch_start-timedelta(minutes=5));signal(root,1,epoch_start-timedelta(minutes=1));write(root,production["production"]["demo"]["checkpoint"],{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":epoch_root.name,"demo_epoch_start":epoch_start.isoformat(),"last_signal_cursor":cursor,"orders_seen":0,"fail_closed":False,"reconciliation":{}});real_probe=SystemProbe(root,production);assert real_probe.demo_nonterminals()==[];(epoch_root/"runtime").mkdir(parents=True,exist_ok=True);(epoch_root/"runtime/ledger.json").write_text(json.dumps({"old":{"state":"REJECTED_POLICY","events":[{"at":epoch_start.isoformat()}]}}),encoding="utf-8")
+  assert real_probe.demo_consumption()=={"forward_new":False,"cursor_stuck":False,"age_seconds":0} and real_probe.demo_nonterminals()==[]
+  advanced=signal(root,2,datetime.now(timezone.utc)-timedelta(minutes=1));write(root,production["production"]["demo"]["checkpoint"],{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":epoch_root.name,"demo_epoch_start":epoch_start.isoformat(),"last_signal_cursor":advanced,"fail_closed":False,"reconciliation":{}});assert real_probe.demo_consumption()["forward_new"] is False
+  stuck_cursor=cursor;signal(root,3,datetime.now(timezone.utc)-timedelta(minutes=6));write(root,production["production"]["demo"]["checkpoint"],{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":epoch_root.name,"demo_epoch_start":epoch_start.isoformat(),"last_signal_cursor":stuck_cursor,"fail_closed":False,"reconciliation":{}});lag=real_probe.demo_consumption();assert lag["forward_new"] and lag["cursor_stuck"] and lag["age_seconds"]>300
+  (epoch_root/"runtime/ledger.json").write_text(json.dumps({"open":{"execution_intent_identity":"intent","state":"VALIDATED","events":[{"at":(datetime.now(timezone.utc)-timedelta(minutes=6)).isoformat()}]}}),encoding="utf-8");assert real_probe.demo_nonterminals()[0]["state"]=="VALIDATED"
+  write(root,production["production"]["demo"]["checkpoint"],{"schema_version":"quantbot-demo-checkpoint-v1","demo_epoch":epoch_root.name,"demo_epoch_start":epoch_start.isoformat(),"last_signal_cursor":"malformed","fail_closed":False,"reconciliation":{}})
+  try:real_probe.demo_consumption();raise AssertionError("malformed_cursor_healthy")
+  except RuntimeError:pass
+  (epoch_root/"runtime/ledger.json").write_text("not-json",encoding="utf-8")
+  try:real_probe.demo_nonterminals();raise AssertionError("malformed_ledger_healthy")
+  except RuntimeError:pass
+  # Telegram transport is disabled by default; enabled delivery is mock-only.
+  transport_calls=[]
+  class Response:
+   status=200
+   def close(self):pass
+  disabled=NotificationSink(environ={"TG_ENABLED":"false"},transport=lambda *_args,**_kwargs:transport_calls.append(1));disabled.notify("safe");assert transport_calls==[]
+  enabled_env={"TG_ENABLED":"true","TG_BOT_TOKEN":"secret-token","TG_CHAT_ID":"secret-chat"}
+  enabled=NotificationSink(environ=enabled_env,transport=lambda request,timeout:(transport_calls.append((request.full_url,request.data,timeout)) or Response()));enabled.notify("safe");assert len(transport_calls)==1 and b"safe" in transport_calls[0][1] and b"secret-token" not in transport_calls[0][1]
+  try:NotificationSink(environ=enabled_env,transport=lambda *_args,**_kwargs:(_ for _ in ()).throw(OSError("synthetic_tg_failure"))).notify("safe");raise AssertionError("tg_failure_not_retryable")
+  except OSError:pass
   # Consecutive strikes, stable fingerprint, durable success and restart-safe budget.
   first=supervisor.run_once(shadow=False);fault=next(row for row in first["issues"] if row["code"]=="forward_checkpoint_stale");assert first["overall"]=="ALERT" and adapter.calls==[] and first["actions"][0]["action"]=="AWAIT_CONFIRMATION"
   second=supervisor.run_once(shadow=False);assert adapter.calls==["quantbot-forward-research.service"] and next(row for row in second["issues"] if row["code"]=="forward_checkpoint_stale")["fingerprint"]==fault["fingerprint"]
@@ -114,5 +144,8 @@ def main():
  print("NOTIFICATION_DURABLE_AT_LEAST_ONCE=PASS");print("REPAIR_WINDOW_TIME_FAIL_SAFE=PASS")
  print("STATE_CROSS_PROCESS_LOCKING=PASS");print("STATE_RETENTION_BOUNDED=PASS");print("REPAIR_WINDOW_EXPLICIT_REARM=PASS")
  print("ATOMIC_REPAIR_CLAIM=PASS");print("ATOMIC_NOTIFICATION_CLAIM=PASS");print("DURABLE_WRITE_FSYNC=PASS");print("RUNTIME_STATE_PATH_ISOLATED=PASS")
+ print("RECOVERY1_CONFIG_BINDING=PASS");print("FROZEN_DAY2_NOT_PRODUCTION_TARGET=PASS")
+ print("DEMO_NONTERMINAL_READ_ONLY_PROBE=PASS");print("DEMO_CONSUMPTION_RECOVERY_EPOCH_SEMANTICS=PASS");print("DEMO_CONSUMPTION_MALFORMED_FAIL_VISIBLE=PASS")
+ print("TG_DISABLED_NO_SEND=PASS");print("TG_ENABLED_MOCKED_SUCCESS=PASS");print("TG_MOCKED_FAILURE_RETRYABLE=PASS")
  print("OOS_READS=0");print("REAL_SYSTEMCTL_MUTATIONS=0");print("LIVE_ORDER_PLACEMENT=0")
 if __name__=="__main__":main()

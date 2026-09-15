@@ -14,6 +14,7 @@ def issue(code,category,severity,message,**details):
 
 class SystemProbe:
     """Production read-only probe.  Its recovery counterpart is injected separately."""
+    def __init__(self,root,config,clock=now):self.root=Path(root);self.config=config;self.clock=clock
     def service(self,unit):
         try:
             text=subprocess.check_output(["systemctl","show",unit,"--property=ActiveState,SubState,MainPID,NRestarts,WorkingDirectory","--no-page"],text=True,stderr=subprocess.DEVNULL)
@@ -27,15 +28,61 @@ class SystemProbe:
             memory["load"]=os.getloadavg()[0]
         except Exception:pass
         return {"disk_percent":100*(usage.total-usage.free)/usage.total,"inode_percent":None,**memory}
-    def demo_nonterminals(self):return []
-    def demo_consumption(self):return {"forward_new":False,"cursor_stuck":False,"age_seconds":0}
+    def _production_path(self,key,name):return self.root/self.config["production"][key][name]
+    def _timestamp(self,value):
+        try:
+            parsed=datetime.fromisoformat(str(value).replace("Z","+00:00"))
+            if parsed.tzinfo is None:raise ValueError("timezone_required")
+            return parsed.astimezone(timezone.utc)
+        except Exception as exc:raise RuntimeError("unattended_timestamp_invalid") from exc
+    def demo_nonterminals(self):
+        """Read current Demo ledger only; malformed evidence is fail-visible."""
+        ledger=self._production_path("demo","data_root")/"runtime"/"ledger.json"
+        checkpoint_path=self._production_path("demo","checkpoint")
+        try:checkpoint=json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        except Exception as exc:raise RuntimeError("demo_checkpoint_evidence_invalid") from exc
+        if not ledger.exists() and isinstance(checkpoint,dict) and checkpoint.get("orders_seen")==0:return []
+        try:rows=json.loads(ledger.read_text(encoding="utf-8"))
+        except Exception as exc:raise RuntimeError("demo_ledger_evidence_invalid") from exc
+        if not isinstance(rows,dict):raise RuntimeError("demo_ledger_evidence_invalid")
+        terminal={"FILLED","CANCELED","EXPIRED","REJECTED","REJECTED_POLICY","REJECTED_VENUE","FAILED_SAFE","SKIPPED"};result=[]
+        for signal_identity,row in rows.items():
+            if not isinstance(row,dict) or not isinstance(signal_identity,str) or not isinstance(row.get("state"),str):raise RuntimeError("demo_ledger_evidence_invalid")
+            if row["state"] in terminal:continue
+            events=row.get("events")
+            if not isinstance(events,list) or not events or not isinstance(events[-1],dict):raise RuntimeError("demo_ledger_evidence_invalid")
+            age=max(0.0,datetime.now(timezone.utc).timestamp()-self._timestamp(events[-1].get("at")).timestamp())
+            result.append({"intent_id":row.get("execution_intent_identity"),"state":row["state"],"age_seconds":age})
+        return result
+    def demo_consumption(self):
+        """Read-only lag probe respecting the recovery epoch's inherited cursor."""
+        checkpoint_path=self._production_path("demo","checkpoint")
+        signals=self._production_path("demo","forward_signals")
+        try:checkpoint=json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        except Exception as exc:raise RuntimeError("demo_consumption_checkpoint_invalid") from exc
+        if not isinstance(checkpoint,dict) or not isinstance(checkpoint.get("demo_epoch_start"),str) or not isinstance(checkpoint.get("last_signal_cursor"),str):raise RuntimeError("demo_consumption_checkpoint_invalid")
+        epoch_start=self._timestamp(checkpoint["demo_epoch_start"]);cursor=checkpoint["last_signal_cursor"];records=[]
+        try:
+            for path in sorted(signals.glob("*/*.jsonl")):
+                for offset,line in enumerate(path.read_text(encoding="utf-8").splitlines()):
+                    row=json.loads(line)
+                    if not isinstance(row,dict) or not isinstance(row.get("created_at"),str):raise RuntimeError("demo_consumption_signal_invalid")
+                    records.append((f"{path.relative_to(signals).as_posix()}:{offset}",self._timestamp(row["created_at"])))
+        except RuntimeError:raise
+        except Exception as exc:raise RuntimeError("demo_consumption_signal_invalid") from exc
+        markers=[marker for marker,_created in records]
+        if cursor not in markers:raise RuntimeError("demo_consumption_cursor_invalid")
+        index=markers.index(cursor);pending=[created for _marker,created in records[index+1:] if created>=epoch_start]
+        if not pending:return {"forward_new":False,"cursor_stuck":False,"age_seconds":0}
+        age=max(0.0,datetime.now(timezone.utc).timestamp()-min(pending).timestamp())
+        return {"forward_new":True,"cursor_stuck":True,"age_seconds":age}
 
 class NoopRecovery:
     def restart(self,unit):raise RuntimeError("recovery_adapter_not_configured")
 
 class UnattendedSupervisor:
     def __init__(self,root,config,probe=None,recovery_adapter=None,notifier=None,clock=now):
-        self.root=Path(root);self.config=config;self.probe=probe or SystemProbe();self.clock=clock
+        self.root=Path(root);self.config=config;self.probe=probe or SystemProbe(self.root,config);self.clock=clock
         self.state=StateStore(self.root/config["state_path"],config.get("state_retention"));self.recovery=RecoveryController(config,recovery_adapter or NoopRecovery());self.notifier=notifier or NotificationSink()
     def _json(self,name,issues,*,category="HISTORICAL",path=None):
         target=self.root/(path if path is not None else self.config["paths"][name])
@@ -46,6 +93,7 @@ class UnattendedSupervisor:
         plan=self._json("plan",issues);boundary=self._json("boundary",issues);manifest=self._json("manifest",issues)
         if plan and plan.get("research_plan_identity") is None:issues.append(issue("frozen_plan_drift","HISTORICAL",Status.BLOCKED,"frozen plan identity absent"))
         if boundary and boundary.get("status")!="LOCKED":issues.append(issue("research_boundary_drift","HISTORICAL",Status.BLOCKED,"research boundary is not locked"))
+        if manifest and not isinstance(manifest.get("manifest_version"),str):issues.append(issue("research_manifest_integrity_invalid","HISTORICAL",Status.BLOCKED,"research manifest version is absent"))
         return plan,boundary,manifest
     def _service(self,key,issues):
         unit=self.config["production"][key]["service"];row=self.probe.service(unit)
@@ -80,7 +128,10 @@ class UnattendedSupervisor:
         if checkpoint.get("fail_closed") is True:issues.append(issue("demo_fail_closed","DEMO",Status.BLOCKED,"Demo runtime is fail-closed"))
         reconciliation=checkpoint.get("reconciliation",{})
         if reconciliation.get("ambiguous") is True:issues.append(issue("demo_reconciliation_ambiguity","DEMO",Status.BLOCKED,"Demo reconciliation is ambiguous"))
-        for row in self.probe.demo_nonterminals():
+        try:nonterminals=self.probe.demo_nonterminals()
+        except Exception as exc:
+            issues.append(issue("demo_nonterminal_evidence_invalid","DEMO",Status.BLOCKED,"Demo ledger evidence is not reliable",error=type(exc).__name__));nonterminals=[]
+        for row in nonterminals:
             if row.get("age_seconds",0)>self.config["thresholds"].get("nonterminal_age_seconds",300):issues.append(issue("demo_nonterminal_orphan","DEMO",Status.ALERT,"same nonterminal lifecycle is persistent",intent_id=row.get("intent_id"),state=row.get("state")))
         return service,checkpoint
     def _cross_chain(self,plan,forward,demo,issues):
@@ -91,7 +142,9 @@ class UnattendedSupervisor:
         signals=self.root/self.config["production"]["demo"]["forward_signals"]
         if signals.exists() and demo.get("last_signal_cursor") is None:
             issues.append(issue("demo_cursor_uninitialized","CROSS_CHAIN",Status.WARN,"forward signals exist but Demo cursor is absent"))
-        lag=self.probe.demo_consumption()
+        try:lag=self.probe.demo_consumption()
+        except Exception as exc:
+            issues.append(issue("demo_consumption_evidence_invalid","CROSS_CHAIN",Status.BLOCKED,"Demo consumption evidence is not reliable",error=type(exc).__name__));return
         if lag.get("forward_new") and lag.get("cursor_stuck") and lag.get("age_seconds",0)>self.config["thresholds"]["demo_consumption_lag_seconds"]:issues.append(issue("demo_consumption_lag","CROSS_CHAIN",Status.ALERT,"Forward continues while Demo consumption is stuck",age_seconds=lag["age_seconds"]))
     def _host(self,issues):
         row=self.probe.host();limits=self.config["thresholds"]
